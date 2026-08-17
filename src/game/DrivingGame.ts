@@ -26,6 +26,7 @@ export class DrivingGame {
   private readonly laneMarkers: THREE.Mesh[] = [];
   private readonly scenery: THREE.Group[] = [];
   private readonly mountains: THREE.Group[] = [];
+  private readonly clouds: THREE.Sprite[] = [];
   private readonly sunVisual = new THREE.Group();
   private readonly roadGeometry: THREE.BufferGeometry;
   private readonly roadMesh: THREE.Mesh;
@@ -238,6 +239,26 @@ export class DrivingGame {
       mountain.userData.slot = index;
       this.mountains.push(mountain);
       this.scene.add(mountain);
+    }
+
+    const cloudTexture = this.createCloudTexture();
+    for (let index = 0; index < 11; index += 1) {
+      const cloud = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: cloudTexture,
+        color: index % 3 === 0 ? 0xe8f2ef : 0xffffff,
+        transparent: true,
+        opacity: 0.58 + (index % 4) * 0.07,
+        depthWrite: false,
+        fog: false,
+      }));
+      const width = 54 + (index % 5) * 13;
+      cloud.scale.set(width, width * (0.3 + (index % 2) * 0.04), 1);
+      cloud.userData.baseX = -250 + index * 49;
+      cloud.userData.height = 58 + (index % 4) * 15;
+      cloud.userData.distanceOffset = 155 + (index % 3) * 68;
+      cloud.userData.speed = (index % 2 === 0 ? 1 : -1) * (1.3 + (index % 4) * 0.42);
+      this.clouds.push(cloud);
+      this.scene.add(cloud);
     }
 
     let ongoingSpawnCursor = 45;
@@ -622,6 +643,34 @@ export class DrivingGame {
     return group;
   }
 
+  private createCloudTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 192;
+    const context = canvas.getContext('2d');
+    if (context) {
+      const gradient = context.createLinearGradient(0, 36, 0, 170);
+      gradient.addColorStop(0, 'rgba(255,255,255,0.96)');
+      gradient.addColorStop(0.7, 'rgba(236,244,244,0.86)');
+      gradient.addColorStop(1, 'rgba(196,216,220,0.12)');
+      context.fillStyle = gradient;
+      context.filter = 'blur(3px)';
+      context.beginPath();
+      context.ellipse(116, 124, 90, 40, -0.08, 0, Math.PI * 2);
+      context.ellipse(208, 96, 100, 66, 0.03, 0, Math.PI * 2);
+      context.ellipse(302, 82, 82, 72, -0.05, 0, Math.PI * 2);
+      context.ellipse(390, 119, 96, 44, 0.08, 0, Math.PI * 2);
+      context.ellipse(260, 133, 198, 44, 0, 0, Math.PI * 2);
+      context.fill();
+      context.filter = 'none';
+    }
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    return texture;
+  }
+
   private createMountainGeometry(radius: number, height: number, seed: number): THREE.ConeGeometry {
     const geometry = new THREE.ConeGeometry(radius, height, 8, 3);
     const position = geometry.getAttribute('position') as THREE.BufferAttribute;
@@ -833,6 +882,18 @@ export class DrivingGame {
 
     const sunDistance = this.distance + 350;
     this.sunVisual.position.set(roadCenter(sunDistance) - 92, 102, -sunDistance);
+
+    const cloudTime = performance.now() * 0.001;
+    for (const cloud of this.clouds) {
+      const cloudDistance = this.distance + (cloud.userData.distanceOffset as number);
+      const drift = (cloud.userData.baseX as number) + cloudTime * (cloud.userData.speed as number);
+      const wrappedX = ((drift + 270) % 540 + 540) % 540 - 270;
+      cloud.position.set(
+        roadCenter(cloudDistance) + wrappedX,
+        cloud.userData.height as number,
+        -cloudDistance,
+      );
+    }
 
     this.ground.position.set(centerX, -0.09, -this.distance - 180);
 
