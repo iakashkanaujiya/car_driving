@@ -94,19 +94,30 @@ app.innerHTML = `
             </select>
           </label>
         </div>
-        <div id="asset-download" class="asset-download" data-state="checking" role="status" aria-live="polite">
-          <div class="asset-download-head">
-            <span id="asset-download-label">CHECKING CAR ASSETS</span>
-            <b id="asset-download-percent">0%</b>
-          </div>
-          <div class="asset-download-track"><i id="asset-download-fill"></i></div>
-          <small id="asset-download-detail">Real-car files are saved in this browser after the first download.</small>
-        </div>
         <div class="modal-actions">
           <button id="camera-start" class="primary-button"><span>START WITH HANDS</span><i>→</i></button>
           <button id="keyboard-start" class="secondary-button">USE KEYBOARD INSTEAD <small>← A / D →</small></button>
         </div>
         <p class="privacy"><i>●</i> Camera processing stays on this device. No video is saved or uploaded.</p>
+      </div>
+    </section>
+
+    <section id="asset-gate" class="asset-gate" role="dialog" aria-modal="true" aria-labelledby="asset-gate-title">
+      <div class="modal compact-modal asset-gate-modal">
+        <div class="eyebrow"><span></span> FIRST-TIME SETUP</div>
+        <h2 id="asset-gate-title">PREPARING<br>YOUR GARAGE.</h2>
+        <p id="asset-gate-message">Keep this page open while the real-car models are saved securely in your browser.</p>
+        <div id="asset-loader" class="asset-loader" aria-hidden="true">
+          <span id="asset-download-percent">0%</span>
+        </div>
+        <div id="asset-download" class="asset-download" data-state="checking" role="status" aria-live="polite">
+          <div class="asset-download-head">
+            <span id="asset-download-label">CHECKING CAR ASSETS</span>
+          </div>
+          <div class="asset-download-track"><i id="asset-download-fill"></i></div>
+          <small id="asset-download-detail">Checking browser storage...</small>
+        </div>
+        <button id="asset-download-retry" class="secondary-button is-hidden" type="button">RETRY DOWNLOAD</button>
       </div>
     </section>
 
@@ -311,15 +322,50 @@ const game = new DrivingGame(viewport, getControl, (snapshot) => {
   engineSound.update(snapshot.speedKph);
 }, () => showCrash(), () => engineSound.hornThreeTimes());
 
-const realCarAssetsReady = cacheRealCarAssets(updateCarAssetProgress);
+let realCarAssetsReady = installRealCarAssets();
+
+async function installRealCarAssets(): Promise<boolean> {
+  const gate = byId<HTMLElement>('asset-gate');
+  const retryButton = byId<HTMLButtonElement>('asset-download-retry');
+  setGameLocked(true);
+  gate.classList.remove('is-hidden');
+  gate.dataset.state = 'loading';
+  retryButton.classList.add('is-hidden');
+
+  const cached = await cacheRealCarAssets(updateCarAssetProgress);
+  if (cached) {
+    gate.dataset.state = 'ready';
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 450));
+    gate.classList.add('is-hidden');
+    setGameLocked(false);
+  } else {
+    gate.dataset.state = 'error';
+    retryButton.classList.remove('is-hidden');
+  }
+  return cached;
+}
+
+function setGameLocked(locked: boolean): void {
+  const shell = document.querySelector<HTMLElement>('.game-shell');
+  if (!shell) return;
+  for (const child of shell.children) {
+    if (child instanceof HTMLElement && child.id !== 'asset-gate') {
+      child.inert = locked;
+    }
+  }
+}
 
 function updateCarAssetProgress(progress: CarAssetCacheProgress): void {
+  const gate = document.getElementById('asset-gate');
+  const title = document.getElementById('asset-gate-title');
+  const messageNode = document.getElementById('asset-gate-message');
+  const loader = document.getElementById('asset-loader');
   const panel = document.getElementById('asset-download');
   const label = document.getElementById('asset-download-label');
   const percentNode = document.getElementById('asset-download-percent');
   const fill = document.getElementById('asset-download-fill');
   const detail = document.getElementById('asset-download-detail');
-  if (!panel || !label || !percentNode || !fill || !detail) return;
+  if (!gate || !title || !messageNode || !loader || !panel || !label || !percentNode || !fill || !detail) return;
 
   const checkingRatio = progress.totalFiles > 0
     ? progress.checkedFiles / progress.totalFiles
@@ -333,6 +379,7 @@ function updateCarAssetProgress(progress: CarAssetCacheProgress): void {
     : Math.max(0, Math.min(99, Math.round(ratio * 100)));
 
   panel.dataset.state = progress.phase;
+  loader.style.setProperty('--download-progress', `${percent * 3.6}deg`);
   percentNode.textContent = `${percent}%`;
   fill.style.width = `${percent}%`;
 
@@ -345,13 +392,17 @@ function updateCarAssetProgress(progress: CarAssetCacheProgress): void {
     label.textContent = 'DOWNLOADING REAL-CAR ASSETS';
     detail.textContent = `${formatBytes(progress.loadedBytes)} / ${formatBytes(progress.totalBytes)} saved · ${progress.completedFiles} / ${progress.totalFiles} files`;
   } else if (progress.phase === 'ready') {
+    title.innerHTML = 'GARAGE<br>READY.';
+    messageNode.textContent = 'All real-car assets are stored. Opening the game...';
     label.textContent = 'REAL-CAR ASSETS READY';
     detail.textContent = `${formatBytes(progress.totalBytes)} saved in browser storage for future visits.`;
   } else {
-    label.textContent = 'BROWSER STORAGE UNAVAILABLE';
-    percentNode.textContent = 'ONLINE';
-    fill.style.width = '100%';
-    detail.textContent = `${progress.message ?? 'Persistent caching is unsupported.'} Cars will load normally from the network.`;
+    title.innerHTML = 'DOWNLOAD<br>INTERRUPTED.';
+    messageNode.textContent = 'The game stays locked until every required asset is safely downloaded.';
+    label.textContent = 'ASSET DOWNLOAD FAILED';
+    percentNode.textContent = '!';
+    loader.style.setProperty('--download-progress', '360deg');
+    detail.textContent = progress.message ?? 'Check your connection and available browser storage, then retry.';
   }
 }
 
@@ -359,6 +410,10 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
+
+byId('asset-download-retry').addEventListener('click', () => {
+  realCarAssetsReady = installRealCarAssets();
+});
 
 function selectCarStyle(style: CarStyle): void {
   selectedCarStyle = style;

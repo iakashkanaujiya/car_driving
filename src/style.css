@@ -174,6 +174,21 @@ h2 { font-size: clamp(50px, 7vw, 78px); color: var(--acid); }
 .asset-download[data-state='ready'] .asset-download-track i { background: var(--mint); box-shadow: 0 0 10px rgba(88,255,194,.58); }
 .asset-download[data-state='error'], .asset-download[data-state='unsupported'] { border-color: rgba(255,204,77,.34); }
 .asset-download[data-state='error'] .asset-download-track i, .asset-download[data-state='unsupported'] .asset-download-track i { background: #ffcc4d; box-shadow: none; }
+.asset-gate { position: absolute; z-index: 100; inset: 0; display: grid; place-items: center; padding: 18px; overflow: auto; background: radial-gradient(circle at 50% 46%, rgba(23,34,41,.94), rgba(3,6,8,.985)); backdrop-filter: blur(18px); transition: opacity .35s ease, visibility .35s ease; }
+.asset-gate-modal { max-width: 560px; }
+.asset-gate-modal h2 { font-size: clamp(46px, 8vw, 72px); }
+.asset-gate-modal > p { max-width: 460px; }
+.asset-loader { --download-progress: 0deg; width: 122px; height: 122px; margin: 20px auto; display: grid; place-items: center; position: relative; border-radius: 50%; background: conic-gradient(var(--acid) var(--download-progress), rgba(255,255,255,.09) 0); box-shadow: 0 0 35px rgba(233,255,66,.08); transition: background .15s linear; }
+.asset-loader::after { content: ''; position: absolute; inset: 7px; border-radius: 50%; background: #0b1116; box-shadow: inset 0 0 22px rgba(0,0,0,.62); }
+.asset-loader span { z-index: 1; color: var(--acid); font: 500 20px 'DM Mono', monospace; }
+.asset-gate .asset-download { margin: 0 0 18px; padding: 11px 13px; }
+.asset-gate .asset-download-head { justify-content: center; }
+.asset-gate .asset-download small { text-align: center; white-space: normal; }
+.asset-gate .secondary-button { min-width: 190px; }
+.asset-gate[data-state='ready'] .asset-loader { background: var(--mint); box-shadow: 0 0 40px rgba(88,255,194,.16); }
+.asset-gate[data-state='ready'] .asset-loader span { color: var(--mint); }
+.asset-gate[data-state='error'] .asset-loader { background: #ff655d; box-shadow: 0 0 40px rgba(255,101,93,.14); }
+.asset-gate[data-state='error'] .asset-loader span { color: #ff655d; }
 .modal-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
 .primary-button, .secondary-button { height: 47px; border: 0; cursor: pointer; letter-spacing: .08em; font-weight: 800; transition: transform .18s, filter .18s, border-color .18s; }
 .primary-button { min-width: 236px; background: var(--acid); color: #080b0d; display: inline-flex; align-items: center; justify-content: space-between; padding: 0 8px 0 19px; }
@@ -295,6 +310,7 @@ h2 { font-size: clamp(50px, 7vw, 78px); color: var(--acid); }
   .instruction-row { margin-block: 11px; }
   .privacy { display: none; }
   .asset-download small { display: none; }
+  .asset-gate .asset-download small { display: block; }
   .run-stats { top: 60px; left: 18px; }
   .assist { top: 60px; }
   .speed-panel { bottom: 16px; }
@@ -312,6 +328,10 @@ h2 { font-size: clamp(50px, 7vw, 78px); color: var(--acid); }
   .real-car-options { margin-bottom: 7px; }
   .modal-actions { flex-wrap: nowrap; }
   .primary-button, .secondary-button { height: 38px; }
+  .asset-gate-modal { padding-block: 17px; }
+  .asset-gate-modal h2 { font-size: 40px; }
+  .asset-gate-modal > p { margin-block: 8px; }
+  .asset-loader { width: 86px; height: 86px; margin-block: 9px; }
 }
 
 @media (min-width: 761px) and (max-width: 1100px) {

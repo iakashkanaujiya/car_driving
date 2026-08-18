@@ -36,7 +36,7 @@ Real-car mode lets you select any of these vehicles as the driver car. Traffic r
 
 Cartoon-car mode uses the game's lightweight procedural vehicle instead of downloaded GLTF models. Real traffic can be configured for 4, 8, 12, or 16 cars.
 
-On the first visit, the game downloads approximately 168.5 MB of real-car models and textures while showing progress. These files are stored in the browser cache and reused on later visits. If persistent browser storage is unavailable, the models fall back to normal network loading.
+On the first visit, a setup popup keeps the game locked while it downloads approximately 168.5 MB of real-car models and textures with live progress. These files are stored in the browser cache and reused on later visits. Interrupted downloads can be retried and resume from files that are already cached.
 
 ## Controls
 
