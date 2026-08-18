@@ -1,6 +1,6 @@
 {
-  "version": "15455e70fe39bb32",
-  "totalBytes": 176702767,
+  "version": "365bda651e3e8d3b",
+  "totalBytes": 72864780,
   "assets": [
     {
       "path": "models/1970_Pontiac/scene.bin",
@@ -8,7 +8,7 @@
     },
     {
       "path": "models/1970_Pontiac/scene.gltf",
-      "size": 216470
+      "size": 228723
     },
     {
       "path": "models/1970_Pontiac/textures/decals_baseColor.jpeg",
@@ -32,7 +32,7 @@
     },
     {
       "path": "models/1970_chevrolet_camaro/scene.gltf",
-      "size": 38289
+      "size": 40292
     },
     {
       "path": "models/1970_chevrolet_camaro/textures/Meshpart15Mtl_baseColor.png",
@@ -92,7 +92,7 @@
     },
     {
       "path": "models/1976_volkswagen_golf/scene.gltf",
-      "size": 268625
+      "size": 281538
     },
     {
       "path": "models/1976_volkswagen_golf/textures/disk_baseColor.png",
@@ -164,7 +164,7 @@
     },
     {
       "path": "models/2021_ford_bronco_2-door/scene.gltf",
-      "size": 310719
+      "size": 325484
     },
     {
       "path": "models/2021_ford_bronco_2-door/textures/BRBumperFront_XSG11_baseColor.png",
@@ -243,172 +243,12 @@
       "size": 31593
     },
     {
-      "path": "models/2021_tata_safari/scene.bin",
-      "size": 34599920
-    },
-    {
-      "path": "models/2021_tata_safari/scene.gltf",
-      "size": 338110
-    },
-    {
-      "path": "models/2021_tata_safari/textures/chassis.1_baseColor.png",
-      "size": 88
-    },
-    {
-      "path": "models/2021_tata_safari/textures/chassis.2_baseColor.png",
-      "size": 423849
-    },
-    {
-      "path": "models/2021_tata_safari/textures/chassis.3_baseColor.png",
-      "size": 310488
-    },
-    {
-      "path": "models/2021_tata_safari/textures/chassis.4_baseColor.png",
-      "size": 98
-    },
-    {
-      "path": "models/2021_tata_safari/textures/chassis.5_baseColor.png",
-      "size": 4757596
-    },
-    {
-      "path": "models/2021_tata_safari/textures/dashboard.7_baseColor.png",
-      "size": 445408
-    },
-    {
-      "path": "models/2021_tata_safari/textures/glass_metallicRoughness.png",
-      "size": 84
-    },
-    {
-      "path": "models/2021_tata_safari/textures/right_rear_light_baseColor.png",
-      "size": 1020575
-    },
-    {
-      "path": "models/2021_tata_safari/textures/safari_b_03.2_baseColor.png",
-      "size": 101
-    },
-    {
-      "path": "models/2021_tata_safari/textures/safari_b_07.0_baseColor.png",
-      "size": 621818
-    },
-    {
-      "path": "models/2021_tata_safari/textures/safari_b_07.2_baseColor.png",
-      "size": 7049
-    },
-    {
-      "path": "models/2021_tata_safari/textures/safari_b_09.0_baseColor.png",
-      "size": 439030
-    },
-    {
-      "path": "models/2021_tata_safari/textures/safari_b_10.6_baseColor.png",
-      "size": 154541
-    },
-    {
-      "path": "models/2021_tata_safari/textures/safari_b_11.4_baseColor.png",
-      "size": 222
-    },
-    {
-      "path": "models/2021_tata_safari/textures/safari_b_12.2_baseColor.png",
-      "size": 2630121
-    },
-    {
-      "path": "models/2021_tata_safari/textures/safari_boot_grills.0_baseColor.png",
-      "size": 126
-    },
-    {
-      "path": "models/2021_tata_safari/textures/wheel_rf.5_baseColor.png",
-      "size": 225051
-    },
-    {
-      "path": "models/2022_mahindra_scorpio-n/scene.bin",
-      "size": 51746460
-    },
-    {
-      "path": "models/2022_mahindra_scorpio-n/scene.gltf",
-      "size": 318513
-    },
-    {
-      "path": "models/2022_mahindra_scorpio-n/textures/boot.5_baseColor.png",
-      "size": 126
-    },
-    {
-      "path": "models/2022_mahindra_scorpio-n/textures/headlight_f.2_baseColor.png",
-      "size": 87
-    },
-    {
-      "path": "models/2022_mahindra_scorpio-n/textures/headlight_f.3_baseColor.png",
-      "size": 513
-    },
-    {
-      "path": "models/2022_mahindra_scorpio-n/textures/indicator_lf_baseColor.png",
-      "size": 1020139
-    },
-    {
-      "path": "models/2022_mahindra_scorpio-n/textures/movsteer_1.0.3_baseColor.png",
-      "size": 1438212
-    },
-    {
-      "path": "models/2022_mahindra_scorpio-n/textures/movsteer_1.0.4_baseColor.png",
-      "size": 58523
-    },
-    {
-      "path": "models/2022_mahindra_scorpio-n/textures/movsteer_1.0.5_baseColor.png",
-      "size": 581051
-    },
-    {
-      "path": "models/2022_mahindra_scorpio-n/textures/scorpio_n_ext_1.2_baseColor.png",
-      "size": 42148
-    },
-    {
-      "path": "models/2022_mahindra_scorpio-n/textures/scorpio_n_int_body.1_baseColor.png",
-      "size": 221947
-    },
-    {
-      "path": "models/2022_mahindra_scorpio-n/textures/scorpio_n_int_body.2_baseColor.png",
-      "size": 50403
-    },
-    {
-      "path": "models/2022_mahindra_scorpio-n/textures/scorpio_n_int_dashboard.6_baseColor.png",
-      "size": 2023120
-    },
-    {
-      "path": "models/2022_mahindra_scorpio-n/textures/scorpio_n_int_roof.4_baseColor.png",
-      "size": 429054
-    },
-    {
-      "path": "models/2022_mahindra_scorpio-n/textures/scorpio_n_int_seats-stiches.0_baseColor.png",
-      "size": 15335
-    },
-    {
-      "path": "models/2022_mahindra_scorpio-n/textures/scorpio_n_int_sidewall.7_baseColor.png",
-      "size": 222
-    },
-    {
-      "path": "models/2022_mahindra_scorpio-n/textures/sunroof_m.1_baseColor.png",
-      "size": 222
-    },
-    {
-      "path": "models/2022_mahindra_scorpio-n/textures/wheel_rf.0_baseColor.png",
-      "size": 101
-    },
-    {
-      "path": "models/2022_mahindra_scorpio-n/textures/wheel_rf.1_baseColor.png",
-      "size": 83
-    },
-    {
-      "path": "models/2022_mahindra_scorpio-n/textures/wheel_rf.2_baseColor.png",
-      "size": 88
-    },
-    {
-      "path": "models/2022_mahindra_scorpio-n/textures/wheel_rf.3_baseColor.png",
-      "size": 132
-    },
-    {
       "path": "models/creata/scene.bin",
       "size": 10332444
     },
     {
       "path": "models/creata/scene.gltf",
-      "size": 636101
+      "size": 669468
     },
     {
       "path": "models/creata/textures/Brown_normal.jpeg",
@@ -512,7 +352,7 @@
     },
     {
       "path": "models/tata_tiago/scene.gltf",
-      "size": 140641
+      "size": 148107
     },
     {
       "path": "models/tata_tiago/textures/chassis.1_baseColor.png",

@@ -81,7 +81,7 @@ app.innerHTML = `
           <label>
             <span>DRIVER CAR</span>
             <select id="driver-car" aria-label="Choose driver car">
-              ${CAR_MODEL_OPTIONS.map(({ id, label }) => `<option value="${id}"${id === 'safari' ? ' selected' : ''}>${label}</option>`).join('')}
+              ${CAR_MODEL_OPTIONS.map(({ id, label }) => `<option value="${id}"${id === 'bronco' ? ' selected' : ''}>${label}</option>`).join('')}
             </select>
           </label>
           <label>
@@ -149,7 +149,7 @@ const keyboard = new KeyboardController();
 let lastSnapshot: GameSnapshot | null = null;
 let soundEnabled = true;
 let selectedCarStyle: CarStyle = 'real';
-let selectedDriverCar: CarModelId = 'safari';
+let selectedDriverCar: CarModelId = 'bronco';
 let selectedTrafficCount = 16;
 
 class EngineSound {

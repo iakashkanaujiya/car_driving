@@ -246,7 +246,7 @@ export class DrivingGame {
 
   async setCarStyle(
     style: CarStyle,
-    driverCar: CarModelId = "safari",
+    driverCar: CarModelId = "bronco",
     trafficCount: number = GAME.trafficCount,
   ): Promise<void> {
     this.carStyle = style;

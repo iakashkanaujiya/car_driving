@@ -6,15 +6,11 @@ export type CarModelId =
   | "camaro"
   | "pontiac"
   | "golf"
-  | "scorpio"
   | "creata"
   | "tiago"
-  | "bronco"
-  | "safari";
+  | "bronco";
 
 export const CAR_MODEL_OPTIONS: readonly { id: CarModelId; label: string }[] = [
-  { id: "safari", label: "Tata Safari" },
-  { id: "scorpio", label: "Mahindra Scorpio-N" },
   { id: "bronco", label: "Ford Bronco" },
   { id: "creata", label: "Hyundai Creta" },
   { id: "tiago", label: "Tata Tiago" },
@@ -90,13 +86,6 @@ const MODEL_SPECS: readonly CarModelSpec[] = [
     paintMaterials: ["vM_CarPaint_Max1"],
   },
   {
-    id: "scorpio",
-    path: "models/2022_mahindra_scorpio-n/scene.gltf",
-    rotationY: Math.PI * 2,
-    displayScale: 2.1,
-    paintMaterials: ["primary"],
-  },
-  {
     id: "creata",
     path: "models/creata/scene.gltf",
     rotationY: Math.PI,
@@ -116,13 +105,6 @@ const MODEL_SPECS: readonly CarModelSpec[] = [
     rotationY: Math.PI,
     displayScale: 1.92,
     paintMaterials: ["BRDoors_XSG1", "BRTrunk_XSG1"],
-  },
-  {
-    id: "safari",
-    path: "models/2021_tata_safari/scene.gltf",
-    rotationY: Math.PI * 2,
-    displayScale: 2.0,
-    paintMaterials: ["primary"],
   },
 ];
 
@@ -619,14 +601,8 @@ export class VehicleAssets {
     if (modelId === "golf") {
       return exact(["group1", "group2", "group3", "group4"], ["group1", "group2"]);
     }
-    if (modelId === "safari" || modelId === "tiago") {
+    if (modelId === "tiago") {
       return exact(["wheel_fr", "wheel_rr", "wheel_rl", "wheel_fl"], ["wheel_fr", "wheel_fl"]);
-    }
-    if (modelId === "scorpio") {
-      return exact(
-        ["wheel_rf", "wheel_rf.001", "wheel_rf.002", "wheel_rf.003"],
-        ["wheel_rf", "wheel_rf.003"],
-      );
     }
     if (modelId === "creata") {
       return ["FL", "FR", "RL", "RR"].map((corner) => {

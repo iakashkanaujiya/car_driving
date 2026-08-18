@@ -25,9 +25,7 @@ Real-car mode lets you select any of these vehicles as the driver car. Traffic r
 
 | Vehicle | Driver car | Traffic car |
 | --- | :---: | :---: |
-| 2021 Tata Safari (default) | Yes | Yes |
-| 2022 Mahindra Scorpio-N | Yes | Yes |
-| 2021 Ford Bronco 2-door | Yes | Yes |
+| 2021 Ford Bronco 2-door (default) | Yes | Yes |
 | 2023 Hyundai Creta | Yes | Yes |
 | Tata Tiago | Yes | Yes |
 | 1970 Chevrolet Camaro | Yes | Yes |
@@ -36,7 +34,7 @@ Real-car mode lets you select any of these vehicles as the driver car. Traffic r
 
 Cartoon-car mode uses the game's lightweight procedural vehicle instead of downloaded GLTF models. Real traffic can be configured for 4, 8, 12, or 16 cars.
 
-On the first visit, a setup popup keeps the game locked while it downloads approximately 168.5 MB of real-car models and textures with live progress. These files are stored in the browser cache and reused on later visits. Interrupted downloads can be retried and resume from files that are already cached.
+On the first visit, a setup popup keeps the game locked while it downloads approximately 69.5 MB of real-car models and textures with live progress. These files are stored in the browser cache and reused on later visits. Interrupted downloads can be retried and resume from files that are already cached.
 
 ## Controls
 
@@ -57,8 +55,6 @@ The MediaPipe runtime and hand model are copied into `public/mediapipe` during `
 
 ## 3D car credits
 
-- [2021 Tata Safari](https://sketchfab.com/3d-models/2021-tata-safari-3051714dba91468f9d3f4f15305c2541) by [BHP3D](https://sketchfab.com/BHP3D), licensed under [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/).
-- [2022 Mahindra Scorpio-N](https://sketchfab.com/3d-models/2022-mahindra-scorpio-n-538b10f2860f44e694dc3e9d3e223bf8) by [BHP3D](https://sketchfab.com/BHP3D), licensed under [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/).
 - [2021 Ford Bronco 2-door](https://sketchfab.com/3d-models/2021-ford-bronco-2-door-98b8590146a8447da52a1fefce064f0b) by [Ddiaz Design](https://sketchfab.com/ddiaz-design), licensed under [CC BY-NC-SA 4.0](http://creativecommons.org/licenses/by-nc-sa/4.0/).
 - [2023 Hyundai Creta](https://sketchfab.com/3d-models/2023-hyundai-creta-3cc28d4cf5574383b7dc030638ee6199) by [Ddiaz Design](https://sketchfab.com/ddiaz-design), licensed under [CC BY-NC 4.0](http://creativecommons.org/licenses/by-nc/4.0/).
 - [Tata Tiago](https://sketchfab.com/3d-models/tata-tiago-7ae10b287a184453b19a83ed5b37c007) by [BHP3D](https://sketchfab.com/BHP3D), licensed under [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/).

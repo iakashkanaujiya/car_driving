@@ -9,11 +9,9 @@ const modelFolders = [
   '1970_chevrolet_camaro',
   '1970_Pontiac',
   '1976_volkswagen_golf',
-  '2022_mahindra_scorpio-n',
   'creata',
   'tata_tiago',
   '2021_ford_bronco_2-door',
-  '2021_tata_safari',
 ];
 
 const assetPaths = new Set();
