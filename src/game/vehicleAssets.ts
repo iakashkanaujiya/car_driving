@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
-type CarModelId =
+export type CarModelId =
   | "camaro"
   | "pontiac"
   | "golf"
@@ -11,6 +11,17 @@ type CarModelId =
   | "tiago"
   | "bronco"
   | "safari";
+
+export const CAR_MODEL_OPTIONS: readonly { id: CarModelId; label: string }[] = [
+  { id: "safari", label: "Tata Safari" },
+  { id: "scorpio", label: "Mahindra Scorpio-N" },
+  { id: "bronco", label: "Ford Bronco" },
+  { id: "creata", label: "Hyundai Creta" },
+  { id: "tiago", label: "Tata Tiago" },
+  { id: "camaro", label: "Chevrolet Camaro" },
+  { id: "pontiac", label: "Pontiac" },
+  { id: "golf", label: "Volkswagen Golf" },
+];
 
 interface CarModelSpec {
   id: CarModelId;
@@ -21,13 +32,37 @@ interface CarModelSpec {
   removePaintTexture?: boolean;
 }
 
+interface AnimatedWheel {
+  steeringPivot: THREE.Object3D;
+  roller: THREE.Object3D;
+  radius: number;
+  front: boolean;
+  rollAxis: "x" | "y";
+  baseRoll: number;
+  baseSteering: number;
+  rollAngle: number;
+}
+
+interface WheelAssembly {
+  parts: THREE.Object3D[];
+  front: boolean;
+}
+
 export interface LoadedCarModel {
   id: CarModelId;
   trafficPrototype: THREE.Group;
   playerPrototype?: THREE.Group;
 }
 
-const CAR_COLORS = [0xff5a5f, 0x65d1ff, 0xffcc4d, 0xa98cff, 0xf4f2e9, 0x50d890];
+const CAR_COLORS = [
+  0xf2f1ea, // Pearl white
+  0xb8bec4, // Metallic silver
+  0x353a40, // Graphite grey
+  0x183f68, // Midnight blue
+  0x7a1f2b, // Burgundy red
+  0x254c3b, // Forest green
+  0x9a5131, // Copper bronze
+];
 const DRIVER_CAR_COLOR = 0xf5f7f4;
 const REAL_CAR_SCALE = 2;
 const CARTOON_CAR_SCALE = 1.55;
@@ -197,6 +232,7 @@ export class VehicleAssets {
     const tireGeometry = new THREE.CylinderGeometry(0.44, 0.44, 0.32, 20);
     const rimGeometry = new THREE.CylinderGeometry(0.265, 0.265, 0.345, 18);
     const frontWheels: THREE.Group[] = [];
+    const animatedWheels: AnimatedWheel[] = [];
     for (const x of [-1.04, 1.04]) {
       for (const z of [-1.43, 1.39]) {
         const steeringPivot = new THREE.Group();
@@ -227,10 +263,22 @@ export class VehicleAssets {
         );
         steeringPivot.add(wheelAssembly);
         group.add(steeringPivot);
-        if (z < 0) frontWheels.push(steeringPivot);
+        const front = z < 0;
+        if (front) frontWheels.push(steeringPivot);
+        animatedWheels.push({
+          steeringPivot,
+          roller: wheelAssembly,
+          radius: 0.44 * CARTOON_CAR_SCALE,
+          front,
+          rollAxis: "y",
+          baseRoll: wheelAssembly.rotation.y,
+          baseSteering: steeringPivot.rotation.y,
+          rollAngle: 0,
+        });
       }
     }
     group.userData.frontWheels = frontWheels;
+    group.userData.animatedWheels = animatedWheels;
 
     const frontBumper = new THREE.Mesh(
       new THREE.BoxGeometry(1.78, 0.2, 0.18),
@@ -344,7 +392,7 @@ export class VehicleAssets {
     return group;
   }
 
-  async loadRealModels(): Promise<LoadedCarModel[]> {
+  async loadRealModels(playerModelId: CarModelId): Promise<LoadedCarModel[]> {
     const loader = new GLTFLoader();
     const loadedModels = await Promise.all(
       MODEL_SPECS.map(async (spec): Promise<LoadedCarModel | null> => {
@@ -358,10 +406,16 @@ export class VehicleAssets {
               gltf.scene,
               spec.rotationY,
               true,
+              spec.id,
             ),
             playerPrototype:
-              spec.id === "scorpio"
-                ? this.prepareCarModel(gltf.scene, spec.rotationY, false)
+              spec.id === playerModelId
+                ? this.prepareCarModel(
+                    gltf.scene,
+                    spec.rotationY,
+                    false,
+                    spec.id,
+                  )
                 : undefined,
           };
         } catch (error) {
@@ -409,18 +463,30 @@ export class VehicleAssets {
     car.scale.setScalar(modelSpec?.displayScale ?? REAL_CAR_SCALE);
     car.userData.modelId = modelId;
     car.userData.frontWheels = [];
+    car.userData.animatedWheels = [];
     car.userData.tailMaterial = undefined;
     car.userData.brakeGlow = undefined;
     car.userData.highBrakeOnly = false;
 
-    if (player && modelId === "golf") {
-      const frontWheels = ["group1", "group2"]
-        .map((name) => instance.getObjectByName(name))
-        .filter((wheel): wheel is THREE.Object3D => wheel !== undefined);
-      for (const wheel of frontWheels)
-        wheel.userData.baseSteeringY = wheel.rotation.y;
-      car.userData.frontWheels = frontWheels;
-    }
+    const animatedWheels: AnimatedWheel[] = [];
+    instance.traverse((object) => {
+      if (object.userData.isWheelPivot !== true) return;
+      const radius = (object.userData.wheelRadius as number) * car.scale.x;
+      animatedWheels.push({
+        steeringPivot: object,
+        roller: object,
+        radius: Math.max(0.1, radius),
+        front: object.userData.frontWheel === true,
+        rollAxis: "x",
+        baseRoll: object.rotation.x,
+        baseSteering: object.rotation.y,
+        rollAngle: 0,
+      });
+    });
+    car.userData.animatedWheels = animatedWheels;
+    car.userData.frontWheels = animatedWheels
+      .filter((wheel) => wheel.front)
+      .map((wheel) => wheel.steeringPivot);
 
     if (player) this.addHighMountedBrakeLight(car, modelBounds);
   }
@@ -443,10 +509,34 @@ export class VehicleAssets {
     if (glow) glow.intensity = braking ? 4.2 : 0;
   }
 
+  updateWheelAnimation(
+    car: THREE.Group,
+    distanceMoved: number,
+    steering: number,
+    dt: number,
+  ): void {
+    const wheels = car.userData.animatedWheels as AnimatedWheel[] | undefined;
+    if (!wheels) return;
+
+    for (const wheel of wheels) {
+      wheel.rollAngle -= distanceMoved / wheel.radius;
+      wheel.roller.rotation[wheel.rollAxis] = wheel.baseRoll + wheel.rollAngle;
+      if (wheel.front) {
+        wheel.steeringPivot.rotation.y = THREE.MathUtils.damp(
+          wheel.steeringPivot.rotation.y,
+          wheel.baseSteering - steering * 0.48,
+          14,
+          dt,
+        );
+      }
+    }
+  }
+
   private prepareCarModel(
     source: THREE.Group,
     rotationY: number,
     optimize: boolean,
+    modelId: CarModelId,
   ): THREE.Group {
     const content = source.clone(true);
     const orientation = new THREE.Group();
@@ -454,9 +544,15 @@ export class VehicleAssets {
     orientation.add(content);
     orientation.updateMatrixWorld(true);
 
+    const wheelPivots = this.extractWheelPivots(orientation, modelId);
+
     const modelRoot = optimize
       ? this.mergeStaticCarMeshes(orientation)
       : orientation;
+    for (const pivot of wheelPivots) {
+      if (optimize) modelRoot.add(pivot);
+      else orientation.attach(pivot);
+    }
     const prototype = new THREE.Group();
     prototype.add(modelRoot);
     prototype.updateMatrixWorld(true);
@@ -479,7 +575,85 @@ export class VehicleAssets {
       object.castShadow = true;
       object.receiveShadow = true;
     });
+    prototype.updateMatrixWorld(true);
+    for (const pivot of wheelPivots) {
+      const wheelSize = new THREE.Box3()
+        .setFromObject(pivot, true)
+        .getSize(new THREE.Vector3());
+      pivot.userData.wheelRadius = Math.max(0.1, wheelSize.y * 0.5);
+    }
     return prototype;
+  }
+
+  private extractWheelPivots(
+    root: THREE.Group,
+    modelId: CarModelId,
+  ): THREE.Group[] {
+    const assemblies = this.findWheelAssemblies(root, modelId);
+    root.updateMatrixWorld(true);
+
+    return assemblies.map((assembly, index) => {
+      const bounds = new THREE.Box3();
+      for (const part of assembly.parts) bounds.expandByObject(part, true);
+      const pivot = new THREE.Group();
+      pivot.name = `driving-wheel-${index}`;
+      pivot.position.copy(bounds.getCenter(new THREE.Vector3()));
+      pivot.userData.isWheelPivot = true;
+      pivot.userData.frontWheel = assembly.front;
+      pivot.updateMatrixWorld(true);
+      for (const part of assembly.parts) pivot.attach(part);
+      return pivot;
+    });
+  }
+
+  private findWheelAssemblies(
+    root: THREE.Group,
+    modelId: CarModelId,
+  ): WheelAssembly[] {
+    const exact = (names: readonly string[], frontNames: readonly string[]): WheelAssembly[] =>
+      names.flatMap((name) => {
+        const part = root.getObjectByName(name);
+        return part ? [{ parts: [part], front: frontNames.includes(name) }] : [];
+      });
+
+    if (modelId === "golf") {
+      return exact(["group1", "group2", "group3", "group4"], ["group1", "group2"]);
+    }
+    if (modelId === "safari" || modelId === "tiago") {
+      return exact(["wheel_fr", "wheel_rr", "wheel_rl", "wheel_fl"], ["wheel_fr", "wheel_fl"]);
+    }
+    if (modelId === "scorpio") {
+      return exact(
+        ["wheel_rf", "wheel_rf.001", "wheel_rf.002", "wheel_rf.003"],
+        ["wheel_rf", "wheel_rf.003"],
+      );
+    }
+    if (modelId === "creata") {
+      return ["FL", "FR", "RL", "RR"].map((corner) => {
+        const parts: THREE.Object3D[] = [];
+        root.traverse((object) => {
+          if (new RegExp(`^Wheel_A_${corner}_0[1-7]$`).test(object.name)) parts.push(object);
+        });
+        return { parts, front: corner.startsWith("F") };
+      }).filter((assembly) => assembly.parts.length > 0);
+    }
+    if (modelId === "bronco") {
+      const parts: THREE.Object3D[] = [];
+      root.traverse((object) => {
+        if (
+          object.children.length >= 3 &&
+          object.name.includes("Wheel_Stock") &&
+          object.name.includes("LOD0")
+        ) {
+          parts.push(object);
+        }
+      });
+      return parts.map((part) => ({
+        parts: [part],
+        front: /Wheel(?:FR|FL)/.test(part.name),
+      }));
+    }
+    return [];
   }
 
   private mergeStaticCarMeshes(root: THREE.Group): THREE.Group {

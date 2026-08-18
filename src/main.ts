@@ -3,6 +3,8 @@ import { HandController } from './controls/HandController';
 import { KeyboardController } from './controls/KeyboardController';
 import { DrivingGame } from './game/DrivingGame';
 import type { CarStyle, ControlMode, GameSnapshot } from './game/types';
+import { CAR_MODEL_OPTIONS } from './game/vehicleAssets';
+import type { CarModelId } from './game/vehicleAssets';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) throw new Error('App root is missing');
@@ -73,6 +75,23 @@ app.innerHTML = `
             <strong>CARTOON CARS</strong><small>CLASSIC MODE</small>
           </button>
         </div>
+        <div id="real-car-options" class="real-car-options">
+          <label>
+            <span>DRIVER CAR</span>
+            <select id="driver-car" aria-label="Choose driver car">
+              ${CAR_MODEL_OPTIONS.map(({ id, label }) => `<option value="${id}"${id === 'safari' ? ' selected' : ''}>${label}</option>`).join('')}
+            </select>
+          </label>
+          <label>
+            <span>TRAFFIC CARS</span>
+            <select id="traffic-count" aria-label="Choose number of traffic cars">
+              <option value="4">4 CARS</option>
+              <option value="8">8 CARS</option>
+              <option value="12">12 CARS</option>
+              <option value="16" selected>16 CARS</option>
+            </select>
+          </label>
+        </div>
         <div class="modal-actions">
           <button id="camera-start" class="primary-button"><span>START WITH HANDS</span><i>→</i></button>
           <button id="keyboard-start" class="secondary-button">USE KEYBOARD INSTEAD <small>← A / D →</small></button>
@@ -109,6 +128,8 @@ const keyboard = new KeyboardController();
 let lastSnapshot: GameSnapshot | null = null;
 let soundEnabled = true;
 let selectedCarStyle: CarStyle = 'real';
+let selectedDriverCar: CarModelId = 'safari';
+let selectedTrafficCount = 16;
 
 class EngineSound {
   private context: AudioContext | null = null;
@@ -288,10 +309,22 @@ function selectCarStyle(style: CarStyle): void {
     button.classList.toggle('is-active', active);
     button.setAttribute('aria-pressed', active.toString());
   }
+  const realOptions = byId<HTMLElement>('real-car-options');
+  const disabled = style !== 'real';
+  realOptions.classList.toggle('is-disabled', disabled);
+  for (const select of realOptions.querySelectorAll<HTMLSelectElement>('select')) {
+    select.disabled = disabled;
+  }
 }
 
 byId('car-style-real').addEventListener('click', () => selectCarStyle('real'));
 byId('car-style-cartoon').addEventListener('click', () => selectCarStyle('cartoon'));
+byId<HTMLSelectElement>('driver-car').addEventListener('change', (event) => {
+  selectedDriverCar = (event.currentTarget as HTMLSelectElement).value as CarModelId;
+});
+byId<HTMLSelectElement>('traffic-count').addEventListener('change', (event) => {
+  selectedTrafficCount = Number((event.currentTarget as HTMLSelectElement).value);
+});
 
 async function prepareSelectedCars(button?: HTMLButtonElement): Promise<void> {
   const originalContent = button?.innerHTML;
@@ -300,7 +333,11 @@ async function prepareSelectedCars(button?: HTMLButtonElement): Promise<void> {
     button.textContent = selectedCarStyle === 'real' ? 'LOADING REAL CARS…' : 'PREPARING…';
   }
   try {
-    await game.setCarStyle(selectedCarStyle);
+    await game.setCarStyle(
+      selectedCarStyle,
+      selectedDriverCar,
+      selectedTrafficCount,
+    );
   } finally {
     if (button && originalContent !== undefined) {
       button.innerHTML = originalContent;

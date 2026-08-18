@@ -17,7 +17,7 @@ import {
 } from "./sceneAssets";
 import type { CarStyle, ControlInput, GamePhase, GameSnapshot } from "./types";
 import { VehicleAssets } from "./vehicleAssets";
-import type { LoadedCarModel } from "./vehicleAssets";
+import type { CarModelId, LoadedCarModel } from "./vehicleAssets";
 
 interface TrafficCar {
   mesh: THREE.Group;
@@ -244,9 +244,16 @@ export class DrivingGame {
     return this.phase;
   }
 
-  async setCarStyle(style: CarStyle): Promise<void> {
+  async setCarStyle(
+    style: CarStyle,
+    driverCar: CarModelId = "safari",
+    trafficCount: number = GAME.trafficCount,
+  ): Promise<void> {
     this.carStyle = style;
-    if (style === "real") await this.loadCarModels();
+    if (style === "real") {
+      this.setTrafficCount(trafficCount);
+      await this.loadCarModels(driverCar);
+    }
   }
 
   dispose(): void {
@@ -346,9 +353,19 @@ export class DrivingGame {
     }
   }
 
-  private async loadCarModels(): Promise<void> {
+  private setTrafficCount(requestedCount: number): void {
+    const trafficCount = Math.round(
+      clamp(requestedCount, 2, GAME.trafficCount),
+    );
+    while (this.traffic.length > trafficCount) {
+      const removed = this.traffic.pop();
+      if (removed) this.scene.remove(removed.mesh);
+    }
+  }
+
+  private async loadCarModels(driverCar: CarModelId): Promise<void> {
     if (this.realCarsApplied) return;
-    this.carModelsPromise ??= this.vehicleAssets.loadRealModels();
+    this.carModelsPromise ??= this.vehicleAssets.loadRealModels(driverCar);
     const available = await this.carModelsPromise;
     if (this.carStyle !== "real" || available.length === 0) return;
 
@@ -644,18 +661,12 @@ export class DrivingGame {
       6,
       dt,
     );
-    const playerFrontWheels = this.player.userData
-      .frontWheels as THREE.Object3D[];
-    for (const wheel of playerFrontWheels) {
-      const baseSteeringY =
-        (wheel.userData.baseSteeringY as number | undefined) ?? 0;
-      wheel.rotation.y = damp(
-        wheel.rotation.y,
-        baseSteeringY - this.steeringVisual * 0.48,
-        14,
-        dt,
-      );
-    }
+    this.vehicleAssets.updateWheelAnimation(
+      this.player,
+      this.speed * dt,
+      this.steeringVisual,
+      dt,
+    );
 
     for (const car of this.traffic) {
       const carHeading = roadHeading(car.distance);
@@ -666,6 +677,7 @@ export class DrivingGame {
         -car.distance - Math.sin(carHeading) * offset,
       );
       car.mesh.rotation.y = carHeading + (car.direction === -1 ? Math.PI : 0);
+      this.vehicleAssets.updateWheelAnimation(car.mesh, car.speed * dt, 0, dt);
     }
 
     const markerBase = Math.floor((this.distance - 35) / 12) * 12;
