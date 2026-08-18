@@ -1,9 +1,11 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { GAME, laneOffsets } from './config';
 import { clamp, constrainToRoad, curveSpeedLimit, damp, roadCenter, roadHeading } from './math';
+import { createRoadStrip, updateRoadStrip } from './roadSurface';
+import { SceneryAssets } from './sceneryAssets';
+import { addSceneLighting, createCloudTexture, ForestTextureStore } from './sceneAssets';
 import type { CarStyle, ControlInput, GamePhase, GameSnapshot } from './types';
+import { VehicleAssets } from './vehicleAssets';
 
 interface TrafficCar {
   mesh: THREE.Group;
@@ -18,54 +20,27 @@ interface TrafficCar {
   horned: boolean;
 }
 
-interface ForestMaterialOptions {
-  repeatX?: number;
-  repeatY?: number;
-  normalScale?: number;
-  tint?: number;
-  transparent?: boolean;
-  alphaTest?: number;
-}
-
-type CarModelId = 'camaro' | 'pontiac' | 'golf';
-
-interface CarModelSpec {
-  id: CarModelId;
-  path: string;
-  rotationY: number;
-}
-
-const carColors = [0xff5a5f, 0x65d1ff, 0xffcc4d, 0xa98cff, 0xf4f2e9, 0x50d890];
-const REAL_CAR_SCALE = 2;
-const CARTOON_CAR_SCALE = 1.55;
-const carModelSpecs: readonly CarModelSpec[] = [
-  { id: 'camaro', path: 'models/1970_chevrolet_camaro/scene.gltf', rotationY: Math.PI },
-  { id: 'pontiac', path: 'models/1970_Pontiac/scene.gltf', rotationY: -Math.PI / 2 },
-  { id: 'golf', path: 'models/1976_volkswagen_golf/scene.gltf', rotationY: Math.PI },
-];
-
 export class DrivingGame {
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(58, 1, 0.1, 800);
   private readonly renderer: THREE.WebGLRenderer;
   private readonly clock = new THREE.Clock();
-  private readonly player = this.createCar(0xe9ff42, true);
+  private readonly vehicleAssets = new VehicleAssets();
+  private readonly player = this.vehicleAssets.createCartoonCar(0xe9ff42, true);
   private readonly traffic: TrafficCar[] = [];
   private readonly laneMarkers: THREE.Mesh[] = [];
   private readonly scenery: THREE.Group[] = [];
   private readonly mountains: THREE.Group[] = [];
   private readonly clouds: THREE.Sprite[] = [];
-  private readonly sunVisual = new THREE.Group();
-  private readonly forestTextures: THREE.Texture[] = [];
+  private readonly sunVisual: THREE.Group;
+  private readonly textureStore: ForestTextureStore;
+  private readonly sceneryAssets: SceneryAssets;
   private readonly fenceSlots: Array<{ distance: number; side: -1 | 1 }> = [];
   private readonly fencePostGeometry = new THREE.BoxGeometry(0.2, 1.15, 0.2);
   private readonly fenceRailGeometry = new THREE.BoxGeometry(0.16, 0.17, 9.7);
   private readonly fenceDummy = new THREE.Object3D();
   private readonly fencePosts: THREE.InstancedMesh;
   private readonly fenceRails: THREE.InstancedMesh;
-  private readonly rockMaterial: THREE.MeshStandardMaterial;
-  private mapleTreePrototype?: THREE.Group;
-  private greatMountainPrototype?: THREE.Group;
   private readonly roadGeometry: THREE.BufferGeometry;
   private readonly roadMesh: THREE.Mesh;
   private readonly shoulderGeometry: THREE.BufferGeometry;
@@ -107,43 +82,46 @@ export class DrivingGame {
     this.renderer.toneMappingExposure = 1.05;
     container.appendChild(this.renderer.domElement);
 
-    const roadMaterial = this.createForestMaterial(
+    this.textureStore = new ForestTextureStore(this.renderer.capabilities.getMaxAnisotropy());
+
+    const roadMaterial = this.textureStore.createMaterial(
       'Dirt_Road_Bare_baseColor.png',
       'Dirt_Road_Bare_normal.png',
       'Dirt_Road_Bare_metallicRoughness.png',
       { normalScale: 0.48, tint: 0x8b98a5 },
     );
-    const shoulderMaterial = this.createForestMaterial(
+    const shoulderMaterial = this.textureStore.createMaterial(
       'Ground_Dirt_baseColor.jpeg',
       'Ground_Dirt_normal.jpeg',
       'Ground_Dirt_metallicRoughness.png',
       { normalScale: 0.42, tint: 0x8f8068 },
     );
-    const groundMaterial = this.createForestMaterial(
+    const groundMaterial = this.textureStore.createMaterial(
       'Grass_Close_baseColor.png',
       'Grass_Close_normal.jpeg',
       'Grass_Close_metallicRoughness.png',
       { repeatX: 58, repeatY: 58, normalScale: 0.36, tint: 0x80946b },
     );
-    this.rockMaterial = this.createForestMaterial(
+    const rockMaterial = this.textureStore.createMaterial(
       'Broken_Rocks_baseColor.jpeg',
       'Broken_Rocks_normal.jpeg',
       'Broken_Rocks_metallicRoughness.png',
       { normalScale: 0.5, tint: 0x8e8a7e },
     );
+    this.sceneryAssets = new SceneryAssets(this.textureStore, rockMaterial);
     const fenceMaterial = new THREE.MeshStandardMaterial({
       color: 0x514431,
-      map: this.loadForestTexture('Wood_Fence_baseColor.png', true, 3, 1),
+      map: this.textureStore.load('Wood_Fence_baseColor.png', true, 3, 1),
       roughness: 0.96,
       metalness: 0,
     });
 
-    this.roadGeometry = this.createStripGeometry(GAME.roadWidth, 220);
+    this.roadGeometry = createRoadStrip(GAME.roadWidth, 220);
     this.roadMesh = new THREE.Mesh(this.roadGeometry, roadMaterial);
     this.roadMesh.receiveShadow = true;
     this.scene.add(this.roadMesh);
 
-    this.shoulderGeometry = this.createStripGeometry(GAME.roadWidth + 5.5, 220);
+    this.shoulderGeometry = createRoadStrip(GAME.roadWidth + 5.5, 220);
     this.shoulderMesh = new THREE.Mesh(this.shoulderGeometry, shoulderMaterial);
     this.shoulderMesh.position.y = -0.055;
     this.shoulderMesh.receiveShadow = true;
@@ -177,10 +155,10 @@ export class DrivingGame {
     }
     this.scene.add(this.fencePosts, this.fenceRails);
 
-    this.setupLights();
+    this.sunVisual = addSceneLighting(this.scene);
     this.setupWorld();
-    this.loadMapleTree();
-    this.loadGreatMountain();
+    this.sceneryAssets.loadTrees(this.scenery);
+    this.sceneryAssets.loadMountains(this.mountains);
     this.scene.add(this.player);
     this.resize();
     window.addEventListener('resize', this.resize);
@@ -217,7 +195,7 @@ export class DrivingGame {
     this.assistMessage = 'READY';
     this.hornCooldown = 0;
     this.phase = 'ready';
-    this.setBrakeLights(this.player, false);
+    this.vehicleAssets.setBrakeLights(this.player, false);
     let ongoingCursor = 45;
     let incomingCursor = 62;
     this.traffic.forEach((car, index) => {
@@ -250,94 +228,8 @@ export class DrivingGame {
   dispose(): void {
     cancelAnimationFrame(this.animationFrame);
     window.removeEventListener('resize', this.resize);
-    for (const texture of this.forestTextures) texture.dispose();
+    this.textureStore.dispose();
     this.renderer.dispose();
-  }
-
-  private loadForestTexture(
-    file: string,
-    colorTexture: boolean,
-    repeatX = 1,
-    repeatY = 1,
-  ): THREE.Texture {
-    const texture = new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}forest/textures/${file}`);
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(repeatX, repeatY);
-    texture.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
-    if (colorTexture) texture.colorSpace = THREE.SRGBColorSpace;
-    this.forestTextures.push(texture);
-    return texture;
-  }
-
-  private createForestMaterial(
-    baseColor: string,
-    normal: string,
-    metallicRoughness: string,
-    options: ForestMaterialOptions = {},
-  ): THREE.MeshStandardMaterial {
-    const repeatX = options.repeatX ?? 1;
-    const repeatY = options.repeatY ?? 1;
-    const surfaceMap = this.loadForestTexture(metallicRoughness, false, repeatX, repeatY);
-    return new THREE.MeshStandardMaterial({
-      color: options.tint ?? 0xffffff,
-      map: this.loadForestTexture(baseColor, true, repeatX, repeatY),
-      normalMap: this.loadForestTexture(normal, false, repeatX, repeatY),
-      normalScale: new THREE.Vector2(options.normalScale ?? 0.45, options.normalScale ?? 0.45),
-      roughnessMap: surfaceMap,
-      metalnessMap: surfaceMap,
-      roughness: 0.96,
-      metalness: 0.02,
-      transparent: options.transparent ?? false,
-      alphaTest: options.alphaTest ?? 0,
-      depthWrite: !(options.transparent ?? false),
-      side: THREE.DoubleSide,
-    });
-  }
-
-  private setupLights(): void {
-    const hemisphere = new THREE.HemisphereLight(0xdaf7ff, 0x31442c, 2.3);
-    this.scene.add(hemisphere);
-    const sun = new THREE.DirectionalLight(0xfff1ce, 3.2);
-    sun.position.set(-45, 75, 30);
-    sun.castShadow = true;
-    sun.shadow.mapSize.set(1536, 1536);
-    sun.shadow.camera.left = -45;
-    sun.shadow.camera.right = 45;
-    sun.shadow.camera.top = 55;
-    sun.shadow.camera.bottom = -25;
-    this.scene.add(sun);
-
-    const sunCanvas = document.createElement('canvas');
-    sunCanvas.width = 256;
-    sunCanvas.height = 256;
-    const context = sunCanvas.getContext('2d');
-    if (context) {
-      const glow = context.createRadialGradient(128, 128, 5, 128, 128, 126);
-      glow.addColorStop(0, 'rgba(255,255,224,1)');
-      glow.addColorStop(0.18, 'rgba(255,239,139,1)');
-      glow.addColorStop(0.42, 'rgba(255,190,73,0.48)');
-      glow.addColorStop(1, 'rgba(255,164,46,0)');
-      context.fillStyle = glow;
-      context.fillRect(0, 0, 256, 256);
-    }
-    const sunTexture = new THREE.CanvasTexture(sunCanvas);
-    sunTexture.colorSpace = THREE.SRGBColorSpace;
-    const sunSprite = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: sunTexture,
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      fog: false,
-    }));
-    sunSprite.scale.set(72, 72, 1);
-    this.sunVisual.add(sunSprite);
-    const sunCore = new THREE.Mesh(
-      new THREE.SphereGeometry(7.5, 18, 12),
-      new THREE.MeshBasicMaterial({ color: 0xfff1a3, fog: false, depthTest: false }),
-    );
-    this.sunVisual.add(sunCore);
-    this.scene.add(this.sunVisual);
   }
 
   private setupWorld(): void {
@@ -356,7 +248,9 @@ export class DrivingGame {
     }
 
     for (let index = 0; index < 44; index += 1) {
-      const object = index % 5 === 0 ? this.createRock() : this.createTree(index);
+      const object = index % 5 === 0
+        ? this.sceneryAssets.createRock()
+        : this.sceneryAssets.createTree();
       object.userData.slot = index;
       object.userData.distance = -45 + index * 12.5;
       object.userData.side = index % 2 === 0 ? -1 : 1;
@@ -366,13 +260,13 @@ export class DrivingGame {
     }
 
     for (let index = 0; index < 7; index += 1) {
-      const mountain = this.createMountain(index);
+      const mountain = this.sceneryAssets.createMountain();
       mountain.userData.slot = index;
       this.mountains.push(mountain);
       this.scene.add(mountain);
     }
 
-    const cloudTexture = this.createCloudTexture();
+    const cloudTexture = createCloudTexture();
     for (let index = 0; index < 11; index += 1) {
       const cloud = new THREE.Sprite(new THREE.SpriteMaterial({
         map: cloudTexture,
@@ -397,16 +291,16 @@ export class DrivingGame {
     for (let index = 0; index < GAME.trafficCount; index += 1) {
       const direction: 1 | -1 = index === 0 ? 1 : index === 1 ? -1 : Math.random() < 0.56 ? 1 : -1;
       const car: TrafficCar = {
-          mesh: this.createCar(carColors[Math.floor(Math.random() * carColors.length)], false),
-          distance: 0,
-          lane: direction === 1 ? 0 : 1,
-          laneOffset: 0,
+        mesh: this.vehicleAssets.createCartoonCar(this.vehicleAssets.randomColor(), false),
+        distance: 0,
+        lane: direction === 1 ? 0 : 1,
+        laneOffset: 0,
         speed: 0,
         targetSpeed: 0,
         speedChangeTimer: 0,
-         direction,
-         counted: false,
-          horned: false,
+        direction,
+        counted: false,
+        horned: false,
       };
       if (direction === 1) {
         ongoingSpawnCursor += 34 + Math.random() * 48;
@@ -420,724 +314,21 @@ export class DrivingGame {
     }
   }
 
-  private createStripGeometry(width: number, segments: number, centerOffset = 0): THREE.BufferGeometry {
-    const positions = new Float32Array((segments + 1) * 2 * 3);
-    const uvs = new Float32Array((segments + 1) * 2 * 2);
-    const indices: number[] = [];
-    for (let index = 0; index <= segments; index += 1) {
-      const uvOffset = index * 4;
-      uvs[uvOffset] = 0;
-      uvs[uvOffset + 1] = index / segments;
-      uvs[uvOffset + 2] = 1;
-      uvs[uvOffset + 3] = index / segments;
-      if (index < segments) {
-        const vertex = index * 2;
-        indices.push(vertex, vertex + 1, vertex + 2, vertex + 2, vertex + 1, vertex + 3);
-      }
-    }
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-    geometry.setIndex(indices);
-    geometry.computeVertexNormals();
-    geometry.userData.width = width;
-    geometry.userData.centerOffset = centerOffset;
-    geometry.userData.uvWidth = Math.max(1, width / 9);
-    geometry.userData.uvMeters = 11;
-    return geometry;
-  }
-
-  private updateStrip(geometry: THREE.BufferGeometry, start: number, length: number): void {
-    const position = geometry.getAttribute('position') as THREE.BufferAttribute;
-    const uv = geometry.getAttribute('uv') as THREE.BufferAttribute;
-    const segments = position.count / 2 - 1;
-    const halfWidth = geometry.userData.width / 2;
-    const centerOffset = geometry.userData.centerOffset as number;
-    const uvWidth = geometry.userData.uvWidth as number;
-    const uvMeters = geometry.userData.uvMeters as number;
-    for (let index = 0; index <= segments; index += 1) {
-      const distance = start + (index / segments) * length;
-      const center = roadCenter(distance);
-      const heading = roadHeading(distance);
-      const sideX = Math.cos(heading);
-      const sideZ = -Math.sin(heading);
-      const vertex = index * 2;
-      position.setXYZ(vertex, center + sideX * (centerOffset - halfWidth), 0, -distance + sideZ * (centerOffset - halfWidth));
-      position.setXYZ(vertex + 1, center + sideX * (centerOffset + halfWidth), 0, -distance + sideZ * (centerOffset + halfWidth));
-      uv.setXY(vertex, 0, distance / uvMeters);
-      uv.setXY(vertex + 1, uvWidth, distance / uvMeters);
-    }
-    position.needsUpdate = true;
-    uv.needsUpdate = true;
-    geometry.computeVertexNormals();
-    geometry.computeBoundingSphere();
-  }
-
-  private createCar(color: number, player: boolean): THREE.Group {
-    const group = new THREE.Group();
-    const paint = new THREE.MeshStandardMaterial({
-      color,
-      roughness: 0.22,
-      metalness: 0.68,
-      side: THREE.DoubleSide,
-    });
-    const dark = new THREE.MeshStandardMaterial({ color: 0x0a0d11, roughness: 0.48, metalness: 0.32 });
-    const carbon = new THREE.MeshStandardMaterial({ color: 0x151a1f, roughness: 0.32, metalness: 0.62 });
-    const glass = new THREE.MeshStandardMaterial({
-      color: player ? 0x315f6b : 0x3b5862,
-      roughness: 0.08,
-      metalness: 0.42,
-      side: THREE.DoubleSide,
-    });
-    const chrome = new THREE.MeshStandardMaterial({ color: 0xb9c4c7, roughness: 0.22, metalness: 0.9 });
-
-    const bodyProfile: Array<[number, number]> = [
-      [-2.28, 0.35], [-2.2, 0.76], [-1.7, 0.93], [-0.9, 1.02],
-      [0.9, 0.98], [1.72, 0.82], [2.3, 0.5], [2.24, 0.33],
-    ];
-    const body = new THREE.Mesh(this.createCarProfileGeometry(bodyProfile, 2.02, 0.09, true), paint);
-    body.castShadow = true;
-    body.receiveShadow = true;
-    group.add(body);
-
-    const canopyProfile: Array<[number, number]> = [
-      [-1.03, 1.01], [-0.72, 1.54], [-0.42, 1.69], [0.47, 1.69], [1.05, 1.01],
-    ];
-    const canopy = new THREE.Mesh(this.createCarProfileGeometry(canopyProfile, 1.5, 0.045), glass);
-    canopy.castShadow = true;
-    group.add(canopy);
-
-    const roof = new THREE.Mesh(new THREE.BoxGeometry(1.42, 0.1, 0.92), carbon);
-    roof.position.set(0, 1.69, 0.08);
-    roof.castShadow = true;
-    group.add(roof);
-
-    const frontPillar = new THREE.Mesh(new THREE.BoxGeometry(1.58, 0.075, 0.1), carbon);
-    frontPillar.position.set(0, 1.36, -0.75);
-    frontPillar.rotation.x = -0.55;
-    group.add(frontPillar);
-    const rearPillar = frontPillar.clone();
-    rearPillar.position.set(0, 1.35, 0.73);
-    rearPillar.rotation.x = 0.72;
-    group.add(rearPillar);
-
-    for (const x of [-1.02, 1.02]) {
-      const skirt = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.17, 3.35), carbon);
-      skirt.position.set(x, 0.43, 0.02);
-      skirt.castShadow = true;
-      group.add(skirt);
-
-      const mirror = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 6), paint);
-      mirror.scale.set(0.9, 0.45, 0.62);
-      mirror.position.set(x * 1.05, 1.28, -0.43);
-      mirror.castShadow = true;
-      group.add(mirror);
-    }
-
-    const tireGeometry = new THREE.CylinderGeometry(0.44, 0.44, 0.32, 20);
-    const rimGeometry = new THREE.CylinderGeometry(0.265, 0.265, 0.345, 18);
-    const frontWheels: THREE.Group[] = [];
-    for (const x of [-1.04, 1.04]) {
-      for (const z of [-1.43, 1.39]) {
-        const steeringPivot = new THREE.Group();
-        steeringPivot.position.set(x, 0.48, z);
-        const wheelAssembly = new THREE.Group();
-        wheelAssembly.rotation.z = Math.PI / 2;
-        const tire = new THREE.Mesh(tireGeometry, dark);
-        tire.castShadow = true;
-        wheelAssembly.add(tire);
-        const rim = new THREE.Mesh(rimGeometry, chrome);
-        wheelAssembly.add(rim);
-
-        const outerFace = -Math.sign(x) * 0.19;
-        for (let spokeIndex = 0; spokeIndex < 5; spokeIndex += 1) {
-          const angle = (spokeIndex / 5) * Math.PI * 2;
-          const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.035, 0.38), carbon);
-          spoke.position.y = outerFace;
-          spoke.rotation.y = angle;
-          wheelAssembly.add(spoke);
-        }
-        const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.38, 12), carbon);
-        wheelAssembly.add(hub);
-        steeringPivot.add(wheelAssembly);
-        group.add(steeringPivot);
-        if (z < 0) frontWheels.push(steeringPivot);
-      }
-    }
-    group.userData.frontWheels = frontWheels;
-
-    const frontBumper = new THREE.Mesh(new THREE.BoxGeometry(1.78, 0.2, 0.18), carbon);
-    frontBumper.position.set(0, 0.45, -2.28);
-    group.add(frontBumper);
-    const splitter = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.08, 0.42), carbon);
-    splitter.position.set(0, 0.31, -2.18);
-    group.add(splitter);
-    const grille = new THREE.Mesh(new THREE.BoxGeometry(0.94, 0.2, 0.035), dark);
-    grille.position.set(0, 0.57, -2.385);
-    group.add(grille);
-
-    const headlightMaterial = new THREE.MeshBasicMaterial({ color: 0xd9ffff });
-    const tailMaterial = new THREE.MeshStandardMaterial({
-      color: 0x681015,
-      emissive: 0x240003,
-      emissiveIntensity: 0.7,
-      roughness: 0.32,
-    });
-    group.userData.tailMaterial = tailMaterial;
-    const rearLightPanel = new THREE.Mesh(new THREE.BoxGeometry(1.62, 0.27, 0.045), carbon);
-    rearLightPanel.position.set(0, 0.78, 2.23);
-    group.add(rearLightPanel);
-    for (const x of [-0.66, 0.66]) {
-      const headlight = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.15, 0.055), headlightMaterial);
-      headlight.position.set(x, 0.74, -2.23);
-      headlight.rotation.y = x * 0.08;
-      group.add(headlight);
-
-      const tail = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.15, 0.055), tailMaterial);
-      tail.position.set(x, 0.8, 2.265);
-      group.add(tail);
-    }
-    const centerTail = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.045, 0.04), tailMaterial);
-    centerTail.position.set(0, 0.8, 2.27);
-    group.add(centerTail);
-
-    const rearBumper = new THREE.Mesh(new THREE.BoxGeometry(1.92, 0.26, 0.18), carbon);
-    rearBumper.position.set(0, 0.48, 2.22);
-    group.add(rearBumper);
-    const diffuser = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.12, 0.3), dark);
-    diffuser.position.set(0, 0.32, 2.2);
-    group.add(diffuser);
-    const plate = new THREE.Mesh(
-      new THREE.BoxGeometry(0.52, 0.19, 0.025),
-      new THREE.MeshBasicMaterial({ color: 0xe8ece7 }),
-    );
-    plate.position.set(0, 0.63, 2.325);
-    group.add(plate);
-
-    for (const x of [-0.63, 0.63]) {
-      const exhaust = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.27, 12), chrome);
-      exhaust.rotation.x = Math.PI / 2;
-      exhaust.position.set(x, 0.32, 2.34);
-      group.add(exhaust);
-    }
-
-    if (player) {
-      const brakeGlow = new THREE.PointLight(0xff1824, 0, 7, 2);
-      brakeGlow.position.set(0, 0.58, 2.55);
-      group.userData.brakeGlow = brakeGlow;
-      group.add(brakeGlow);
-
-      const wing = new THREE.Mesh(new THREE.BoxGeometry(1.78, 0.1, 0.34), carbon);
-      wing.position.set(0, 1.18, 1.78);
-      wing.castShadow = true;
-      group.add(wing);
-      for (const x of [-0.57, 0.57]) {
-        const support = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.33, 0.08), carbon);
-        support.position.set(x, 1.03, 1.76);
-        group.add(support);
-      }
-    }
-
-    group.scale.setScalar(CARTOON_CAR_SCALE);
-    return group;
-  }
-
   private loadCarModels(): void {
-    const loader = new GLTFLoader();
-    void Promise.all(carModelSpecs.map(async (spec) => {
-      try {
-        const gltf = await loader.loadAsync(`${import.meta.env.BASE_URL}${spec.path}`);
-        return {
-          id: spec.id,
-          trafficPrototype: this.prepareCarModel(gltf.scene, spec.rotationY, true),
-          playerPrototype: spec.id === 'camaro'
-            ? this.prepareCarModel(gltf.scene, spec.rotationY, false)
-            : undefined,
-        };
-      } catch (error) {
-        console.error(`Could not load the ${spec.id} car model.`, error);
-        return null;
-      }
-    })).then((loadedModels) => {
-      if (this.carStyle !== 'real') return;
-      const available = loadedModels.filter((model): model is {
-        id: CarModelId;
-        trafficPrototype: THREE.Group;
-        playerPrototype: THREE.Group | undefined;
-      } => model !== null);
-      if (available.length === 0) return;
+    void this.vehicleAssets.loadRealModels().then((available) => {
+      if (this.carStyle !== 'real' || available.length === 0) return;
 
       const camaro = available.find((model) => model.id === 'camaro');
       if (camaro?.playerPrototype) {
-        this.replaceCarVisual(this.player, camaro.playerPrototype, true, camaro.id);
+        this.vehicleAssets.replaceVisual(this.player, camaro.playerPrototype, true, camaro.id);
       }
 
       const trafficStart = Math.floor(Math.random() * available.length);
       this.traffic.forEach((car, index) => {
         const model = available[(trafficStart + index) % available.length];
-        this.replaceCarVisual(car.mesh, model.trafficPrototype, false, model.id);
+        this.vehicleAssets.replaceVisual(car.mesh, model.trafficPrototype, false, model.id);
       });
     });
-  }
-
-  private prepareCarModel(source: THREE.Group, rotationY: number, optimize: boolean): THREE.Group {
-    const content = source.clone(true);
-    const orientation = new THREE.Group();
-    orientation.rotation.y = rotationY;
-    orientation.add(content);
-    orientation.updateMatrixWorld(true);
-
-    const modelRoot = optimize ? this.mergeStaticCarMeshes(orientation) : orientation;
-
-    const prototype = new THREE.Group();
-    prototype.add(modelRoot);
-    prototype.updateMatrixWorld(true);
-
-    let bounds = new THREE.Box3().setFromObject(prototype);
-    const size = bounds.getSize(new THREE.Vector3());
-    const horizontalLength = Math.max(size.x, size.z);
-    if (!Number.isFinite(horizontalLength) || horizontalLength <= 0) {
-      throw new Error('The car model has invalid bounds.');
-    }
-
-    modelRoot.scale.setScalar(4.6 / horizontalLength);
-    prototype.updateMatrixWorld(true);
-    bounds = new THREE.Box3().setFromObject(prototype);
-    const center = bounds.getCenter(new THREE.Vector3());
-    modelRoot.position.set(-center.x, -bounds.min.y, -center.z);
-    prototype.updateMatrixWorld(true);
-
-    prototype.traverse((object) => {
-      if (!(object instanceof THREE.Mesh)) return;
-      object.castShadow = true;
-      object.receiveShadow = true;
-    });
-    return prototype;
-  }
-
-  private mergeStaticCarMeshes(root: THREE.Group): THREE.Group {
-    const buckets = new Map<string, {
-      material: THREE.Material;
-      geometries: THREE.BufferGeometry[];
-    }>();
-
-    root.traverse((object) => {
-      if (!(object instanceof THREE.Mesh) || Array.isArray(object.material)) return;
-      const geometry = object.geometry.clone();
-      geometry.applyMatrix4(object.matrixWorld);
-      const attributeSignature = Object.keys(geometry.attributes).sort().join(',');
-      const key = `${object.material.uuid}|${attributeSignature}|${geometry.index ? 'indexed' : 'plain'}`;
-      let bucket = buckets.get(key);
-      if (!bucket) {
-        bucket = { material: object.material, geometries: [] };
-        buckets.set(key, bucket);
-      }
-      bucket.geometries.push(geometry);
-    });
-
-    const mergedRoot = new THREE.Group();
-    for (const bucket of buckets.values()) {
-      const merged = mergeGeometries(bucket.geometries, false);
-      bucket.geometries.forEach((geometry) => geometry.dispose());
-      if (!merged) continue;
-      merged.computeBoundingBox();
-      merged.computeBoundingSphere();
-      mergedRoot.add(new THREE.Mesh(merged, bucket.material));
-    }
-    if (mergedRoot.children.length === 0) throw new Error('The car geometry could not be optimized.');
-    return mergedRoot;
-  }
-
-  private replaceCarVisual(
-    car: THREE.Group,
-    prototype: THREE.Group,
-    player: boolean,
-    modelId: CarModelId,
-  ): void {
-    const oldGeometries = new Set<THREE.BufferGeometry>();
-    const oldMaterials = new Set<THREE.Material>();
-    car.traverse((object) => {
-      if (!(object instanceof THREE.Mesh)) return;
-      oldGeometries.add(object.geometry);
-      const materials = Array.isArray(object.material) ? object.material : [object.material];
-      materials.forEach((material) => oldMaterials.add(material));
-    });
-    car.clear();
-    oldGeometries.forEach((geometry) => geometry.dispose());
-    oldMaterials.forEach((material) => material.dispose());
-
-    const instance = prototype.clone(true);
-    if (!player) {
-      const color = carColors[Math.floor(Math.random() * carColors.length)];
-      this.applyTrafficCarColor(instance, modelId, color);
-    }
-    instance.updateMatrixWorld(true);
-    const modelBounds = new THREE.Box3().setFromObject(instance, true);
-    car.add(instance);
-    car.scale.setScalar(REAL_CAR_SCALE);
-    car.userData.modelId = modelId;
-    car.userData.frontWheels = [];
-    car.userData.tailMaterial = undefined;
-    car.userData.brakeGlow = undefined;
-    car.userData.highBrakeOnly = false;
-
-    if (player && modelId === 'golf') {
-      const frontWheels = ['group1', 'group2']
-        .map((name) => instance.getObjectByName(name))
-        .filter((wheel): wheel is THREE.Object3D => wheel !== undefined);
-      for (const wheel of frontWheels) wheel.userData.baseSteeringY = wheel.rotation.y;
-      car.userData.frontWheels = frontWheels;
-    }
-
-    if (player) this.addHighMountedBrakeLight(car, modelBounds);
-  }
-
-  private applyTrafficCarColor(car: THREE.Group, modelId: CarModelId, color: number): void {
-    const paintNames: Record<CarModelId, string> = {
-      camaro: 'Paint6Mtl',
-      pontiac: 'body',
-      golf: 'vM_CarPaint_Max1',
-    };
-    const paintName = paintNames[modelId];
-    const materialClones = new Map<THREE.Material, THREE.Material>();
-
-    const tintMaterial = (source: THREE.Material): THREE.Material => {
-      if (source.name !== paintName) return source;
-      const existing = materialClones.get(source);
-      if (existing) return existing;
-
-      const material = source.clone();
-      if (material instanceof THREE.MeshStandardMaterial) {
-        material.color.setHex(color);
-        material.emissive.setHex(0x000000);
-        material.emissiveMap = null;
-        if (modelId === 'camaro') material.map = null;
-        material.metalness = Math.max(material.metalness, 0.48);
-        material.roughness = Math.min(material.roughness, 0.32);
-        material.needsUpdate = true;
-      }
-      materialClones.set(source, material);
-      return material;
-    };
-
-    car.traverse((object) => {
-      if (!(object instanceof THREE.Mesh)) return;
-      object.material = Array.isArray(object.material)
-        ? object.material.map(tintMaterial)
-        : tintMaterial(object.material);
-    });
-  }
-
-  private addHighMountedBrakeLight(car: THREE.Group, bounds: THREE.Box3): void {
-    const size = bounds.getSize(new THREE.Vector3());
-    const material = new THREE.MeshStandardMaterial({
-      color: 0x260205,
-      emissive: 0x000000,
-      emissiveIntensity: 0,
-      roughness: 0.24,
-    });
-    const light = new THREE.Mesh(
-      new THREE.BoxGeometry(Math.max(0.5, size.x * 0.34), 0.055, 0.045),
-      material,
-    );
-    light.position.set(
-      0,
-      bounds.min.y + size.y * 0.82,
-      bounds.max.z - size.z * 0.12,
-    );
-    car.userData.tailMaterial = material;
-    car.userData.highBrakeOnly = true;
-    car.add(light);
-  }
-
-  private setBrakeLights(car: THREE.Group, braking: boolean): void {
-    const material = car.userData.tailMaterial as THREE.MeshStandardMaterial | undefined;
-    if (material) {
-      const highBrakeOnly = car.userData.highBrakeOnly === true;
-      material.color.setHex(braking ? 0xff1d29 : highBrakeOnly ? 0x260205 : 0x681015);
-      material.emissive.setHex(braking ? 0xff0712 : highBrakeOnly ? 0x000000 : 0x240003);
-      material.emissiveIntensity = braking ? 4.5 : highBrakeOnly ? 0 : 0.7;
-    }
-    const glow = car.userData.brakeGlow as THREE.PointLight | undefined;
-    if (glow) glow.intensity = braking ? 4.2 : 0;
-  }
-
-  private createCarProfileGeometry(
-    profile: Array<[number, number]>,
-    width: number,
-    bevel: number,
-    taperEnds = false,
-  ): THREE.ExtrudeGeometry {
-    const shape = new THREE.Shape();
-    shape.moveTo(profile[0][0], profile[0][1]);
-    for (let index = 1; index < profile.length; index += 1) shape.lineTo(profile[index][0], profile[index][1]);
-    shape.lineTo(profile[0][0], profile[0][1]);
-
-    const geometry = new THREE.ExtrudeGeometry(shape, {
-      depth: width,
-      steps: 1,
-      curveSegments: 1,
-      bevelEnabled: true,
-      bevelSegments: 1,
-      bevelSize: bevel,
-      bevelThickness: bevel,
-    });
-    geometry.translate(0, 0, -width / 2);
-    if (taperEnds) {
-      const position = geometry.getAttribute('position') as THREE.BufferAttribute;
-      for (let index = 0; index < position.count; index += 1) {
-        const profilePosition = position.getX(index);
-        const taper = 1 - Math.max(0, Math.abs(profilePosition) - 1.05) * 0.11;
-        position.setZ(index, position.getZ(index) * taper);
-      }
-      position.needsUpdate = true;
-    }
-    geometry.rotateY(Math.PI / 2);
-    geometry.computeVertexNormals();
-    return geometry;
-  }
-
-  private loadMapleTree(): void {
-    const loader = new GLTFLoader();
-    loader.load(
-      `${import.meta.env.BASE_URL}maple_tree/scene.gltf`,
-      (gltf) => {
-        try {
-          const sourceTree = gltf.scene.getObjectByName('instance_0');
-          if (!sourceTree) throw new Error('The maple tree root node was not found.');
-
-          gltf.scene.updateMatrixWorld(true);
-          const buckets = new Map<string, {
-            material: THREE.MeshStandardMaterial;
-            geometries: THREE.BufferGeometry[];
-          }>();
-
-          sourceTree.traverse((object) => {
-            if (!(object instanceof THREE.Mesh)) return;
-            const sourceMaterial = Array.isArray(object.material) ? object.material[0] : object.material;
-            const key = sourceMaterial.name || `material-${sourceMaterial.id}`;
-            let bucket = buckets.get(key);
-
-            if (!bucket) {
-              const material = sourceMaterial.clone() as THREE.MeshStandardMaterial;
-              material.metalness = 0;
-              material.roughness = key.includes('leaf') ? 0.88 : 0.96;
-              material.aoMap = null;
-              material.emissiveMap = null;
-              material.emissive?.set(0x000000);
-              if (key.includes('leaf')) {
-                material.side = THREE.DoubleSide;
-                material.map = material.map ? this.createCleanLeafTexture(material.map) : null;
-                material.alphaMap = null;
-                material.color.set(0x9ab08f);
-                material.alphaTest = 0.38;
-                material.transparent = false;
-                material.depthWrite = true;
-              }
-              bucket = { material, geometries: [] };
-              buckets.set(key, bucket);
-            }
-
-            const transformed = object.geometry.clone();
-            transformed.applyMatrix4(object.matrixWorld);
-            let geometry = transformed;
-            if (transformed.index) {
-              geometry = transformed.toNonIndexed();
-              transformed.dispose();
-            }
-            for (const attribute of Object.keys(geometry.attributes)) {
-              if (!['position', 'normal', 'uv'].includes(attribute)) geometry.deleteAttribute(attribute);
-            }
-            if (!geometry.getAttribute('normal')) geometry.computeVertexNormals();
-            bucket.geometries.push(geometry);
-          });
-
-          const content = new THREE.Group();
-          for (const bucket of buckets.values()) {
-            const merged = mergeGeometries(bucket.geometries, false);
-            bucket.geometries.forEach((geometry) => geometry.dispose());
-            if (!merged) continue;
-            merged.computeBoundingBox();
-            merged.computeBoundingSphere();
-            const mesh = new THREE.Mesh(merged, bucket.material);
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
-            content.add(mesh);
-          }
-
-          if (content.children.length === 0) throw new Error('The maple tree geometry could not be merged.');
-          const bounds = new THREE.Box3().setFromObject(content);
-          const size = bounds.getSize(new THREE.Vector3());
-          const center = bounds.getCenter(new THREE.Vector3());
-          content.position.set(-center.x, -bounds.min.y, -center.z);
-
-          const prototype = new THREE.Group();
-          prototype.scale.setScalar(10 / Math.max(1, size.y));
-          prototype.add(content);
-          this.mapleTreePrototype = prototype;
-
-          for (const object of this.scenery) {
-            if (object.userData.kind !== 'maple-tree') continue;
-            object.clear();
-            object.add(prototype.clone(true));
-          }
-        } catch (error) {
-          console.error('Could not prepare the maple tree model.', error);
-        }
-      },
-      undefined,
-      (error) => console.error('Could not load the maple tree model.', error),
-    );
-  }
-
-  private createCleanLeafTexture(source: THREE.Texture): THREE.CanvasTexture | null {
-    const image = source.image as CanvasImageSource & { width?: number; height?: number };
-    const width = image?.width ?? 0;
-    const height = image?.height ?? 0;
-    if (!width || !height) return null;
-
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext('2d', { willReadFrequently: true });
-    if (!context) return null;
-
-    context.drawImage(image, 0, 0, width, height);
-    const pixels = context.getImageData(0, 0, width, height);
-    for (let index = 0; index < pixels.data.length; index += 4) {
-      const red = pixels.data[index];
-      const green = pixels.data[index + 1];
-      const blue = pixels.data[index + 2];
-      const minimum = Math.min(red, green, blue);
-      const maximum = Math.max(red, green, blue);
-      const neutralBackground = minimum > 150 && maximum - minimum < 46;
-      const alpha = neutralBackground ? clamp((210 - minimum) * 6, 0, 255) : 255;
-      if (alpha < 255) {
-        // Keep transparent texels forest-green so generated mipmaps cannot
-        // blend the source image's white background into leaf edges.
-        pixels.data[index] = 38;
-        pixels.data[index + 1] = 66;
-        pixels.data[index + 2] = 28;
-      }
-      pixels.data[index + 3] = alpha;
-    }
-    context.putImageData(pixels, 0, 0);
-
-    const cleanTexture = new THREE.CanvasTexture(canvas);
-    cleanTexture.colorSpace = source.colorSpace;
-    cleanTexture.flipY = source.flipY;
-    cleanTexture.wrapS = source.wrapS;
-    cleanTexture.wrapT = source.wrapT;
-    cleanTexture.magFilter = source.magFilter;
-    cleanTexture.minFilter = source.minFilter;
-    cleanTexture.anisotropy = source.anisotropy;
-    cleanTexture.channel = source.channel;
-    cleanTexture.needsUpdate = true;
-    this.forestTextures.push(cleanTexture);
-    return cleanTexture;
-  }
-
-  private createTree(_index: number): THREE.Group {
-    const group = new THREE.Group();
-    group.userData.kind = 'maple-tree';
-    if (this.mapleTreePrototype) group.add(this.mapleTreePrototype.clone(true));
-    return group;
-  }
-
-  private createRock(): THREE.Group {
-    const group = new THREE.Group();
-    const rock = new THREE.Mesh(
-      new THREE.DodecahedronGeometry(1.25, 0),
-      this.rockMaterial,
-    );
-    rock.scale.set(1.2, 0.7, 0.9);
-    rock.position.y = 0.7;
-    rock.castShadow = true;
-    group.add(rock);
-    return group;
-  }
-
-  private loadGreatMountain(): void {
-    const loader = new GLTFLoader();
-    loader.load(
-      `${import.meta.env.BASE_URL}great_mountain/scene.gltf`,
-      (gltf) => {
-        try {
-          gltf.scene.updateMatrixWorld(true);
-          const source = gltf.scene.getObjectByName('Object_2');
-          if (!(source instanceof THREE.Mesh)) throw new Error('The mountain mesh was not found.');
-
-          const geometry = source.geometry.clone();
-          geometry.applyMatrix4(source.matrixWorld);
-          geometry.computeBoundingBox();
-          const bounds = geometry.boundingBox;
-          if (!bounds) throw new Error('The mountain bounds could not be calculated.');
-          const size = bounds.getSize(new THREE.Vector3());
-          const center = bounds.getCenter(new THREE.Vector3());
-          geometry.translate(-center.x, -bounds.min.y, -center.z);
-          geometry.computeBoundingSphere();
-
-          const sourceMaterial = Array.isArray(source.material) ? source.material[0] : source.material;
-          const material = sourceMaterial.clone() as THREE.MeshStandardMaterial;
-          material.color.set(0x8999a3);
-          material.metalness = 0;
-          material.roughness = 1;
-          material.emissiveMap = null;
-          material.emissive?.set(0x000000);
-
-          const mesh = new THREE.Mesh(geometry, material);
-          mesh.castShadow = false;
-          mesh.receiveShadow = false;
-          const prototype = new THREE.Group();
-          prototype.scale.setScalar(52 / Math.max(1, size.y));
-          prototype.add(mesh);
-          this.greatMountainPrototype = prototype;
-
-          for (const mountain of this.mountains) {
-            mountain.clear();
-            mountain.add(prototype.clone(true));
-          }
-        } catch (error) {
-          console.error('Could not prepare the great mountain model.', error);
-        }
-      },
-      undefined,
-      (error) => console.error('Could not load the great mountain model.', error),
-    );
-  }
-
-  private createMountain(_index: number): THREE.Group {
-    const group = new THREE.Group();
-    if (this.greatMountainPrototype) group.add(this.greatMountainPrototype.clone(true));
-    return group;
-  }
-
-  private createCloudTexture(): THREE.CanvasTexture {
-    const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 192;
-    const context = canvas.getContext('2d');
-    if (context) {
-      const gradient = context.createLinearGradient(0, 36, 0, 170);
-      gradient.addColorStop(0, 'rgba(255,255,255,0.96)');
-      gradient.addColorStop(0.7, 'rgba(236,244,244,0.86)');
-      gradient.addColorStop(1, 'rgba(196,216,220,0.12)');
-      context.fillStyle = gradient;
-      context.filter = 'blur(3px)';
-      context.beginPath();
-      context.ellipse(116, 124, 90, 40, -0.08, 0, Math.PI * 2);
-      context.ellipse(208, 96, 100, 66, 0.03, 0, Math.PI * 2);
-      context.ellipse(302, 82, 82, 72, -0.05, 0, Math.PI * 2);
-      context.ellipse(390, 119, 96, 44, 0.08, 0, Math.PI * 2);
-      context.ellipse(260, 133, 198, 44, 0, 0, Math.PI * 2);
-      context.fill();
-      context.filter = 'none';
-    }
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.minFilter = THREE.LinearFilter;
-    texture.magFilter = THREE.LinearFilter;
-    return texture;
   }
 
   private spawnTraffic(car: TrafficCar, ahead?: number, randomizeDirection = false): void {
@@ -1202,7 +393,7 @@ export class DrivingGame {
     const acceleration = targetSpeed > this.speed
       ? GAME.acceleration
       : leadDistance < 15 || (leadIsIncoming && leadDistance < 32) ? GAME.emergencyBrake : GAME.serviceBrake;
-    this.setBrakeLights(this.player, targetSpeed < this.speed - 0.35);
+    this.vehicleAssets.setBrakeLights(this.player, targetSpeed < this.speed - 0.35);
     this.speed = damp(this.speed, targetSpeed, acceleration / Math.max(8, Math.abs(targetSpeed - this.speed)), dt);
     if (targetSpeed === 0 && this.speed < 0.3) this.speed = 0;
 
@@ -1239,7 +430,7 @@ export class DrivingGame {
         this.speed = Math.max(0, this.speed - (2 + edgeProximity * 5) * dt);
       }
       this.assistMessage = 'ROAD EDGE';
-      if (edgeProximity > 0.55) this.setBrakeLights(this.player, true);
+      if (edgeProximity > 0.55) this.vehicleAssets.setBrakeLights(this.player, true);
     }
 
     for (const car of this.traffic) {
@@ -1267,7 +458,7 @@ export class DrivingGame {
       if (Math.abs(gap) < collisionLength && laneGap < collisionWidth) {
         this.phase = 'crashed';
         this.speed = 0;
-        this.setBrakeLights(this.player, true);
+        this.vehicleAssets.setBrakeLights(this.player, true);
         this.assistMessage = 'COLLISION';
         this.onCrash();
         break;
@@ -1321,8 +512,8 @@ export class DrivingGame {
   private updateWorld(dt: number): void {
     const start = Math.max(-40, this.distance - GAME.lookBehind);
     const length = GAME.lookAhead + GAME.lookBehind + 150;
-    this.updateStrip(this.shoulderGeometry, start, length);
-    this.updateStrip(this.roadGeometry, start, length);
+    updateRoadStrip(this.shoulderGeometry, start, length);
+    updateRoadStrip(this.roadGeometry, start, length);
     this.updateRoadsideFences();
 
     const centerX = roadCenter(this.distance);
