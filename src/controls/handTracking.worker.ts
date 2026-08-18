@@ -25,7 +25,7 @@ workerScope.onmessage = (event): void => {
   if (message.type === 'init') {
     void (async () => {
       try {
-        const vision = await FilesetResolver.forVisionTasks(message.wasmRoot);
+        const vision = await FilesetResolver.forVisionTasks(message.wasmRoot, true);
         landmarker = await HandLandmarker.createFromOptions(vision, {
           baseOptions: { modelAssetPath: message.modelAssetPath, delegate: 'CPU' },
           runningMode: 'VIDEO',
