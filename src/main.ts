@@ -2,7 +2,7 @@ import './style.css';
 import { HandController } from './controls/HandController';
 import { KeyboardController } from './controls/KeyboardController';
 import { DrivingGame } from './game/DrivingGame';
-import type { ControlMode, GameSnapshot } from './game/types';
+import type { CarStyle, ControlMode, GameSnapshot } from './game/types';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) throw new Error('App root is missing');
@@ -64,6 +64,15 @@ app.innerHTML = `
           <div><b>02</b><span>Hold two closed<br>hands apart</span></div>
           <div><b>03</b><span>Rotate them<br>to steer</span></div>
         </div>
+        <div class="car-style-picker" role="group" aria-label="Choose car style">
+          <span>CAR STYLE</span>
+          <button id="car-style-real" class="car-style-option is-active" type="button" aria-pressed="true">
+            <strong>REAL CARS</strong><small>GLTF MODELS</small>
+          </button>
+          <button id="car-style-cartoon" class="car-style-option" type="button" aria-pressed="false">
+            <strong>CARTOON CARS</strong><small>CLASSIC MODE</small>
+          </button>
+        </div>
         <div class="modal-actions">
           <button id="camera-start" class="primary-button"><span>START WITH HANDS</span><i>→</i></button>
           <button id="keyboard-start" class="secondary-button">USE KEYBOARD INSTEAD <small>← A / D →</small></button>
@@ -99,6 +108,7 @@ let handController: HandController | null = null;
 const keyboard = new KeyboardController();
 let lastSnapshot: GameSnapshot | null = null;
 let soundEnabled = true;
+let selectedCarStyle: CarStyle = 'real';
 
 class EngineSound {
   private context: AudioContext | null = null;
@@ -139,6 +149,14 @@ class EngineSound {
     if (playing) void this.context?.resume();
   }
 
+  hornThreeTimes(): void {
+    if (!this.context || !this.playing || !soundEnabled) return;
+    const start = this.context.currentTime + 0.025;
+    for (let index = 0; index < 3; index += 1) {
+      this.playHornPulse(start + index * 0.34);
+    }
+  }
+
   stop(): void {
     if (this.musicTimer !== null) window.clearInterval(this.musicTimer);
     this.musicTimer = null;
@@ -157,6 +175,31 @@ class EngineSound {
     if (this.beat % 4 === 0) this.playKick(now);
     if (this.beat % 4 === 2) this.playNoise(now, 0.045);
     this.beat += 1;
+  }
+
+  private playHornPulse(start: number): void {
+    if (!this.context) return;
+    const envelope = this.context.createGain();
+    const filter = this.context.createBiquadFilter();
+    const lowTone = this.context.createOscillator();
+    const highTone = this.context.createOscillator();
+    lowTone.type = 'sawtooth';
+    highTone.type = 'square';
+    lowTone.frequency.setValueAtTime(370, start);
+    highTone.frequency.setValueAtTime(466, start);
+    filter.type = 'lowpass';
+    filter.frequency.value = 1350;
+    envelope.gain.setValueAtTime(0.0001, start);
+    envelope.gain.exponentialRampToValueAtTime(0.055, start + 0.018);
+    envelope.gain.setValueAtTime(0.055, start + 0.13);
+    envelope.gain.exponentialRampToValueAtTime(0.0001, start + 0.21);
+    lowTone.connect(filter);
+    highTone.connect(filter);
+    filter.connect(envelope).connect(this.context.destination);
+    lowTone.start(start);
+    highTone.start(start);
+    lowTone.stop(start + 0.23);
+    highTone.stop(start + 0.23);
   }
 
   private playNote(
@@ -235,7 +278,20 @@ const game = new DrivingGame(viewport, getControl, (snapshot) => {
   const steering = getControl().steering;
   byId('steer-indicator').style.left = `${50 + steering * 46}%`;
   engineSound.update(snapshot.speedKph);
-}, () => showCrash());
+}, () => showCrash(), () => engineSound.hornThreeTimes());
+
+function selectCarStyle(style: CarStyle): void {
+  selectedCarStyle = style;
+  for (const option of ['real', 'cartoon'] as const) {
+    const button = byId<HTMLButtonElement>(`car-style-${option}`);
+    const active = option === style;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-pressed', active.toString());
+  }
+}
+
+byId('car-style-real').addEventListener('click', () => selectCarStyle('real'));
+byId('car-style-cartoon').addEventListener('click', () => selectCarStyle('cartoon'));
 
 function setTracking(text: string, state: 'ok' | 'warn' | 'off' = 'off'): void {
   trackingLabel.textContent = text;
@@ -283,6 +339,7 @@ function showCrash(): void {
 }
 
 byId('camera-start').addEventListener('click', async () => {
+  game.setCarStyle(selectedCarStyle);
   mode = 'hands';
   engineSound.start();
   cameraShell.classList.remove('is-offline', 'is-hidden');
@@ -336,6 +393,7 @@ byId('camera-start').addEventListener('click', async () => {
 });
 
 function useKeyboard(): void {
+  game.setCarStyle(selectedCarStyle);
   mode = 'keyboard';
   handController?.stop();
   cameraShell.classList.remove('is-calibrating');

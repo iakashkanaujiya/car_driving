@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { GAME, laneOffsets } from './config';
 import { clamp, constrainToRoad, curveSpeedLimit, damp, roadCenter, roadHeading } from './math';
-import type { ControlInput, GamePhase, GameSnapshot } from './types';
+import type { CarStyle, ControlInput, GamePhase, GameSnapshot } from './types';
 
 interface TrafficCar {
   mesh: THREE.Group;
@@ -14,6 +14,7 @@ interface TrafficCar {
   speedChangeTimer: number;
   direction: 1 | -1;
   counted: boolean;
+  horned: boolean;
 }
 
 interface ForestMaterialOptions {
@@ -25,7 +26,20 @@ interface ForestMaterialOptions {
   alphaTest?: number;
 }
 
+type CarModelId = 'camaro' | 'pontiac' | 'golf';
+
+interface CarModelSpec {
+  id: CarModelId;
+  path: string;
+  rotationY: number;
+}
+
 const carColors = [0xff5a5f, 0x65d1ff, 0xffcc4d, 0xa98cff, 0xf4f2e9, 0x50d890];
+const carModelSpecs: readonly CarModelSpec[] = [
+  { id: 'camaro', path: 'models/1970_chevrolet_camaro/scene.gltf', rotationY: Math.PI },
+  { id: 'pontiac', path: 'models/1970_Pontiac/scene.gltf', rotationY: -Math.PI / 2 },
+  { id: 'golf', path: 'models/1976_volkswagen_golf/scene.gltf', rotationY: Math.PI },
+];
 
 export class DrivingGame {
   private readonly scene = new THREE.Scene();
@@ -64,6 +78,9 @@ export class DrivingGame {
   private steeringVisual = 0;
   private overtakes = 0;
   private assistMessage = 'READY';
+  private hornCooldown = 0;
+  private carStyle: CarStyle = 'cartoon';
+  private carModelsLoading = false;
   private lastSnapshot = 0;
   private animationFrame = 0;
 
@@ -72,6 +89,7 @@ export class DrivingGame {
     private readonly getControl: () => ControlInput,
     private readonly onUpdate: (snapshot: GameSnapshot) => void,
     private readonly onCrash: () => void,
+    private readonly onHorn: () => void,
   ) {
     this.scene.background = new THREE.Color(0x9bb8bd);
     this.scene.fog = new THREE.FogExp2(0x9bb8bd, 0.0048);
@@ -194,6 +212,7 @@ export class DrivingGame {
     this.vehicleHeading = roadHeading(0);
     this.overtakes = 0;
     this.assistMessage = 'READY';
+    this.hornCooldown = 0;
     this.phase = 'ready';
     this.setBrakeLights(this.player, false);
     let ongoingCursor = 45;
@@ -215,6 +234,14 @@ export class DrivingGame {
 
   getPhase(): GamePhase {
     return this.phase;
+  }
+
+  setCarStyle(style: CarStyle): void {
+    this.carStyle = style;
+    if (style === 'real' && !this.carModelsLoading) {
+      this.carModelsLoading = true;
+      this.loadCarModels();
+    }
   }
 
   dispose(): void {
@@ -367,14 +394,15 @@ export class DrivingGame {
     for (let index = 0; index < GAME.trafficCount; index += 1) {
       const direction: 1 | -1 = index === 0 ? 1 : index === 1 ? -1 : Math.random() < 0.56 ? 1 : -1;
       const car: TrafficCar = {
-        mesh: this.createCar(carColors[index % carColors.length], false),
+          mesh: this.createCar(carColors[Math.floor(Math.random() * carColors.length)], false),
         distance: 0,
         lane: direction === 1 ? 0 : 1,
         speed: 0,
         targetSpeed: 0,
         speedChangeTimer: 0,
-        direction,
-        counted: false,
+         direction,
+         counted: false,
+          horned: false,
       };
       if (direction === 1) {
         ongoingSpawnCursor += 34 + Math.random() * 48;
@@ -606,16 +634,225 @@ export class DrivingGame {
       }
     }
 
-    group.scale.setScalar(player ? 1 : 0.93 + Math.random() * 0.12);
+    group.scale.setScalar(2);
     return group;
+  }
+
+  private loadCarModels(): void {
+    const loader = new GLTFLoader();
+    void Promise.all(carModelSpecs.map(async (spec) => {
+      try {
+        const gltf = await loader.loadAsync(`${import.meta.env.BASE_URL}${spec.path}`);
+        return {
+          id: spec.id,
+          trafficPrototype: this.prepareCarModel(gltf.scene, spec.rotationY, true),
+          playerPrototype: spec.id === 'camaro'
+            ? this.prepareCarModel(gltf.scene, spec.rotationY, false)
+            : undefined,
+        };
+      } catch (error) {
+        console.error(`Could not load the ${spec.id} car model.`, error);
+        return null;
+      }
+    })).then((loadedModels) => {
+      if (this.carStyle !== 'real') return;
+      const available = loadedModels.filter((model): model is {
+        id: CarModelId;
+        trafficPrototype: THREE.Group;
+        playerPrototype: THREE.Group | undefined;
+      } => model !== null);
+      if (available.length === 0) return;
+
+      const camaro = available.find((model) => model.id === 'camaro');
+      if (camaro?.playerPrototype) {
+        this.replaceCarVisual(this.player, camaro.playerPrototype, true, camaro.id);
+      }
+
+      const trafficStart = Math.floor(Math.random() * available.length);
+      this.traffic.forEach((car, index) => {
+        const model = available[(trafficStart + index) % available.length];
+        this.replaceCarVisual(car.mesh, model.trafficPrototype, false, model.id);
+      });
+    });
+  }
+
+  private prepareCarModel(source: THREE.Group, rotationY: number, optimize: boolean): THREE.Group {
+    const content = source.clone(true);
+    const orientation = new THREE.Group();
+    orientation.rotation.y = rotationY;
+    orientation.add(content);
+    orientation.updateMatrixWorld(true);
+
+    const modelRoot = optimize ? this.mergeStaticCarMeshes(orientation) : orientation;
+
+    const prototype = new THREE.Group();
+    prototype.add(modelRoot);
+    prototype.updateMatrixWorld(true);
+
+    let bounds = new THREE.Box3().setFromObject(prototype);
+    const size = bounds.getSize(new THREE.Vector3());
+    const horizontalLength = Math.max(size.x, size.z);
+    if (!Number.isFinite(horizontalLength) || horizontalLength <= 0) {
+      throw new Error('The car model has invalid bounds.');
+    }
+
+    modelRoot.scale.setScalar(4.6 / horizontalLength);
+    prototype.updateMatrixWorld(true);
+    bounds = new THREE.Box3().setFromObject(prototype);
+    const center = bounds.getCenter(new THREE.Vector3());
+    modelRoot.position.set(-center.x, -bounds.min.y, -center.z);
+    prototype.updateMatrixWorld(true);
+
+    prototype.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      object.castShadow = true;
+      object.receiveShadow = true;
+    });
+    return prototype;
+  }
+
+  private mergeStaticCarMeshes(root: THREE.Group): THREE.Group {
+    const buckets = new Map<string, {
+      material: THREE.Material;
+      geometries: THREE.BufferGeometry[];
+    }>();
+
+    root.traverse((object) => {
+      if (!(object instanceof THREE.Mesh) || Array.isArray(object.material)) return;
+      const geometry = object.geometry.clone();
+      geometry.applyMatrix4(object.matrixWorld);
+      const attributeSignature = Object.keys(geometry.attributes).sort().join(',');
+      const key = `${object.material.uuid}|${attributeSignature}|${geometry.index ? 'indexed' : 'plain'}`;
+      let bucket = buckets.get(key);
+      if (!bucket) {
+        bucket = { material: object.material, geometries: [] };
+        buckets.set(key, bucket);
+      }
+      bucket.geometries.push(geometry);
+    });
+
+    const mergedRoot = new THREE.Group();
+    for (const bucket of buckets.values()) {
+      const merged = mergeGeometries(bucket.geometries, false);
+      bucket.geometries.forEach((geometry) => geometry.dispose());
+      if (!merged) continue;
+      merged.computeBoundingBox();
+      merged.computeBoundingSphere();
+      mergedRoot.add(new THREE.Mesh(merged, bucket.material));
+    }
+    if (mergedRoot.children.length === 0) throw new Error('The car geometry could not be optimized.');
+    return mergedRoot;
+  }
+
+  private replaceCarVisual(
+    car: THREE.Group,
+    prototype: THREE.Group,
+    player: boolean,
+    modelId: CarModelId,
+  ): void {
+    const oldGeometries = new Set<THREE.BufferGeometry>();
+    const oldMaterials = new Set<THREE.Material>();
+    car.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      oldGeometries.add(object.geometry);
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      materials.forEach((material) => oldMaterials.add(material));
+    });
+    car.clear();
+    oldGeometries.forEach((geometry) => geometry.dispose());
+    oldMaterials.forEach((material) => material.dispose());
+
+    const instance = prototype.clone(true);
+    if (!player) {
+      const color = carColors[Math.floor(Math.random() * carColors.length)];
+      this.applyTrafficCarColor(instance, modelId, color);
+    }
+    instance.updateMatrixWorld(true);
+    const modelBounds = new THREE.Box3().setFromObject(instance, true);
+    car.add(instance);
+    car.scale.setScalar(2);
+    car.userData.modelId = modelId;
+    car.userData.frontWheels = [];
+    car.userData.tailMaterial = undefined;
+    car.userData.brakeGlow = undefined;
+    car.userData.highBrakeOnly = false;
+
+    if (player && modelId === 'golf') {
+      const frontWheels = ['group1', 'group2']
+        .map((name) => instance.getObjectByName(name))
+        .filter((wheel): wheel is THREE.Object3D => wheel !== undefined);
+      for (const wheel of frontWheels) wheel.userData.baseSteeringY = wheel.rotation.y;
+      car.userData.frontWheels = frontWheels;
+    }
+
+    if (player) this.addHighMountedBrakeLight(car, modelBounds);
+  }
+
+  private applyTrafficCarColor(car: THREE.Group, modelId: CarModelId, color: number): void {
+    const paintNames: Record<CarModelId, string> = {
+      camaro: 'Paint6Mtl',
+      pontiac: 'body',
+      golf: 'vM_CarPaint_Max1',
+    };
+    const paintName = paintNames[modelId];
+    const materialClones = new Map<THREE.Material, THREE.Material>();
+
+    const tintMaterial = (source: THREE.Material): THREE.Material => {
+      if (source.name !== paintName) return source;
+      const existing = materialClones.get(source);
+      if (existing) return existing;
+
+      const material = source.clone();
+      if (material instanceof THREE.MeshStandardMaterial) {
+        material.color.setHex(color);
+        material.emissive.setHex(0x000000);
+        material.emissiveMap = null;
+        if (modelId === 'camaro') material.map = null;
+        material.metalness = Math.max(material.metalness, 0.48);
+        material.roughness = Math.min(material.roughness, 0.32);
+        material.needsUpdate = true;
+      }
+      materialClones.set(source, material);
+      return material;
+    };
+
+    car.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      object.material = Array.isArray(object.material)
+        ? object.material.map(tintMaterial)
+        : tintMaterial(object.material);
+    });
+  }
+
+  private addHighMountedBrakeLight(car: THREE.Group, bounds: THREE.Box3): void {
+    const size = bounds.getSize(new THREE.Vector3());
+    const material = new THREE.MeshStandardMaterial({
+      color: 0x260205,
+      emissive: 0x000000,
+      emissiveIntensity: 0,
+      roughness: 0.24,
+    });
+    const light = new THREE.Mesh(
+      new THREE.BoxGeometry(Math.max(0.5, size.x * 0.34), 0.055, 0.045),
+      material,
+    );
+    light.position.set(
+      0,
+      bounds.min.y + size.y * 0.82,
+      bounds.max.z - size.z * 0.12,
+    );
+    car.userData.tailMaterial = material;
+    car.userData.highBrakeOnly = true;
+    car.add(light);
   }
 
   private setBrakeLights(car: THREE.Group, braking: boolean): void {
     const material = car.userData.tailMaterial as THREE.MeshStandardMaterial | undefined;
     if (material) {
-      material.color.setHex(braking ? 0xff1d29 : 0x681015);
-      material.emissive.setHex(braking ? 0xff0712 : 0x240003);
-      material.emissiveIntensity = braking ? 4.5 : 0.7;
+      const highBrakeOnly = car.userData.highBrakeOnly === true;
+      material.color.setHex(braking ? 0xff1d29 : highBrakeOnly ? 0x260205 : 0x681015);
+      material.emissive.setHex(braking ? 0xff0712 : highBrakeOnly ? 0x000000 : 0x240003);
+      material.emissiveIntensity = braking ? 4.5 : highBrakeOnly ? 0 : 0.7;
     }
     const glow = car.userData.brakeGlow as THREE.PointLight | undefined;
     if (glow) glow.intensity = braking ? 4.2 : 0;
@@ -910,6 +1147,7 @@ export class DrivingGame {
     car.targetSpeed = car.speed;
     car.speedChangeTimer = 2.5 + Math.random() * 6;
     car.counted = false;
+    car.horned = false;
   }
 
   private updateSimulation(dt: number): void {
@@ -918,10 +1156,18 @@ export class DrivingGame {
     let targetSpeed = curveLimit;
     let leadDistance = Number.POSITIVE_INFINITY;
     let leadIsIncoming = false;
+    this.hornCooldown = Math.max(0, this.hornCooldown - dt);
 
     for (const car of this.traffic) {
       const gap = car.distance - this.distance;
       const laneGap = Math.abs(laneOffsets[car.lane] - this.lateral);
+      if (!car.horned && gap > GAME.collisionLength && gap < 32 && laneGap < GAME.collisionWidth + 0.8) {
+        car.horned = true;
+        if (this.hornCooldown === 0) {
+          this.hornCooldown = 3.5;
+          this.onHorn();
+        }
+      }
       if (gap > 0 && gap < leadDistance && laneGap < 2.35) {
         leadDistance = gap;
         leadIsIncoming = car.direction === -1;
@@ -1076,9 +1322,10 @@ export class DrivingGame {
     this.player.position.set(this.worldX, 0.02, -this.distance);
     this.player.rotation.y = this.vehicleHeading;
     this.player.rotation.z = damp(this.player.rotation.z, -this.steeringVisual * 0.06, 6, dt);
-    const playerFrontWheels = this.player.userData.frontWheels as THREE.Group[];
+    const playerFrontWheels = this.player.userData.frontWheels as THREE.Object3D[];
     for (const wheel of playerFrontWheels) {
-      wheel.rotation.y = damp(wheel.rotation.y, -this.steeringVisual * 0.48, 14, dt);
+      const baseSteeringY = (wheel.userData.baseSteeringY as number | undefined) ?? 0;
+      wheel.rotation.y = damp(wheel.rotation.y, baseSteeringY - this.steeringVisual * 0.48, 14, dt);
     }
 
     for (const car of this.traffic) {

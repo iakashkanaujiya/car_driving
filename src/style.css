@@ -147,6 +147,15 @@ h2 { font-size: clamp(50px, 7vw, 78px); color: var(--acid); }
 .instruction-row div:last-child { border: 0; }
 .instruction-row b { font-size: 25px; color: var(--acid); font-style: italic; }
 .instruction-row span { font: 500 9px/1.45 'DM Mono', monospace; color: rgba(255,255,255,.65); letter-spacing: .04em; }
+.car-style-picker { display: grid; grid-template-columns: auto 1fr 1fr; align-items: stretch; gap: 7px; margin: -10px 0 12px; }
+.car-style-picker > span { display: flex; align-items: center; padding-right: 5px; color: rgba(255,255,255,.42); font: 600 8px 'DM Mono', monospace; letter-spacing: .14em; }
+.car-style-option { min-width: 0; padding: 7px 12px; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.035); color: rgba(255,255,255,.58); cursor: pointer; text-align: left; transition: border-color .18s, background .18s, color .18s; }
+.car-style-option strong, .car-style-option small { display: block; }
+.car-style-option strong { font-size: 10px; letter-spacing: .08em; }
+.car-style-option small { margin-top: 2px; color: rgba(255,255,255,.34); font: 500 7px 'DM Mono', monospace; letter-spacing: .07em; }
+.car-style-option:hover { border-color: rgba(233,255,66,.62); color: white; }
+.car-style-option.is-active { border-color: var(--acid); background: rgba(233,255,66,.11); color: var(--acid); box-shadow: inset 3px 0 0 var(--acid); }
+.car-style-option.is-active small { color: rgba(233,255,66,.62); }
 .modal-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
 .primary-button, .secondary-button { height: 47px; border: 0; cursor: pointer; letter-spacing: .08em; font-weight: 800; transition: transform .18s, filter .18s, border-color .18s; }
 .primary-button { min-width: 236px; background: var(--acid); color: #080b0d; display: inline-flex; align-items: center; justify-content: space-between; padding: 0 8px 0 19px; }
@@ -217,6 +226,8 @@ h2 { font-size: clamp(50px, 7vw, 78px); color: var(--acid); }
   .instruction-row div:last-child { border-right: 0; }
   .instruction-row span { font-size: 7px; }
   .wheel-guide { transform: scale(.78); margin: -14px -42px -10px; }
+  .car-style-picker { grid-template-columns: 1fr 1fr; margin-top: -8px; }
+  .car-style-picker > span { display: none; }
   .modal-actions { flex-direction: column; }
   .primary-button, .secondary-button { width: 100%; }
   .run-stats { left: 15px; top: 72px; }
@@ -247,6 +258,7 @@ h2 { font-size: clamp(50px, 7vw, 78px); color: var(--acid); }
   .intro-modal .lead { margin-block: 10px; line-height: 1.55; }
   .wheel-guide { height: 108px; transform: scale(.72); margin: -10px 0; }
   .instruction-row { margin-block: 0 13px; }
+  .car-style-picker { margin-bottom: 9px; }
   .instruction-row div { padding-block: 8px; }
   .primary-button, .secondary-button { height: 42px; }
   .privacy { margin-top: 9px; }
@@ -274,6 +286,7 @@ h2 { font-size: clamp(50px, 7vw, 78px); color: var(--acid); }
   .intro-modal { padding-block: 14px; }
   .intro-modal h1 { font-size: 40px; }
   .instruction-row { margin-block: 8px; }
+  .car-style-picker { margin-block: -2px 7px; }
   .modal-actions { flex-wrap: nowrap; }
   .primary-button, .secondary-button { height: 38px; }
 }

@@ -11,8 +11,8 @@ export const GAME = {
   trafficCount: 16,
   lookAhead: 260,
   lookBehind: 55,
-  collisionLength: 5.2,
-  collisionWidth: 2.15,
+  collisionLength: 9.2,
+  collisionWidth: 3.9,
 } as const;
 
 export const laneOffsets = [-GAME.laneWidth / 2, GAME.laneWidth / 2] as const;
