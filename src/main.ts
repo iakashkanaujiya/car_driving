@@ -293,6 +293,22 @@ function selectCarStyle(style: CarStyle): void {
 byId('car-style-real').addEventListener('click', () => selectCarStyle('real'));
 byId('car-style-cartoon').addEventListener('click', () => selectCarStyle('cartoon'));
 
+async function prepareSelectedCars(button?: HTMLButtonElement): Promise<void> {
+  const originalContent = button?.innerHTML;
+  if (button) {
+    button.disabled = true;
+    button.textContent = selectedCarStyle === 'real' ? 'LOADING REAL CARS…' : 'PREPARING…';
+  }
+  try {
+    await game.setCarStyle(selectedCarStyle);
+  } finally {
+    if (button && originalContent !== undefined) {
+      button.innerHTML = originalContent;
+      button.disabled = false;
+    }
+  }
+}
+
 function setTracking(text: string, state: 'ok' | 'warn' | 'off' = 'off'): void {
   trackingLabel.textContent = text;
   trackingPill.dataset.state = state;
@@ -338,8 +354,8 @@ function showCrash(): void {
   byId('restart-run').addEventListener('click', beginRun);
 }
 
-byId('camera-start').addEventListener('click', async () => {
-  game.setCarStyle(selectedCarStyle);
+byId<HTMLButtonElement>('camera-start').addEventListener('click', async (event) => {
+  await prepareSelectedCars(event.currentTarget as HTMLButtonElement);
   mode = 'hands';
   engineSound.start();
   cameraShell.classList.remove('is-offline', 'is-hidden');
@@ -392,8 +408,9 @@ byId('camera-start').addEventListener('click', async () => {
   }
 });
 
-function useKeyboard(): void {
-  game.setCarStyle(selectedCarStyle);
+async function useKeyboard(): Promise<void> {
+  const startButton = document.getElementById('keyboard-start') as HTMLButtonElement | null;
+  await prepareSelectedCars(startButton ?? undefined);
   mode = 'keyboard';
   handController?.stop();
   cameraShell.classList.remove('is-calibrating');

@@ -1,0 +1,11 @@
+Model Information:
+* title:	Tata Tiago
+* source:	https://sketchfab.com/3d-models/tata-tiago-7ae10b287a184453b19a83ed5b37c007
+* author:	BHP3D (https://sketchfab.com/BHP3D)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Tata Tiago" (https://sketchfab.com/3d-models/tata-tiago-7ae10b287a184453b19a83ed5b37c007) by BHP3D (https://sketchfab.com/BHP3D) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
