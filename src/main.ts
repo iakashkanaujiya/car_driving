@@ -70,23 +70,23 @@ app.innerHTML = `
         </div>
         <div class="car-style-picker" role="group" aria-label="Choose car style">
           <span>CAR STYLE</span>
-          <button id="car-style-real" class="car-style-option is-active" type="button" aria-pressed="true">
-            <strong>REAL CARS</strong><small>GLTF MODELS</small>
-          </button>
-          <button id="car-style-cartoon" class="car-style-option" type="button" aria-pressed="false">
+          <button id="car-style-cartoon" class="car-style-option is-active" type="button" aria-pressed="true">
             <strong>CARTOON CARS</strong><small>CLASSIC MODE</small>
           </button>
+          <button id="car-style-real" class="car-style-option" type="button" aria-pressed="false">
+            <strong>REAL CARS</strong><small>GLTF MODELS</small>
+          </button>
         </div>
-        <div id="real-car-options" class="real-car-options">
+        <div id="real-car-options" class="real-car-options is-disabled">
           <label>
             <span>DRIVER CAR</span>
-            <select id="driver-car" aria-label="Choose driver car">
+            <select id="driver-car" aria-label="Choose driver car" disabled>
               ${CAR_MODEL_OPTIONS.map(({ id, label }) => `<option value="${id}"${id === 'bronco' ? ' selected' : ''}>${label}</option>`).join('')}
             </select>
           </label>
           <label>
             <span>TRAFFIC CARS</span>
-            <select id="traffic-count" aria-label="Choose number of traffic cars">
+            <select id="traffic-count" aria-label="Choose number of traffic cars" disabled>
               <option value="4">4 CARS</option>
               <option value="8">8 CARS</option>
               <option value="12">12 CARS</option>
@@ -148,7 +148,7 @@ let handController: HandController | null = null;
 const keyboard = new KeyboardController();
 let lastSnapshot: GameSnapshot | null = null;
 let soundEnabled = true;
-let selectedCarStyle: CarStyle = 'real';
+let selectedCarStyle: CarStyle = 'cartoon';
 let selectedDriverCar: CarModelId = 'bronco';
 let selectedTrafficCount = 16;
 

@@ -50,6 +50,13 @@ interface WheelAssembly {
   front: boolean;
 }
 
+interface CarLoftStation {
+  z: number;
+  halfWidth: number;
+  bottom: number;
+  top: number;
+}
+
 export interface LoadedCarModel {
   id: CarModelId;
   trafficPrototype: THREE.Group;
@@ -197,48 +204,43 @@ export class VehicleAssets {
       return panel;
     };
 
-    const bodyProfile: Array<[number, number]> = [
-      [-2.34, 0.31],
-      [-2.36, 0.5],
-      [-2.31, 0.7],
-      [-2.08, 0.85],
-      [-1.76, 0.96],
-      [-1.25, 1.03],
-      [-0.64, 1.06],
-      [0.18, 1.05],
-      [0.9, 1.01],
-      [1.5, 0.93],
-      [1.88, 0.82],
-      [2.16, 0.67],
-      [2.32, 0.53],
-      [2.29, 0.3],
-    ];
     const body = new THREE.Mesh(
-      this.createCarProfileGeometry(bodyProfile, 2.14, 0.1, true),
+      this.createCarLoftGeometry([
+        { z: -2.34, halfWidth: 0.9, bottom: 0.32, top: 0.68 },
+        { z: -2.08, halfWidth: 1.03, bottom: 0.28, top: 0.86 },
+        { z: -1.63, halfWidth: 1.09, bottom: 0.25, top: 1.0 },
+        { z: -0.82, halfWidth: 1.11, bottom: 0.24, top: 1.07 },
+        { z: 0.12, halfWidth: 1.12, bottom: 0.24, top: 1.08 },
+        { z: 0.95, halfWidth: 1.11, bottom: 0.25, top: 1.03 },
+        { z: 1.64, halfWidth: 1.08, bottom: 0.27, top: 0.92 },
+        { z: 2.12, halfWidth: 1.02, bottom: 0.29, top: 0.78 },
+        { z: 2.34, halfWidth: 0.94, bottom: 0.33, top: 0.68 },
+      ]),
       paint,
     );
     body.castShadow = true;
     body.receiveShadow = true;
     group.add(body);
 
-    const canopyProfile: Array<[number, number]> = [
-      [-1.12, 1.02],
-      [-0.94, 1.28],
-      [-0.78, 1.51],
-      [-0.43, 1.68],
-      [0.43, 1.68],
-      [0.72, 1.52],
-      [1.03, 1.01],
-    ];
     const canopy = new THREE.Mesh(
-      this.createCarProfileGeometry(canopyProfile, 1.5, 0.045),
+      this.createCarLoftGeometry([
+        { z: -1.12, halfWidth: 0.55, bottom: 1.01, top: 1.08 },
+        { z: -0.83, halfWidth: 0.69, bottom: 1.01, top: 1.44 },
+        { z: -0.46, halfWidth: 0.75, bottom: 1.01, top: 1.65 },
+        { z: 0.34, halfWidth: 0.75, bottom: 1.01, top: 1.67 },
+        { z: 0.72, halfWidth: 0.69, bottom: 1.01, top: 1.49 },
+        { z: 1.04, halfWidth: 0.54, bottom: 1.01, top: 1.08 },
+      ]),
       glass,
     );
     canopy.castShadow = true;
     group.add(canopy);
 
-    const roof = new THREE.Mesh(new THREE.BoxGeometry(1.42, 0.1, 0.92), carbon);
-    roof.position.set(0, 1.69, 0.08);
+    const roofGeometry = new THREE.CapsuleGeometry(0.3, 0.54, 4, 14);
+    roofGeometry.rotateX(Math.PI / 2);
+    const roof = new THREE.Mesh(roofGeometry, carbon);
+    roof.scale.set(2.15, 0.18, 1);
+    roof.position.set(0, 1.68, 0.02);
     roof.castShadow = true;
     group.add(roof);
 
@@ -419,11 +421,16 @@ export class VehicleAssets {
       roughness: 0.32,
     });
     group.userData.tailMaterial = tailMaterial;
-    const rearLightPanel = new THREE.Mesh(
-      new THREE.BoxGeometry(1.98, 0.31, 0.055),
+    const rearLightPanel = createRearPanel(
+      [
+        [-1.01, 0.94],
+        [1.01, 0.94],
+        [0.94, 0.65],
+        [-0.94, 0.65],
+      ],
       carbon,
+      2.285,
     );
-    rearLightPanel.position.set(0, 0.79, 2.255);
     group.add(rearLightPanel);
     for (const x of [-0.66, 0.66]) {
       const headlight = new THREE.Mesh(
@@ -460,11 +467,16 @@ export class VehicleAssets {
     centerTail.position.set(0, 1.13, 1.105);
     group.add(centerTail);
 
-    const rearBumper = new THREE.Mesh(
-      new THREE.BoxGeometry(2.04, 0.27, 0.18),
+    const rearBumper = createRearPanel(
+      [
+        [-1.02, 0.62],
+        [1.02, 0.62],
+        [0.88, 0.38],
+        [-0.88, 0.38],
+      ],
       carbon,
+      2.42,
     );
-    rearBumper.position.set(0, 0.5, 2.23);
     group.add(rearBumper);
     const diffuser = new THREE.Mesh(
       new THREE.BoxGeometry(1.82, 0.27, 0.3),
@@ -516,10 +528,10 @@ export class VehicleAssets {
       group.add(exhaustOpening);
     }
 
-    const wing = new THREE.Mesh(
-      new THREE.BoxGeometry(2.24, 0.1, 0.36),
-      carbon,
-    );
+    const wingGeometry = new THREE.CapsuleGeometry(0.07, 2.05, 4, 14);
+    wingGeometry.rotateZ(Math.PI / 2);
+    const wing = new THREE.Mesh(wingGeometry, carbon);
+    wing.scale.set(1, 0.55, 2.05);
     wing.position.set(0, 1.25, 1.74);
     wing.castShadow = true;
     group.add(wing);
@@ -1002,41 +1014,68 @@ export class VehicleAssets {
     car.add(light);
   }
 
-  private createCarProfileGeometry(
-    profile: Array<[number, number]>,
-    width: number,
-    bevel: number,
-    taperEnds = false,
-  ): THREE.ExtrudeGeometry {
-    const shape = new THREE.Shape();
-    shape.moveTo(profile[0][0], profile[0][1]);
-    for (let index = 1; index < profile.length; index += 1)
-      shape.lineTo(profile[index][0], profile[index][1]);
-    shape.lineTo(profile[0][0], profile[0][1]);
+  private createCarLoftGeometry(
+    stations: readonly CarLoftStation[],
+  ): THREE.BufferGeometry {
+    const sectionProfile: ReadonlyArray<readonly [number, number]> = [
+      [-0.68, 0],
+      [-0.94, 0.12],
+      [-1, 0.48],
+      [-0.96, 0.76],
+      [-0.72, 0.94],
+      [0, 1],
+      [0.72, 0.94],
+      [0.96, 0.76],
+      [1, 0.48],
+      [0.94, 0.12],
+      [0.68, 0],
+    ];
+    const vertices: number[] = [];
+    const indices: number[] = [];
 
-    const geometry = new THREE.ExtrudeGeometry(shape, {
-      depth: width,
-      steps: 1,
-      curveSegments: 2,
-      bevelEnabled: true,
-      bevelSegments: 3,
-      bevelSize: bevel,
-      bevelThickness: bevel,
-    });
-    geometry.translate(0, 0, -width / 2);
-    if (taperEnds) {
-      const position = geometry.getAttribute(
-        "position",
-      ) as THREE.BufferAttribute;
-      for (let index = 0; index < position.count; index += 1) {
-        const profilePosition = position.getX(index);
-        const taper = 1 - Math.max(0, Math.abs(profilePosition) - 1.05) * 0.11;
-        position.setZ(index, position.getZ(index) * taper);
+    for (const station of stations) {
+      const height = station.top - station.bottom;
+      for (const [widthRatio, heightRatio] of sectionProfile) {
+        vertices.push(
+          widthRatio * station.halfWidth,
+          station.bottom + heightRatio * height,
+          station.z,
+        );
       }
-      position.needsUpdate = true;
     }
-    geometry.rotateY(Math.PI / 2);
+
+    const sectionSize = sectionProfile.length;
+    for (let stationIndex = 0; stationIndex < stations.length - 1; stationIndex += 1) {
+      const current = stationIndex * sectionSize;
+      const next = current + sectionSize;
+      for (let pointIndex = 0; pointIndex < sectionSize; pointIndex += 1) {
+        const followingPoint = (pointIndex + 1) % sectionSize;
+        const a = current + pointIndex;
+        const b = next + pointIndex;
+        const c = next + followingPoint;
+        const d = current + followingPoint;
+        indices.push(a, b, c, a, c, d);
+      }
+    }
+
+    const frontCenter = vertices.length / 3;
+    const frontStation = stations[0];
+    vertices.push(0, (frontStation.bottom + frontStation.top) / 2, frontStation.z);
+    const rearCenter = vertices.length / 3;
+    const rearStation = stations[stations.length - 1];
+    vertices.push(0, (rearStation.bottom + rearStation.top) / 2, rearStation.z);
+    const rearStart = (stations.length - 1) * sectionSize;
+    for (let pointIndex = 0; pointIndex < sectionSize; pointIndex += 1) {
+      const followingPoint = (pointIndex + 1) % sectionSize;
+      indices.push(frontCenter, followingPoint, pointIndex);
+      indices.push(rearCenter, rearStart + pointIndex, rearStart + followingPoint);
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+    geometry.setIndex(indices);
     geometry.computeVertexNormals();
+    geometry.computeBoundingSphere();
     return geometry;
   }
 }
