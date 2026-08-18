@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "postinstall": "node scripts/setup-mediapipe.mjs",
+    "predev": "node scripts/generate-car-asset-manifest.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/generate-car-asset-manifest.mjs",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run"

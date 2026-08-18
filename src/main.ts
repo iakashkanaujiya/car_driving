@@ -5,6 +5,8 @@ import { DrivingGame } from './game/DrivingGame';
 import type { CarStyle, ControlMode, GameSnapshot } from './game/types';
 import { CAR_MODEL_OPTIONS } from './game/vehicleAssets';
 import type { CarModelId } from './game/vehicleAssets';
+import { cacheRealCarAssets } from './services/carAssetCache';
+import type { CarAssetCacheProgress } from './services/carAssetCache';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) throw new Error('App root is missing');
@@ -91,6 +93,14 @@ app.innerHTML = `
               <option value="16" selected>16 CARS</option>
             </select>
           </label>
+        </div>
+        <div id="asset-download" class="asset-download" data-state="checking" role="status" aria-live="polite">
+          <div class="asset-download-head">
+            <span id="asset-download-label">CHECKING CAR ASSETS</span>
+            <b id="asset-download-percent">0%</b>
+          </div>
+          <div class="asset-download-track"><i id="asset-download-fill"></i></div>
+          <small id="asset-download-detail">Real-car files are saved in this browser after the first download.</small>
         </div>
         <div class="modal-actions">
           <button id="camera-start" class="primary-button"><span>START WITH HANDS</span><i>→</i></button>
@@ -301,6 +311,55 @@ const game = new DrivingGame(viewport, getControl, (snapshot) => {
   engineSound.update(snapshot.speedKph);
 }, () => showCrash(), () => engineSound.hornThreeTimes());
 
+const realCarAssetsReady = cacheRealCarAssets(updateCarAssetProgress);
+
+function updateCarAssetProgress(progress: CarAssetCacheProgress): void {
+  const panel = document.getElementById('asset-download');
+  const label = document.getElementById('asset-download-label');
+  const percentNode = document.getElementById('asset-download-percent');
+  const fill = document.getElementById('asset-download-fill');
+  const detail = document.getElementById('asset-download-detail');
+  if (!panel || !label || !percentNode || !fill || !detail) return;
+
+  const checkingRatio = progress.totalFiles > 0
+    ? progress.checkedFiles / progress.totalFiles
+    : 0;
+  const downloadRatio = progress.totalBytes > 0
+    ? progress.loadedBytes / progress.totalBytes
+    : 0;
+  const ratio = progress.phase === 'checking' ? checkingRatio : downloadRatio;
+  const percent = progress.phase === 'ready'
+    ? 100
+    : Math.max(0, Math.min(99, Math.round(ratio * 100)));
+
+  panel.dataset.state = progress.phase;
+  percentNode.textContent = `${percent}%`;
+  fill.style.width = `${percent}%`;
+
+  if (progress.phase === 'checking') {
+    label.textContent = 'CHECKING BROWSER STORAGE';
+    detail.textContent = progress.totalFiles > 0
+      ? `${progress.checkedFiles} / ${progress.totalFiles} files checked`
+      : 'Looking for previously downloaded real-car assets...';
+  } else if (progress.phase === 'downloading') {
+    label.textContent = 'DOWNLOADING REAL-CAR ASSETS';
+    detail.textContent = `${formatBytes(progress.loadedBytes)} / ${formatBytes(progress.totalBytes)} saved · ${progress.completedFiles} / ${progress.totalFiles} files`;
+  } else if (progress.phase === 'ready') {
+    label.textContent = 'REAL-CAR ASSETS READY';
+    detail.textContent = `${formatBytes(progress.totalBytes)} saved in browser storage for future visits.`;
+  } else {
+    label.textContent = 'BROWSER STORAGE UNAVAILABLE';
+    percentNode.textContent = 'ONLINE';
+    fill.style.width = '100%';
+    detail.textContent = `${progress.message ?? 'Persistent caching is unsupported.'} Cars will load normally from the network.`;
+  }
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
 function selectCarStyle(style: CarStyle): void {
   selectedCarStyle = style;
   for (const option of ['real', 'cartoon'] as const) {
@@ -333,6 +392,7 @@ async function prepareSelectedCars(button?: HTMLButtonElement): Promise<void> {
     button.textContent = selectedCarStyle === 'real' ? 'LOADING REAL CARS…' : 'PREPARING…';
   }
   try {
+    if (selectedCarStyle === 'real') await realCarAssetsReady;
     await game.setCarStyle(
       selectedCarStyle,
       selectedDriverCar,

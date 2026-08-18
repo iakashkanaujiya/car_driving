@@ -1,0 +1,582 @@
+{
+  "version": "15455e70fe39bb32",
+  "totalBytes": 176702767,
+  "assets": [
+    {
+      "path": "models/1970_Pontiac/scene.bin",
+      "size": 19515124
+    },
+    {
+      "path": "models/1970_Pontiac/scene.gltf",
+      "size": 216470
+    },
+    {
+      "path": "models/1970_Pontiac/textures/decals_baseColor.jpeg",
+      "size": 93246
+    },
+    {
+      "path": "models/1970_Pontiac/textures/glass_baseColor.jpeg",
+      "size": 76356
+    },
+    {
+      "path": "models/1970_Pontiac/textures/int_tex_baseColor.jpeg",
+      "size": 105522
+    },
+    {
+      "path": "models/1970_Pontiac/textures/logo_baseColor.jpeg",
+      "size": 60702
+    },
+    {
+      "path": "models/1970_chevrolet_camaro/scene.bin",
+      "size": 5549040
+    },
+    {
+      "path": "models/1970_chevrolet_camaro/scene.gltf",
+      "size": 38289
+    },
+    {
+      "path": "models/1970_chevrolet_camaro/textures/Meshpart15Mtl_baseColor.png",
+      "size": 201466
+    },
+    {
+      "path": "models/1970_chevrolet_camaro/textures/Meshpart15Mtl_emissive.png",
+      "size": 166141
+    },
+    {
+      "path": "models/1970_chevrolet_camaro/textures/Meshpart1Mtl_baseColor.png",
+      "size": 538089
+    },
+    {
+      "path": "models/1970_chevrolet_camaro/textures/Meshpart53Mtl_baseColor.png",
+      "size": 29431
+    },
+    {
+      "path": "models/1970_chevrolet_camaro/textures/Meshpart56Mtl_baseColor.png",
+      "size": 184560
+    },
+    {
+      "path": "models/1970_chevrolet_camaro/textures/Meshpart56Mtl_emissive.png",
+      "size": 163095
+    },
+    {
+      "path": "models/1970_chevrolet_camaro/textures/Meshpart57Mtl_baseColor.png",
+      "size": 105608
+    },
+    {
+      "path": "models/1970_chevrolet_camaro/textures/Meshpart58Mtl_baseColor.png",
+      "size": 105153
+    },
+    {
+      "path": "models/1970_chevrolet_camaro/textures/Meshpart9Mtl_baseColor.png",
+      "size": 349
+    },
+    {
+      "path": "models/1970_chevrolet_camaro/textures/Paint6Mtl_baseColor.png",
+      "size": 400
+    },
+    {
+      "path": "models/1970_chevrolet_camaro/textures/Paint6Mtl_emissive.png",
+      "size": 84
+    },
+    {
+      "path": "models/1970_chevrolet_camaro/textures/Roof1Mtl_baseColor.png",
+      "size": 102738
+    },
+    {
+      "path": "models/1970_chevrolet_camaro/textures/Wood1Mtl_baseColor.png",
+      "size": 5924
+    },
+    {
+      "path": "models/1976_volkswagen_golf/scene.bin",
+      "size": 2314316
+    },
+    {
+      "path": "models/1976_volkswagen_golf/scene.gltf",
+      "size": 268625
+    },
+    {
+      "path": "models/1976_volkswagen_golf/textures/disk_baseColor.png",
+      "size": 7652
+    },
+    {
+      "path": "models/1976_volkswagen_golf/textures/disk_metallicRoughness.png",
+      "size": 3981
+    },
+    {
+      "path": "models/1976_volkswagen_golf/textures/disk_normal.png",
+      "size": 31136
+    },
+    {
+      "path": "models/1976_volkswagen_golf/textures/tire_normal.png",
+      "size": 358960
+    },
+    {
+      "path": "models/1976_volkswagen_golf/textures/vM_Badge_Max1_baseColor.png",
+      "size": 35308
+    },
+    {
+      "path": "models/1976_volkswagen_golf/textures/vM_Badge_Max1_normal.png",
+      "size": 72710
+    },
+    {
+      "path": "models/1976_volkswagen_golf/textures/vM_CarPaint_Trim_CarbonA_Max1_baseColor.png",
+      "size": 757
+    },
+    {
+      "path": "models/1976_volkswagen_golf/textures/vM_CarPaint_Trim_CarbonA_Max1_normal.png",
+      "size": 15555
+    },
+    {
+      "path": "models/1976_volkswagen_golf/textures/vM_Engine_Max1_baseColor.png",
+      "size": 123355
+    },
+    {
+      "path": "models/1976_volkswagen_golf/textures/vM_Engine_Max1_normal.png",
+      "size": 425700
+    },
+    {
+      "path": "models/1976_volkswagen_golf/textures/vM_Interior_Max1_baseColor.png",
+      "size": 49196
+    },
+    {
+      "path": "models/1976_volkswagen_golf/textures/vM_Interior_Max1_metallicRoughness.png",
+      "size": 14444
+    },
+    {
+      "path": "models/1976_volkswagen_golf/textures/vM_Interior_Max1_normal.png",
+      "size": 113902
+    },
+    {
+      "path": "models/1976_volkswagen_golf/textures/vM_LightBucket_Max_002_baseColor.png",
+      "size": 33042
+    },
+    {
+      "path": "models/1976_volkswagen_golf/textures/vM_LightBucket_Max_002_metallicRoughness.png",
+      "size": 10841
+    },
+    {
+      "path": "models/1976_volkswagen_golf/textures/vM_Rim_Main_Max1_normal.png",
+      "size": 62445
+    },
+    {
+      "path": "models/2021_ford_bronco_2-door/scene.bin",
+      "size": 7699440
+    },
+    {
+      "path": "models/2021_ford_bronco_2-door/scene.gltf",
+      "size": 310719
+    },
+    {
+      "path": "models/2021_ford_bronco_2-door/textures/BRBumperFront_XSG11_baseColor.png",
+      "size": 13298
+    },
+    {
+      "path": "models/2021_ford_bronco_2-door/textures/BRBumperFront_XSG11_metallicRoughness.png",
+      "size": 7241
+    },
+    {
+      "path": "models/2021_ford_bronco_2-door/textures/BRBumperRear_XSG5_baseColor.png",
+      "size": 119648
+    },
+    {
+      "path": "models/2021_ford_bronco_2-door/textures/BRBumperRear_XSG7_baseColor.png",
+      "size": 81507
+    },
+    {
+      "path": "models/2021_ford_bronco_2-door/textures/BRBumperRear_XSG7_transmission.png",
+      "size": 1816
+    },
+    {
+      "path": "models/2021_ford_bronco_2-door/textures/BRChassis_XZSG9_baseColor.png",
+      "size": 58955
+    },
+    {
+      "path": "models/2021_ford_bronco_2-door/textures/BRChassis_XZSG9_metallicRoughness.png",
+      "size": 28457
+    },
+    {
+      "path": "models/2021_ford_bronco_2-door/textures/BRDoors_XSG1_baseColor.png",
+      "size": 249288
+    },
+    {
+      "path": "models/2021_ford_bronco_2-door/textures/BRHeadlights_XSG1_baseColor.png",
+      "size": 14786
+    },
+    {
+      "path": "models/2021_ford_bronco_2-door/textures/BRHeadlights_XSG1_transmission.png",
+      "size": 3966
+    },
+    {
+      "path": "models/2021_ford_bronco_2-door/textures/BRHeadlights_XSG3_baseColor.png",
+      "size": 67682
+    },
+    {
+      "path": "models/2021_ford_bronco_2-door/textures/BRInterior_XZSG11_baseColor.png",
+      "size": 3283
+    },
+    {
+      "path": "models/2021_ford_bronco_2-door/textures/BRInterior_XZSG11_normal.png",
+      "size": 3795
+    },
+    {
+      "path": "models/2021_ford_bronco_2-door/textures/BRInterior_XZSG21_baseColor.png",
+      "size": 104593
+    },
+    {
+      "path": "models/2021_ford_bronco_2-door/textures/BRRoof_XSG1_baseColor.png",
+      "size": 5409
+    },
+    {
+      "path": "models/2021_ford_bronco_2-door/textures/BRTrunk_XSG1_baseColor.png",
+      "size": 60957
+    },
+    {
+      "path": "models/2021_ford_bronco_2-door/textures/BRTrunk_XSG1_metallicRoughness.png",
+      "size": 93655
+    },
+    {
+      "path": "models/2021_ford_bronco_2-door/textures/BRTrunk_XSG3_baseColor.png",
+      "size": 28826
+    },
+    {
+      "path": "models/2021_ford_bronco_2-door/textures/BRTrunk_XSG3_normal.png",
+      "size": 31593
+    },
+    {
+      "path": "models/2021_tata_safari/scene.bin",
+      "size": 34599920
+    },
+    {
+      "path": "models/2021_tata_safari/scene.gltf",
+      "size": 338110
+    },
+    {
+      "path": "models/2021_tata_safari/textures/chassis.1_baseColor.png",
+      "size": 88
+    },
+    {
+      "path": "models/2021_tata_safari/textures/chassis.2_baseColor.png",
+      "size": 423849
+    },
+    {
+      "path": "models/2021_tata_safari/textures/chassis.3_baseColor.png",
+      "size": 310488
+    },
+    {
+      "path": "models/2021_tata_safari/textures/chassis.4_baseColor.png",
+      "size": 98
+    },
+    {
+      "path": "models/2021_tata_safari/textures/chassis.5_baseColor.png",
+      "size": 4757596
+    },
+    {
+      "path": "models/2021_tata_safari/textures/dashboard.7_baseColor.png",
+      "size": 445408
+    },
+    {
+      "path": "models/2021_tata_safari/textures/glass_metallicRoughness.png",
+      "size": 84
+    },
+    {
+      "path": "models/2021_tata_safari/textures/right_rear_light_baseColor.png",
+      "size": 1020575
+    },
+    {
+      "path": "models/2021_tata_safari/textures/safari_b_03.2_baseColor.png",
+      "size": 101
+    },
+    {
+      "path": "models/2021_tata_safari/textures/safari_b_07.0_baseColor.png",
+      "size": 621818
+    },
+    {
+      "path": "models/2021_tata_safari/textures/safari_b_07.2_baseColor.png",
+      "size": 7049
+    },
+    {
+      "path": "models/2021_tata_safari/textures/safari_b_09.0_baseColor.png",
+      "size": 439030
+    },
+    {
+      "path": "models/2021_tata_safari/textures/safari_b_10.6_baseColor.png",
+      "size": 154541
+    },
+    {
+      "path": "models/2021_tata_safari/textures/safari_b_11.4_baseColor.png",
+      "size": 222
+    },
+    {
+      "path": "models/2021_tata_safari/textures/safari_b_12.2_baseColor.png",
+      "size": 2630121
+    },
+    {
+      "path": "models/2021_tata_safari/textures/safari_boot_grills.0_baseColor.png",
+      "size": 126
+    },
+    {
+      "path": "models/2021_tata_safari/textures/wheel_rf.5_baseColor.png",
+      "size": 225051
+    },
+    {
+      "path": "models/2022_mahindra_scorpio-n/scene.bin",
+      "size": 51746460
+    },
+    {
+      "path": "models/2022_mahindra_scorpio-n/scene.gltf",
+      "size": 318513
+    },
+    {
+      "path": "models/2022_mahindra_scorpio-n/textures/boot.5_baseColor.png",
+      "size": 126
+    },
+    {
+      "path": "models/2022_mahindra_scorpio-n/textures/headlight_f.2_baseColor.png",
+      "size": 87
+    },
+    {
+      "path": "models/2022_mahindra_scorpio-n/textures/headlight_f.3_baseColor.png",
+      "size": 513
+    },
+    {
+      "path": "models/2022_mahindra_scorpio-n/textures/indicator_lf_baseColor.png",
+      "size": 1020139
+    },
+    {
+      "path": "models/2022_mahindra_scorpio-n/textures/movsteer_1.0.3_baseColor.png",
+      "size": 1438212
+    },
+    {
+      "path": "models/2022_mahindra_scorpio-n/textures/movsteer_1.0.4_baseColor.png",
+      "size": 58523
+    },
+    {
+      "path": "models/2022_mahindra_scorpio-n/textures/movsteer_1.0.5_baseColor.png",
+      "size": 581051
+    },
+    {
+      "path": "models/2022_mahindra_scorpio-n/textures/scorpio_n_ext_1.2_baseColor.png",
+      "size": 42148
+    },
+    {
+      "path": "models/2022_mahindra_scorpio-n/textures/scorpio_n_int_body.1_baseColor.png",
+      "size": 221947
+    },
+    {
+      "path": "models/2022_mahindra_scorpio-n/textures/scorpio_n_int_body.2_baseColor.png",
+      "size": 50403
+    },
+    {
+      "path": "models/2022_mahindra_scorpio-n/textures/scorpio_n_int_dashboard.6_baseColor.png",
+      "size": 2023120
+    },
+    {
+      "path": "models/2022_mahindra_scorpio-n/textures/scorpio_n_int_roof.4_baseColor.png",
+      "size": 429054
+    },
+    {
+      "path": "models/2022_mahindra_scorpio-n/textures/scorpio_n_int_seats-stiches.0_baseColor.png",
+      "size": 15335
+    },
+    {
+      "path": "models/2022_mahindra_scorpio-n/textures/scorpio_n_int_sidewall.7_baseColor.png",
+      "size": 222
+    },
+    {
+      "path": "models/2022_mahindra_scorpio-n/textures/sunroof_m.1_baseColor.png",
+      "size": 222
+    },
+    {
+      "path": "models/2022_mahindra_scorpio-n/textures/wheel_rf.0_baseColor.png",
+      "size": 101
+    },
+    {
+      "path": "models/2022_mahindra_scorpio-n/textures/wheel_rf.1_baseColor.png",
+      "size": 83
+    },
+    {
+      "path": "models/2022_mahindra_scorpio-n/textures/wheel_rf.2_baseColor.png",
+      "size": 88
+    },
+    {
+      "path": "models/2022_mahindra_scorpio-n/textures/wheel_rf.3_baseColor.png",
+      "size": 132
+    },
+    {
+      "path": "models/creata/scene.bin",
+      "size": 10332444
+    },
+    {
+      "path": "models/creata/scene.gltf",
+      "size": 636101
+    },
+    {
+      "path": "models/creata/textures/Brown_normal.jpeg",
+      "size": 31422
+    },
+    {
+      "path": "models/creata/textures/LicensePlate_baseColor.png",
+      "size": 17165
+    },
+    {
+      "path": "models/creata/textures/SW_costura_baseColor.png",
+      "size": 54970
+    },
+    {
+      "path": "models/creata/textures/TireBlack_normal.jpeg",
+      "size": 338854
+    },
+    {
+      "path": "models/creata/textures/blackinterior_normal.png",
+      "size": 184151
+    },
+    {
+      "path": "models/creata/textures/costura_baseColor.jpeg",
+      "size": 7748
+    },
+    {
+      "path": "models/creata/textures/display_baseColor.jpeg",
+      "size": 73469
+    },
+    {
+      "path": "models/creata/textures/floor_baseColor.jpeg",
+      "size": 18225
+    },
+    {
+      "path": "models/creata/textures/floor_metallicRoughness.png",
+      "size": 81528
+    },
+    {
+      "path": "models/creata/textures/icons_baseColor.jpeg",
+      "size": 126201
+    },
+    {
+      "path": "models/creata/textures/int1_baseColor.jpeg",
+      "size": 30252
+    },
+    {
+      "path": "models/creata/textures/int1_metallicRoughness.png",
+      "size": 22404
+    },
+    {
+      "path": "models/creata/textures/int_plastic_2_baseColor.jpeg",
+      "size": 40311
+    },
+    {
+      "path": "models/creata/textures/int_plastic_2_metallicRoughness.png",
+      "size": 36422
+    },
+    {
+      "path": "models/creata/textures/lether_normal.jpeg",
+      "size": 139623
+    },
+    {
+      "path": "models/creata/textures/lether_perf_normal.jpeg",
+      "size": 137262
+    },
+    {
+      "path": "models/creata/textures/pedal_baseColor.jpeg",
+      "size": 28942
+    },
+    {
+      "path": "models/creata/textures/pedal_metallicRoughness.png",
+      "size": 22900
+    },
+    {
+      "path": "models/creata/textures/pedal_normal.png",
+      "size": 65989
+    },
+    {
+      "path": "models/creata/textures/seatbelt_metallicRoughness.png",
+      "size": 15008
+    },
+    {
+      "path": "models/creata/textures/seatbelt_normal.jpeg",
+      "size": 27338
+    },
+    {
+      "path": "models/creata/textures/speaker_baseColor.jpeg",
+      "size": 62601
+    },
+    {
+      "path": "models/creata/textures/speaker_metallicRoughness.png",
+      "size": 74163
+    },
+    {
+      "path": "models/creata/textures/wheel_Emblem_baseColor.jpeg",
+      "size": 23682
+    },
+    {
+      "path": "models/tata_tiago/scene.bin",
+      "size": 18120100
+    },
+    {
+      "path": "models/tata_tiago/scene.gltf",
+      "size": 140641
+    },
+    {
+      "path": "models/tata_tiago/textures/chassis.1_baseColor.png",
+      "size": 97
+    },
+    {
+      "path": "models/tata_tiago/textures/chassis.2_baseColor.png",
+      "size": 149
+    },
+    {
+      "path": "models/tata_tiago/textures/int.5_baseColor.png",
+      "size": 199432
+    },
+    {
+      "path": "models/tata_tiago/textures/int.6_baseColor.png",
+      "size": 285657
+    },
+    {
+      "path": "models/tata_tiago/textures/int.7_baseColor.png",
+      "size": 117414
+    },
+    {
+      "path": "models/tata_tiago/textures/int.8_baseColor.png",
+      "size": 97
+    },
+    {
+      "path": "models/tata_tiago/textures/int.9_baseColor.png",
+      "size": 341090
+    },
+    {
+      "path": "models/tata_tiago/textures/ints.5_baseColor.png",
+      "size": 158285
+    },
+    {
+      "path": "models/tata_tiago/textures/right_front_light_baseColor.png",
+      "size": 284209
+    },
+    {
+      "path": "models/tata_tiago/textures/ste.3_baseColor.png",
+      "size": 94
+    },
+    {
+      "path": "models/tata_tiago/textures/stea.5_baseColor.png",
+      "size": 192732
+    },
+    {
+      "path": "models/tata_tiago/textures/stea.6_baseColor.png",
+      "size": 122521
+    },
+    {
+      "path": "models/tata_tiago/textures/stea.7_baseColor.png",
+      "size": 88
+    },
+    {
+      "path": "models/tata_tiago/textures/stea.8_baseColor.png",
+      "size": 370
+    },
+    {
+      "path": "models/tata_tiago/textures/steering.2_baseColor.png",
+      "size": 1139
+    },
+    {
+      "path": "models/tata_tiago/textures/tank.2_baseColor.png",
+      "size": 97
+    }
+  ]
+}

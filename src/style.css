@@ -163,6 +163,17 @@ h2 { font-size: clamp(50px, 7vw, 78px); color: var(--acid); }
 .real-car-options select:focus { outline: 1px solid var(--acid); outline-offset: 1px; }
 .real-car-options.is-disabled { opacity: .3; }
 .real-car-options select:disabled { cursor: not-allowed; }
+.asset-download { margin: -4px 0 13px; padding: 8px 10px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.025); text-align: left; transition: border-color .2s, background .2s; }
+.asset-download-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: rgba(255,255,255,.62); font: 600 8px 'DM Mono', monospace; letter-spacing: .1em; }
+.asset-download-head b { color: var(--acid); font-weight: 500; }
+.asset-download-track { height: 3px; margin: 6px 0 5px; overflow: hidden; background: rgba(255,255,255,.12); }
+.asset-download-track i { display: block; width: 0; height: 100%; background: var(--acid); box-shadow: 0 0 10px rgba(233,255,66,.58); transition: width .15s ease-out; }
+.asset-download small { display: block; overflow: hidden; color: rgba(255,255,255,.38); font: 400 7px 'DM Mono', monospace; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.asset-download[data-state='ready'] { border-color: rgba(88,255,194,.38); background: rgba(88,255,194,.045); }
+.asset-download[data-state='ready'] .asset-download-head b { color: var(--mint); }
+.asset-download[data-state='ready'] .asset-download-track i { background: var(--mint); box-shadow: 0 0 10px rgba(88,255,194,.58); }
+.asset-download[data-state='error'], .asset-download[data-state='unsupported'] { border-color: rgba(255,204,77,.34); }
+.asset-download[data-state='error'] .asset-download-track i, .asset-download[data-state='unsupported'] .asset-download-track i { background: #ffcc4d; box-shadow: none; }
 .modal-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
 .primary-button, .secondary-button { height: 47px; border: 0; cursor: pointer; letter-spacing: .08em; font-weight: 800; transition: transform .18s, filter .18s, border-color .18s; }
 .primary-button { min-width: 236px; background: var(--acid); color: #080b0d; display: inline-flex; align-items: center; justify-content: space-between; padding: 0 8px 0 19px; }
@@ -268,6 +279,7 @@ h2 { font-size: clamp(50px, 7vw, 78px); color: var(--acid); }
   .instruction-row { margin-block: 0 13px; }
   .car-style-picker { margin-bottom: 9px; }
   .real-car-options { margin-bottom: 9px; }
+  .asset-download { margin-bottom: 9px; padding-block: 6px; }
   .instruction-row div { padding-block: 8px; }
   .primary-button, .secondary-button { height: 42px; }
   .privacy { margin-top: 9px; }
@@ -282,6 +294,7 @@ h2 { font-size: clamp(50px, 7vw, 78px); color: var(--acid); }
   .wheel-guide { display: none; }
   .instruction-row { margin-block: 11px; }
   .privacy { display: none; }
+  .asset-download small { display: none; }
   .run-stats { top: 60px; left: 18px; }
   .assist { top: 60px; }
   .speed-panel { bottom: 16px; }
