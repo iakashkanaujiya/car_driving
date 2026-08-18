@@ -32,14 +32,12 @@ Real-car mode lets you select any of these vehicles as the driver car. Traffic r
 | 2023 Audi R8 Coupe V10 GT RWD | Yes | Yes |
 | BMW i8 | Yes | Yes |
 | 2023 Hyundai Creta | Yes | Yes |
-| Tata Tiago | Yes | Yes |
 | 1970 Chevrolet Camaro | Yes | Yes |
-| 1970 Pontiac Firebird Trans Am | Yes | Yes |
 | 1976 Volkswagen Golf GTI Mk1 | Yes | Yes |
 
 Cartoon-car mode uses the game's lightweight procedural vehicle instead of downloaded GLTF models. Real traffic can be configured for 4, 8, 12, or 16 cars.
 
-On the first visit, a setup popup keeps the game locked while it downloads approximately 111.3 MB of real-car models and textures with live progress. These files are stored in the browser cache and reused on later visits. Interrupted downloads can be retried and resume from files that are already cached.
+On the first visit, a setup popup keeps the game locked while it downloads approximately 73.1 MB of real-car models and textures with live progress. These files are stored in the browser cache and reused on later visits. Interrupted downloads can be retried and resume from files that are already cached.
 
 ## Controls
 
@@ -67,9 +65,7 @@ The MediaPipe runtime and hand model are copied into `public/mediapipe` during `
 - [2023 Audi R8 Coupe V10 GT RWD](https://sketchfab.com/3d-models/2023-audi-r8-coupe-v10-gt-rwd-0701d14ce550407f900df891316788f0) by [Ddiaz Design](https://sketchfab.com/ddiaz-design), licensed under [CC BY-NC-SA 4.0](http://creativecommons.org/licenses/by-nc-sa/4.0/).
 - [BMW i8](https://sketchfab.com/3d-models/bmw-i8-4b143b95aec045bf8912d99662f8d580) by [iSteven](https://sketchfab.com/OneSteven), licensed under [CC BY-NC 4.0](http://creativecommons.org/licenses/by-nc/4.0/).
 - [2023 Hyundai Creta](https://sketchfab.com/3d-models/2023-hyundai-creta-3cc28d4cf5574383b7dc030638ee6199) by [Ddiaz Design](https://sketchfab.com/ddiaz-design), licensed under [CC BY-NC 4.0](http://creativecommons.org/licenses/by-nc/4.0/).
-- [Tata Tiago](https://sketchfab.com/3d-models/tata-tiago-7ae10b287a184453b19a83ed5b37c007) by [BHP3D](https://sketchfab.com/BHP3D), licensed under [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/).
 - [1970 Chevrolet Camaro](https://sketchfab.com/3d-models/1970-chevrolet-camaro-789b0af67d994306b967facf75ab2e01) by [DisneyCars](https://sketchfab.com/supercarmodels), licensed under [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/).
-- [1970 Pontiac Firebird Trans Am](https://sketchfab.com/3d-models/1970-pontiac-firebird-trans-am-192ee303d279425b974ccfe4eb3edfff) by [everhard](https://sketchfab.com/everhard), licensed under [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/).
 - [1976 Volkswagen Golf GTI Mk1](https://sketchfab.com/3d-models/1976-volkswagen-golf-gti-mk1-1fc46cb37bd748e3bb9355fcedaf3817) by [Ddiaz Design](https://sketchfab.com/ddiaz-design), licensed under [CC BY-NC-SA 4.0](http://creativecommons.org/licenses/by-nc-sa/4.0/).
 
 The original license files are retained beside each model in `public/models`.

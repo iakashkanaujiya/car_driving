@@ -4,7 +4,6 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 
 export type CarModelId =
   | "camaro"
-  | "pontiac"
   | "golf"
   | "audi-etron"
   | "maybach"
@@ -12,7 +11,6 @@ export type CarModelId =
   | "bmw-i8"
   | "g-class"
   | "creata"
-  | "tiago"
   | "bronco";
 
 export const CAR_MODEL_OPTIONS: readonly { id: CarModelId; label: string }[] = [
@@ -23,9 +21,7 @@ export const CAR_MODEL_OPTIONS: readonly { id: CarModelId; label: string }[] = [
   { id: "audi-r8", label: "Audi R8 V10 GT" },
   { id: "bmw-i8", label: "BMW i8" },
   { id: "creata", label: "Hyundai Creta" },
-  { id: "tiago", label: "Tata Tiago" },
   { id: "camaro", label: "Chevrolet Camaro" },
-  { id: "pontiac", label: "Pontiac" },
   { id: "golf", label: "Volkswagen Golf" },
 ];
 
@@ -82,13 +78,6 @@ const MODEL_SPECS: readonly CarModelSpec[] = [
     removePaintTexture: true,
   },
   {
-    id: "pontiac",
-    path: "models/1970_Pontiac/scene.gltf",
-    rotationY: -Math.PI / 2,
-    displayScale: 2.0,
-    paintMaterials: ["body"],
-  },
-  {
     id: "golf",
     path: "models/1976_volkswagen_golf/scene.gltf",
     rotationY: Math.PI,
@@ -138,13 +127,6 @@ const MODEL_SPECS: readonly CarModelSpec[] = [
     rotationY: Math.PI,
     displayScale: 1.88,
     paintMaterials: ["carpaint"],
-  },
-  {
-    id: "tiago",
-    path: "models/tata_tiago/scene.gltf",
-    rotationY: Math.PI * 2,
-    displayScale: 1.7,
-    paintMaterials: ["primary"],
   },
   {
     id: "bronco",
@@ -691,9 +673,6 @@ export class VehicleAssets {
 
     if (modelId === "golf") {
       return exact(["group1", "group2", "group3", "group4"], ["group1", "group2"]);
-    }
-    if (modelId === "tiago") {
-      return exact(["wheel_fr", "wheel_rr", "wheel_rl", "wheel_fl"], ["wheel_fr", "wheel_fl"]);
     }
     if (modelId === "audi-etron") {
       root.updateMatrixWorld(true);

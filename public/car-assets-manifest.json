@@ -1,31 +1,7 @@
 {
-  "version": "5687dd4a0a98339d",
-  "totalBytes": 116682599,
+  "version": "7d8377b46c6ba95a",
+  "totalBytes": 76631248,
   "assets": [
-    {
-      "path": "models/1970_Pontiac/scene.bin",
-      "size": 19515124
-    },
-    {
-      "path": "models/1970_Pontiac/scene.gltf",
-      "size": 228723
-    },
-    {
-      "path": "models/1970_Pontiac/textures/decals_baseColor.jpeg",
-      "size": 93246
-    },
-    {
-      "path": "models/1970_Pontiac/textures/glass_baseColor.jpeg",
-      "size": 76356
-    },
-    {
-      "path": "models/1970_Pontiac/textures/int_tex_baseColor.jpeg",
-      "size": 105522
-    },
-    {
-      "path": "models/1970_Pontiac/textures/logo_baseColor.jpeg",
-      "size": 60702
-    },
     {
       "path": "models/1970_chevrolet_camaro/scene.bin",
       "size": 5549040
@@ -725,78 +701,6 @@
     {
       "path": "models/mercedes_benz_g-class_w263/textures/Material.015_baseColor.png",
       "size": 18027
-    },
-    {
-      "path": "models/tata_tiago/scene.bin",
-      "size": 18120100
-    },
-    {
-      "path": "models/tata_tiago/scene.gltf",
-      "size": 148107
-    },
-    {
-      "path": "models/tata_tiago/textures/chassis.1_baseColor.png",
-      "size": 97
-    },
-    {
-      "path": "models/tata_tiago/textures/chassis.2_baseColor.png",
-      "size": 149
-    },
-    {
-      "path": "models/tata_tiago/textures/int.5_baseColor.png",
-      "size": 199432
-    },
-    {
-      "path": "models/tata_tiago/textures/int.6_baseColor.png",
-      "size": 285657
-    },
-    {
-      "path": "models/tata_tiago/textures/int.7_baseColor.png",
-      "size": 117414
-    },
-    {
-      "path": "models/tata_tiago/textures/int.8_baseColor.png",
-      "size": 97
-    },
-    {
-      "path": "models/tata_tiago/textures/int.9_baseColor.png",
-      "size": 341090
-    },
-    {
-      "path": "models/tata_tiago/textures/ints.5_baseColor.png",
-      "size": 158285
-    },
-    {
-      "path": "models/tata_tiago/textures/right_front_light_baseColor.png",
-      "size": 284209
-    },
-    {
-      "path": "models/tata_tiago/textures/ste.3_baseColor.png",
-      "size": 94
-    },
-    {
-      "path": "models/tata_tiago/textures/stea.5_baseColor.png",
-      "size": 192732
-    },
-    {
-      "path": "models/tata_tiago/textures/stea.6_baseColor.png",
-      "size": 122521
-    },
-    {
-      "path": "models/tata_tiago/textures/stea.7_baseColor.png",
-      "size": 88
-    },
-    {
-      "path": "models/tata_tiago/textures/stea.8_baseColor.png",
-      "size": 370
-    },
-    {
-      "path": "models/tata_tiago/textures/steering.2_baseColor.png",
-      "size": 1139
-    },
-    {
-      "path": "models/tata_tiago/textures/tank.2_baseColor.png",
-      "size": 97
     }
   ]
 }

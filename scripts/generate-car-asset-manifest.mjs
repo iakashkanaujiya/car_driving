@@ -7,7 +7,6 @@ const publicRoot = path.join(projectRoot, 'public');
 const modelsRoot = path.join(publicRoot, 'models');
 const modelFolders = [
   '1970_chevrolet_camaro',
-  '1970_Pontiac',
   '1976_volkswagen_golf',
   '2018_audi_e-tron_gt_concept',
   '2021_mercedes-benz_s-class_maybach',
@@ -15,7 +14,6 @@ const modelFolders = [
   'bmw_i8',
   'creata',
   'mercedes_benz_g-class_w263',
-  'tata_tiago',
   '2021_ford_bronco_2-door',
 ];
 
