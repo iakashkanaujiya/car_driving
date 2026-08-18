@@ -1,6 +1,6 @@
 {
-  "version": "365bda651e3e8d3b",
-  "totalBytes": 72864780,
+  "version": "5687dd4a0a98339d",
+  "totalBytes": 116682599,
   "assets": [
     {
       "path": "models/1970_Pontiac/scene.bin",
@@ -159,6 +159,114 @@
       "size": 62445
     },
     {
+      "path": "models/2018_audi_e-tron_gt_concept/scene.bin",
+      "size": 3197324
+    },
+    {
+      "path": "models/2018_audi_e-tron_gt_concept/scene.gltf",
+      "size": 230724
+    },
+    {
+      "path": "models/2018_audi_e-tron_gt_concept/textures/CarPaint_2_metallicRoughness.png",
+      "size": 133533
+    },
+    {
+      "path": "models/2018_audi_e-tron_gt_concept/textures/CarPaint_metallicRoughness.png",
+      "size": 133533
+    },
+    {
+      "path": "models/2018_audi_e-tron_gt_concept/textures/INTVehicle_Interior_mm_int1_baseColor.png",
+      "size": 256511
+    },
+    {
+      "path": "models/2018_audi_e-tron_gt_concept/textures/INTVehicle_Interior_mm_mat01_baseColor.png",
+      "size": 123775
+    },
+    {
+      "path": "models/2018_audi_e-tron_gt_concept/textures/INTVehicle_Interior_mm_mat03_baseColor.png",
+      "size": 1168
+    },
+    {
+      "path": "models/2018_audi_e-tron_gt_concept/textures/INTVehicle_Interior_mm_mat05_baseColor.png",
+      "size": 35636
+    },
+    {
+      "path": "models/2018_audi_e-tron_gt_concept/textures/INTVehicle_Interior_mm_mat05_normal.png",
+      "size": 50519
+    },
+    {
+      "path": "models/2018_audi_e-tron_gt_concept/textures/INTVehicle_Interior_mm_mat07_baseColor.png",
+      "size": 3041
+    },
+    {
+      "path": "models/2018_audi_e-tron_gt_concept/textures/INTVehicle_Interior_mm_mat07_metallicRoughness.png",
+      "size": 3232
+    },
+    {
+      "path": "models/2018_audi_e-tron_gt_concept/textures/INTVehicle_Interior_mm_mat11_baseColor.png",
+      "size": 38659
+    },
+    {
+      "path": "models/2018_audi_e-tron_gt_concept/textures/INTVehicle_Interior_mm_mat13_baseColor.png",
+      "size": 132930
+    },
+    {
+      "path": "models/2018_audi_e-tron_gt_concept/textures/INTVehicle_Interior_mm_mat15_baseColor.png",
+      "size": 11404
+    },
+    {
+      "path": "models/2018_audi_e-tron_gt_concept/textures/INTVehicle_Interior_mm_mat15_normal.png",
+      "size": 95051
+    },
+    {
+      "path": "models/2018_audi_e-tron_gt_concept/textures/INTVehicle_Interior_mm_sw1_baseColor.png",
+      "size": 81996
+    },
+    {
+      "path": "models/2018_audi_e-tron_gt_concept/textures/cross_baseColor.png",
+      "size": 1008
+    },
+    {
+      "path": "models/2018_audi_e-tron_gt_concept/textures/gtVehicle_Exterior_mm_badges1_baseColor.png",
+      "size": 66528
+    },
+    {
+      "path": "models/2018_audi_e-tron_gt_concept/textures/gtVehicle_Exterior_mm_cab1_baseColor.png",
+      "size": 134168
+    },
+    {
+      "path": "models/2018_audi_e-tron_gt_concept/textures/gtVehicle_Exterior_mm_chassis1_baseColor.png",
+      "size": 92710
+    },
+    {
+      "path": "models/2018_audi_e-tron_gt_concept/textures/gtVehicle_Exterior_mm_ext1_baseColor.png",
+      "size": 238850
+    },
+    {
+      "path": "models/2018_audi_e-tron_gt_concept/textures/gtVehicle_Exterior_mm_misc1_baseColor.png",
+      "size": 47681
+    },
+    {
+      "path": "models/2018_audi_e-tron_gt_concept/textures/gtVehicle_Exterior_mm_rotor_009_baseColor.png",
+      "size": 31189
+    },
+    {
+      "path": "models/2018_audi_e-tron_gt_concept/textures/gtVehicle_Exterior_mm_tyre_009_baseColor.png",
+      "size": 22594
+    },
+    {
+      "path": "models/2018_audi_e-tron_gt_concept/textures/gtVehicle_Exterior_mm_wheel_009_baseColor.png",
+      "size": 54424
+    },
+    {
+      "path": "models/2018_audi_e-tron_gt_concept/textures/material_baseColor.png",
+      "size": 98928
+    },
+    {
+      "path": "models/2018_audi_e-tron_gt_concept/textures/material_emissive.png",
+      "size": 98928
+    },
+    {
       "path": "models/2021_ford_bronco_2-door/scene.bin",
       "size": 7699440
     },
@@ -241,6 +349,266 @@
     {
       "path": "models/2021_ford_bronco_2-door/textures/BRTrunk_XSG3_normal.png",
       "size": 31593
+    },
+    {
+      "path": "models/2021_mercedes-benz_s-class_maybach/scene.bin",
+      "size": 14230348
+    },
+    {
+      "path": "models/2021_mercedes-benz_s-class_maybach/scene.gltf",
+      "size": 121156
+    },
+    {
+      "path": "models/2021_mercedes-benz_s-class_maybach/textures/Material_2125663092_specularf0.png",
+      "size": 1083354
+    },
+    {
+      "path": "models/2021_mercedes-benz_s-class_maybach/textures/Mphong11SG1_baseColor.png",
+      "size": 295883
+    },
+    {
+      "path": "models/2021_mercedes-benz_s-class_maybach/textures/Mphong11SG1_metallicRoughness.png",
+      "size": 66379
+    },
+    {
+      "path": "models/2021_mercedes-benz_s-class_maybach/textures/Mphong14SG1_baseColor.png",
+      "size": 389075
+    },
+    {
+      "path": "models/2021_mercedes-benz_s-class_maybach/textures/Mphong14SG1_normal.png",
+      "size": 549129
+    },
+    {
+      "path": "models/2021_mercedes-benz_s-class_maybach/textures/Mphong15SG1_baseColor.png",
+      "size": 279471
+    },
+    {
+      "path": "models/2021_mercedes-benz_s-class_maybach/textures/Mphong15SG1_normal.png",
+      "size": 640538
+    },
+    {
+      "path": "models/2021_mercedes-benz_s-class_maybach/textures/Mphong17SG1_baseColor.png",
+      "size": 4510
+    },
+    {
+      "path": "models/2021_mercedes-benz_s-class_maybach/textures/Mphong17SG1_normal.png",
+      "size": 31305
+    },
+    {
+      "path": "models/2021_mercedes-benz_s-class_maybach/textures/Mphong18SG1_baseColor.png",
+      "size": 103
+    },
+    {
+      "path": "models/2021_mercedes-benz_s-class_maybach/textures/Mphong18SG1_normal.png",
+      "size": 7496
+    },
+    {
+      "path": "models/2021_mercedes-benz_s-class_maybach/textures/Mphong19SG1_baseColor.png",
+      "size": 169949
+    },
+    {
+      "path": "models/2021_mercedes-benz_s-class_maybach/textures/Mphong1SG1_baseColor.png",
+      "size": 89157
+    },
+    {
+      "path": "models/2021_mercedes-benz_s-class_maybach/textures/Mphong1SG1_normal.png",
+      "size": 102224
+    },
+    {
+      "path": "models/2021_mercedes-benz_s-class_maybach/textures/Mphong23SG1_baseColor.png",
+      "size": 20656
+    },
+    {
+      "path": "models/2021_mercedes-benz_s-class_maybach/textures/Mphong23SG1_normal.png",
+      "size": 21563
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/scene.bin",
+      "size": 12030524
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/scene.gltf",
+      "size": 3500475
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/phong2_baseColor.png",
+      "size": 177629
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/phong2_emissive.png",
+      "size": 177629
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023BadgeC_Material1_baseColor.png",
+      "size": 70987
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023BadgeC_Material1_normal.png",
+      "size": 52288
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023Carbon1DetailsA_Material1_baseColor.png",
+      "size": 50252
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023Carbon1_Material1_baseColor.png",
+      "size": 757
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023Carbon1_Material1_normal.png",
+      "size": 15555
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023Coloured_Material1_baseColor.png",
+      "size": 2662
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023Coloured_Material1_metallicRoughness.png",
+      "size": 1845
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023Grille1A_Material1_baseColor.png",
+      "size": 1988
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023Grille2A_Material1_baseColor.png",
+      "size": 1266
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023Grille2A_Material1_normal.png",
+      "size": 4114
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023Grille3A_Material1_baseColor.png",
+      "size": 1039
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023Grille3A_Material1_normal.png",
+      "size": 7645
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023Grille4A_Material1_baseColor.png",
+      "size": 732
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023Grille4A_Material1_normal.png",
+      "size": 2992
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023Grille5B_Material1_baseColor.png",
+      "size": 5470
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023Grille5B_Material1_normal.png",
+      "size": 4216
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023Grille6A_Material1_baseColor.png",
+      "size": 583
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023Grille6A_Material1_normal.png",
+      "size": 968
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023Grille7A_Material1_baseColor.png",
+      "size": 61399
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023Grille7A_Material1_normal.png",
+      "size": 75286
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023Grille8A_Material1_baseColor.png",
+      "size": 1654
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023Grille8A_Material1_normal.png",
+      "size": 5595
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023InteriorC_Material1_baseColor.png",
+      "size": 104778
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023InteriorC_Material1_normal.png",
+      "size": 133857
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023InteriorTillingB_Material1_baseColor.png",
+      "size": 1628
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023InteriorTillingB_Material1_normal.png",
+      "size": 4260
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023LightA_Material1_baseColor.png",
+      "size": 171385
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023LightA_Material1_metallicRoughness.png",
+      "size": 4296
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023ManufacturerPlateB_Material1_baseColor.png",
+      "size": 10566
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023SpecularTintC_Material1_baseColor.png",
+      "size": 3775
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023SpecularTintC_Material1_metallicRoughness.png",
+      "size": 84
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023SpecularTintC_Material1_normal.png",
+      "size": 24531
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023Textured2A_Material1_baseColor.png",
+      "size": 44710
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023Textured2A_Material1_metallicRoughness.png",
+      "size": 1118
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023_CallipersCalliperA_Zone_861e4d1_baseColor.png",
+      "size": 89
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023_CallipersCalliperA_Zone_861e4d1_metallicRoughness.png",
+      "size": 107
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023_CallipersCalliperBadgeA_0a8febf1_baseColor.png",
+      "size": 4532
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023_Wheel1A_3D_3DWheel2A_Material1_baseColor.png",
+      "size": 60646
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023_Wheel1A_3D_3DWheel2A_Material1_metallicRoughness.png",
+      "size": 45082
+    },
+    {
+      "path": "models/2023_audi_r8_coupe_v10_gt_rwd/textures/untitledAudi_R8V10GTRewardRecycled_2023_Wheel1A_3D_3DWheel2A_Material1_normal.png",
+      "size": 53071
+    },
+    {
+      "path": "models/bmw_i8/scene.bin",
+      "size": 2612700
+    },
+    {
+      "path": "models/bmw_i8/scene.gltf",
+      "size": 64941
+    },
+    {
+      "path": "models/bmw_i8/textures/disc_baseColor.jpeg",
+      "size": 97964
     },
     {
       "path": "models/creata/scene.bin",
@@ -345,6 +713,18 @@
     {
       "path": "models/creata/textures/wheel_Emblem_baseColor.jpeg",
       "size": 23682
+    },
+    {
+      "path": "models/mercedes_benz_g-class_w263/scene.bin",
+      "size": 541008
+    },
+    {
+      "path": "models/mercedes_benz_g-class_w263/scene.gltf",
+      "size": 40774
+    },
+    {
+      "path": "models/mercedes_benz_g-class_w263/textures/Material.015_baseColor.png",
+      "size": 18027
     },
     {
       "path": "models/tata_tiago/scene.bin",

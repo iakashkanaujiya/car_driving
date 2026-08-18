@@ -6,12 +6,22 @@ export type CarModelId =
   | "camaro"
   | "pontiac"
   | "golf"
+  | "audi-etron"
+  | "maybach"
+  | "audi-r8"
+  | "bmw-i8"
+  | "g-class"
   | "creata"
   | "tiago"
   | "bronco";
 
 export const CAR_MODEL_OPTIONS: readonly { id: CarModelId; label: string }[] = [
   { id: "bronco", label: "Ford Bronco" },
+  { id: "g-class", label: "Mercedes G-Class" },
+  { id: "maybach", label: "Mercedes-Maybach S-Class" },
+  { id: "audi-etron", label: "Audi e-tron GT" },
+  { id: "audi-r8", label: "Audi R8 V10 GT" },
+  { id: "bmw-i8", label: "BMW i8" },
   { id: "creata", label: "Hyundai Creta" },
   { id: "tiago", label: "Tata Tiago" },
   { id: "camaro", label: "Chevrolet Camaro" },
@@ -84,6 +94,43 @@ const MODEL_SPECS: readonly CarModelSpec[] = [
     rotationY: Math.PI,
     displayScale: 1.66,
     paintMaterials: ["vM_CarPaint_Max1"],
+  },
+  {
+    id: "audi-etron",
+    path: "models/2018_audi_e-tron_gt_concept/scene.gltf",
+    rotationY: Math.PI,
+    displayScale: 1.95,
+    paintMaterials: ["CarPaint", "CarPaint_2"],
+  },
+  {
+    id: "maybach",
+    path: "models/2021_mercedes-benz_s-class_maybach/scene.gltf",
+    rotationY: Math.PI,
+    displayScale: 2.08,
+    paintMaterials: ["Mphong4SG1", "Mphong6SG1"],
+  },
+  {
+    id: "audi-r8",
+    path: "models/2023_audi_r8_coupe_v10_gt_rwd/scene.gltf",
+    rotationY: Math.PI,
+    displayScale: 1.8,
+    paintMaterials: [
+      "untitledAudi_R8V10GTRewardRecycled_2023Paint_Material1",
+    ],
+  },
+  {
+    id: "bmw-i8",
+    path: "models/bmw_i8/scene.gltf",
+    rotationY: Math.PI,
+    displayScale: 1.82,
+    paintMaterials: ["paint"],
+  },
+  {
+    id: "g-class",
+    path: "models/mercedes_benz_g-class_w263/scene.gltf",
+    rotationY: Math.PI,
+    displayScale: 2.05,
+    paintMaterials: ["Material.001"],
   },
   {
     id: "creata",
@@ -382,23 +429,17 @@ export class VehicleAssets {
           const gltf = await loader.loadAsync(
             `${import.meta.env.BASE_URL}${spec.path}`,
           );
+          const trafficPrototype = this.prepareCarModel(
+            gltf.scene,
+            spec.rotationY,
+            true,
+            spec.id,
+          );
           return {
             id: spec.id,
-            trafficPrototype: this.prepareCarModel(
-              gltf.scene,
-              spec.rotationY,
-              true,
-              spec.id,
-            ),
+            trafficPrototype,
             playerPrototype:
-              spec.id === playerModelId
-                ? this.prepareCarModel(
-                    gltf.scene,
-                    spec.rotationY,
-                    false,
-                    spec.id,
-                  )
-                : undefined,
+              spec.id === playerModelId ? trafficPrototype : undefined,
           };
         } catch (error) {
           console.error(`Could not load the ${spec.id} car model.`, error);
@@ -584,8 +625,58 @@ export class VehicleAssets {
       pivot.userData.frontWheel = assembly.front;
       pivot.updateMatrixWorld(true);
       for (const part of assembly.parts) pivot.attach(part);
+      this.mergeWheelMeshes(pivot);
       return pivot;
     });
+  }
+
+  private mergeWheelMeshes(pivot: THREE.Group): void {
+    pivot.updateMatrixWorld(true);
+    const inversePivot = pivot.matrixWorld.clone().invert();
+    const buckets = new Map<
+      string,
+      { material: THREE.Material; geometries: THREE.BufferGeometry[] }
+    >();
+
+    pivot.traverse((object) => {
+      if (!(object instanceof THREE.Mesh) || Array.isArray(object.material))
+        return;
+      const geometry = object.geometry.clone();
+      geometry.applyMatrix4(object.matrixWorld);
+      geometry.applyMatrix4(inversePivot);
+      const attributeSignature = Object.keys(geometry.attributes)
+        .sort()
+        .join(",");
+      const key = `${object.material.uuid}|${attributeSignature}|${
+        geometry.index ? "indexed" : "plain"
+      }`;
+      const bucket = buckets.get(key);
+      if (bucket) bucket.geometries.push(geometry);
+      else
+        buckets.set(key, {
+          material: object.material,
+          geometries: [geometry],
+        });
+    });
+
+    const optimizedMeshes: THREE.Mesh[] = [];
+    for (const bucket of buckets.values()) {
+      const merged =
+        bucket.geometries.length === 1
+          ? bucket.geometries[0]
+          : mergeGeometries(bucket.geometries, false);
+      if (merged) {
+        optimizedMeshes.push(new THREE.Mesh(merged, bucket.material));
+        continue;
+      }
+      for (const geometry of bucket.geometries) {
+        optimizedMeshes.push(new THREE.Mesh(geometry, bucket.material));
+      }
+    }
+
+    if (optimizedMeshes.length === 0) return;
+    pivot.clear();
+    for (const mesh of optimizedMeshes) pivot.add(mesh);
   }
 
   private findWheelAssemblies(
@@ -603,6 +694,59 @@ export class VehicleAssets {
     }
     if (modelId === "tiago") {
       return exact(["wheel_fr", "wheel_rr", "wheel_rl", "wheel_fl"], ["wheel_fr", "wheel_fl"]);
+    }
+    if (modelId === "audi-etron") {
+      root.updateMatrixWorld(true);
+      const groups = new Map<string, WheelAssembly>();
+      root.traverse((object) => {
+        if (
+          object.children.length === 0 ||
+          /STEERING/i.test(object.name) ||
+          !/(?:WHEEL|TYRE|ROTOR)/i.test(object.name)
+        ) return;
+        const center = new THREE.Box3()
+          .setFromObject(object, true)
+          .getCenter(new THREE.Vector3());
+        const front = center.z < 0;
+        const key = `${center.x < 0 ? "left" : "right"}-${
+          front ? "front" : "rear"
+        }`;
+        const assembly = groups.get(key);
+        if (assembly) assembly.parts.push(object);
+        else groups.set(key, { parts: [object], front });
+      });
+      return [...groups.values()];
+    }
+    if (modelId === "maybach") {
+      return exact(
+        [
+          "MM_Rim_Main_Max",
+          "M_Rim_Main_Max",
+          "M_Rim_Main_Max1",
+          "M_Rim_Main_Max2",
+        ],
+        ["MM_Rim_Main_Max", "M_Rim_Main_Max"],
+      );
+    }
+    if (modelId === "audi-r8") {
+      return exact(
+        [
+          "3DWheel_Front_L",
+          "3DWheel_Front_R",
+          "3DWheel_Rear_L",
+          "3DWheel_Rear_R",
+        ],
+        ["3DWheel_Front_L", "3DWheel_Front_R"],
+      );
+    }
+    if (modelId === "bmw-i8") {
+      return exact(["wheel", "wheel001", "wheel002"], ["wheel", "wheel002"]);
+    }
+    if (modelId === "g-class") {
+      return exact(
+        ["Circle001_8", "Circle002_9", "Circle003_10", "Circle004_11"],
+        ["Circle001_8", "Circle003_10"],
+      );
     }
     if (modelId === "creata") {
       return ["FL", "FR", "RL", "RR"].map((corner) => {

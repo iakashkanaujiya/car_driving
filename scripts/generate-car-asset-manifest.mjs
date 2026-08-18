@@ -9,7 +9,12 @@ const modelFolders = [
   '1970_chevrolet_camaro',
   '1970_Pontiac',
   '1976_volkswagen_golf',
+  '2018_audi_e-tron_gt_concept',
+  '2021_mercedes-benz_s-class_maybach',
+  '2023_audi_r8_coupe_v10_gt_rwd',
+  'bmw_i8',
   'creata',
+  'mercedes_benz_g-class_w263',
   'tata_tiago',
   '2021_ford_bronco_2-door',
 ];

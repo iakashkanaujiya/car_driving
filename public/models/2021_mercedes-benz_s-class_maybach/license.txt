@@ -1,0 +1,11 @@
+Model Information:
+* title:	2021 Mercedes-Benz S-Class Maybach
+* source:	https://sketchfab.com/3d-models/2021-mercedes-benz-s-class-maybach-53c739ff5512413e8d6c373c65b95047
+* author:	Ddiaz Design (https://sketchfab.com/ddiaz-design)
+
+Model License:
+* license type:	CC-BY-NC-4.0 (http://creativecommons.org/licenses/by-nc/4.0/)
+* requirements:	Author must be credited. No commercial use.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "2021 Mercedes-Benz S-Class Maybach" (https://sketchfab.com/3d-models/2021-mercedes-benz-s-class-maybach-53c739ff5512413e8d6c373c65b95047) by Ddiaz Design (https://sketchfab.com/ddiaz-design) licensed under CC-BY-NC-4.0 (http://creativecommons.org/licenses/by-nc/4.0/)
