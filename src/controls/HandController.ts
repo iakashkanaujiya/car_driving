@@ -1,14 +1,22 @@
 import { FilesetResolver, HandLandmarker, type HandLandmarkerResult } from '@mediapipe/tasks-vision';
 import { damp, steeringFromHands } from '../game/math';
 import type { ControlInput } from '../game/types';
+import type { HandPoint, HandTrackingResult, HandWorkerInput, HandWorkerOutput } from './handWorkerTypes';
 
 type TrackingStatus = 'idle' | 'loading' | 'ready' | 'calibrating' | 'tracking' | 'lost' | 'error';
+const INFERENCE_INTERVAL_MS = 1000 / 24;
 
 export class HandController {
   private landmarker: HandLandmarker | null = null;
   private stream: MediaStream | null = null;
+  private worker: Worker | null = null;
   private raf = 0;
+  private videoFrameCallback = 0;
   private lastVideoTime = -1;
+  private lastInferenceTime = 0;
+  private frameInFlight = false;
+  private switchingToFallback = false;
+  private cancelWorkerInitialization: (() => void) | null = null;
   private neutralAngle = 0;
   private calibrationAngles: number[] = [];
   private input: ControlInput = { steering: 0, confidence: 0, active: false };
@@ -28,40 +36,96 @@ export class HandController {
     this.setStatus('loading');
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+        video: { width: { ideal: 480 }, height: { ideal: 360 }, facingMode: 'user' },
         audio: false,
       });
       this.video.srcObject = this.stream;
       await this.video.play();
       if (this.stopped) return;
 
-      const vision = await FilesetResolver.forVisionTasks(`${import.meta.env.BASE_URL}mediapipe/wasm`);
-      const localModel = `${import.meta.env.BASE_URL}mediapipe/hand_landmarker.task`;
+      const wasmRoot = new URL(`${import.meta.env.BASE_URL}mediapipe/wasm`, window.location.href).href;
+      const localModel = new URL(`${import.meta.env.BASE_URL}mediapipe/hand_landmarker.task`, window.location.href).href;
       try {
-        this.landmarker = await this.createLandmarker(vision, localModel, 'GPU');
-      } catch {
-        try {
-          this.landmarker = await this.createLandmarker(vision, localModel, 'CPU');
-        } catch {
-          this.landmarker = await this.createLandmarker(
-            vision,
-            'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
-            'CPU',
-          );
-        }
+        await this.startWorker(wasmRoot, localModel);
+      } catch (workerError) {
+        if (this.stopped) return;
+        console.warn('Hand tracking worker unavailable; using main-thread fallback.', workerError);
+        await this.initializeMainThreadLandmarker(wasmRoot, localModel);
       }
       if (this.stopped) {
-        this.landmarker.close();
+        this.landmarker?.close();
         this.landmarker = null;
+        this.worker?.terminate();
+        this.worker = null;
         return;
       }
       this.setStatus('ready');
       this.beginCalibration();
-      this.raf = requestAnimationFrame(this.processFrame);
+      this.scheduleNextFrame();
     } catch (error) {
+      if (this.stopped) return;
       console.warn('Hand tracking unavailable:', error);
       this.setStatus('error');
       throw error;
+    }
+  }
+
+  private async startWorker(wasmRoot: string, modelAssetPath: string): Promise<void> {
+    if (typeof Worker === 'undefined' || typeof createImageBitmap !== 'function') {
+      throw new Error('Required worker camera APIs are unavailable.');
+    }
+
+    const worker = new Worker(new URL('./handTracking.worker.ts', import.meta.url), { type: 'module' });
+    this.worker = worker;
+    await new Promise<void>((resolve, reject) => {
+      const timeout = window.setTimeout(() => reject(new Error('Hand tracking worker initialization timed out.')), 20_000);
+      this.cancelWorkerInitialization = (): void => {
+        window.clearTimeout(timeout);
+        reject(new Error('Hand tracking worker initialization was cancelled.'));
+      };
+      worker.onmessage = (event: MessageEvent<HandWorkerOutput>): void => {
+        if (event.data.type === 'ready') {
+          window.clearTimeout(timeout);
+          resolve();
+        } else if (event.data.type === 'error') {
+          window.clearTimeout(timeout);
+          reject(new Error(event.data.message));
+        }
+      };
+      worker.onerror = (event): void => {
+        window.clearTimeout(timeout);
+        reject(new Error(event.message || 'The hand tracking worker failed to start.'));
+      };
+      const message: HandWorkerInput = { type: 'init', wasmRoot, modelAssetPath };
+      worker.postMessage(message);
+    }).catch((error) => {
+      worker.terminate();
+      if (this.worker === worker) this.worker = null;
+      throw error;
+    }).finally(() => {
+      this.cancelWorkerInitialization = null;
+    });
+
+    worker.onmessage = this.handleWorkerMessage;
+    worker.onerror = (event): void => {
+      void this.activateMainThreadFallback(new Error(event.message || 'Hand tracking worker stopped.'));
+    };
+  }
+
+  private async initializeMainThreadLandmarker(wasmRoot: string, localModel: string): Promise<void> {
+    const vision = await FilesetResolver.forVisionTasks(wasmRoot);
+    try {
+      this.landmarker = await this.createLandmarker(vision, localModel, 'GPU');
+    } catch {
+      try {
+        this.landmarker = await this.createLandmarker(vision, localModel, 'CPU');
+      } catch {
+        this.landmarker = await this.createLandmarker(
+          vision,
+          'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+          'CPU',
+        );
+      }
     }
   }
 
@@ -104,23 +168,115 @@ export class HandController {
 
   stop(): void {
     this.stopped = true;
+    this.cancelWorkerInitialization?.();
+    this.cancelWorkerInitialization = null;
     cancelAnimationFrame(this.raf);
+    if (this.videoFrameCallback) this.video.cancelVideoFrameCallback(this.videoFrameCallback);
+    this.worker?.terminate();
+    this.worker = null;
+    this.frameInFlight = false;
     this.stream?.getTracks().forEach((track) => track.stop());
     this.landmarker?.close();
+    this.landmarker = null;
   }
 
-  private processFrame = (): void => {
+  private scheduleNextFrame(): void {
     if (this.stopped) return;
-    if (this.landmarker && this.video.readyState >= 2 && this.video.currentTime !== this.lastVideoTime) {
-      this.lastVideoTime = this.video.currentTime;
-      const result = this.landmarker.detectForVideo(this.video, performance.now());
+    if (typeof this.video.requestVideoFrameCallback === 'function') {
+      this.videoFrameCallback = this.video.requestVideoFrameCallback(this.processVideoFrame);
+    } else {
+      this.raf = requestAnimationFrame(this.processAnimationFrame);
+    }
+  }
+
+  private processVideoFrame = (now: DOMHighResTimeStamp): void => {
+    this.processFrame(now);
+    this.scheduleNextFrame();
+  };
+
+  private processAnimationFrame = (now: DOMHighResTimeStamp): void => {
+    this.processFrame(now);
+    this.scheduleNextFrame();
+  };
+
+  private processFrame(now: DOMHighResTimeStamp): void {
+    if (
+      this.stopped ||
+      this.video.readyState < 2 ||
+      this.video.currentTime === this.lastVideoTime ||
+      now - this.lastInferenceTime < INFERENCE_INTERVAL_MS
+    ) return;
+    this.lastVideoTime = this.video.currentTime;
+    this.lastInferenceTime = now;
+
+    if (this.worker) {
+      if (this.frameInFlight) return;
+      this.frameInFlight = true;
+      void createImageBitmap(this.video).then((frame) => {
+        if (this.stopped || !this.worker) {
+          frame.close();
+          this.frameInFlight = false;
+          return;
+        }
+        const message: HandWorkerInput = { type: 'frame', frame, timestamp: now };
+        this.worker.postMessage(message, [frame]);
+      }).catch((error) => {
+        this.frameInFlight = false;
+        void this.activateMainThreadFallback(error);
+      });
+      return;
+    }
+
+    if (this.landmarker) {
+      const result = this.serializeResult(this.landmarker.detectForVideo(this.video, now));
       this.consumeResult(result);
       this.drawPreview(result);
     }
-    this.raf = requestAnimationFrame(this.processFrame);
+  }
+
+  private handleWorkerMessage = (event: MessageEvent<HandWorkerOutput>): void => {
+    if (event.data.type === 'result') {
+      this.frameInFlight = false;
+      this.consumeResult(event.data.result);
+      this.drawPreview(event.data.result);
+    } else if (event.data.type === 'error') {
+      this.frameInFlight = false;
+      void this.activateMainThreadFallback(new Error(event.data.message));
+    }
   };
 
-  private consumeResult(result: HandLandmarkerResult): void {
+  private async activateMainThreadFallback(reason: unknown): Promise<void> {
+    if (this.switchingToFallback || this.stopped || this.landmarker) return;
+    this.switchingToFallback = true;
+    console.warn('Switching hand tracking to the main-thread fallback.', reason);
+    this.worker?.terminate();
+    this.worker = null;
+    this.frameInFlight = false;
+    try {
+      const wasmRoot = new URL(`${import.meta.env.BASE_URL}mediapipe/wasm`, window.location.href).href;
+      const localModel = new URL(`${import.meta.env.BASE_URL}mediapipe/hand_landmarker.task`, window.location.href).href;
+      await this.initializeMainThreadLandmarker(wasmRoot, localModel);
+    } catch (error) {
+      console.warn('Main-thread hand tracking fallback failed.', error);
+      this.input.active = false;
+      this.setStatus('error');
+    } finally {
+      this.switchingToFallback = false;
+    }
+  }
+
+  private serializeResult(result: HandLandmarkerResult): HandTrackingResult {
+    return {
+      landmarks: result.landmarks.map((hand) => hand.map((point) => ({
+        x: point.x,
+        y: point.y,
+        z: point.z,
+      }))),
+      handednessScores: result.handedness.map((categories) => categories[0]?.score ?? 0.7),
+    };
+  };
+
+  private consumeResult(result: HandTrackingResult): void {
     if (result.landmarks.length !== 2) {
       this.input.active = false;
       if (this.status === 'tracking') this.setStatus('lost');
@@ -132,7 +288,7 @@ export class HandController {
         landmarks,
         wrist: landmarks[0],
         closed: this.isClosedHand(landmarks),
-        score: result.handedness[index]?.[0]?.score ?? 0.7,
+        score: result.handednessScores[index] ?? 0.7,
       }))
       .sort((a, b) => a.wrist.x - b.wrist.x);
 
@@ -167,7 +323,7 @@ export class HandController {
     if (this.status !== 'tracking') this.setStatus('tracking');
   }
 
-  private isClosedHand(landmarks: HandLandmarkerResult['landmarks'][number]): boolean {
+  private isClosedHand(landmarks: HandPoint[]): boolean {
     const wrist = landmarks[0];
     const tips = [8, 12, 16, 20];
     const mcps = [5, 9, 13, 17];
@@ -186,9 +342,9 @@ export class HandController {
     return Math.atan2(sin, cos);
   }
 
-  private drawPreview(result: HandLandmarkerResult): void {
-    const width = this.video.videoWidth || 640;
-    const height = this.video.videoHeight || 480;
+  private drawPreview(result: HandTrackingResult): void {
+    const width = this.video.videoWidth || 480;
+    const height = this.video.videoHeight || 360;
     if (this.canvas.width !== width) this.canvas.width = width;
     if (this.canvas.height !== height) this.canvas.height = height;
     const context = this.canvas.getContext('2d');
@@ -197,7 +353,6 @@ export class HandController {
     context.save();
     context.translate(width, 0);
     context.scale(-1, 1);
-    context.drawImage(this.video, 0, 0, width, height);
     for (const hand of result.landmarks) {
       context.strokeStyle = 'rgba(93, 255, 190, 0.85)';
       context.fillStyle = '#ecff76';
