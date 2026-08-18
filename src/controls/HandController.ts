@@ -5,6 +5,15 @@ import type { HandPoint, HandTrackingResult, HandWorkerInput, HandWorkerOutput }
 
 type TrackingStatus = 'idle' | 'loading' | 'ready' | 'calibrating' | 'tracking' | 'lost' | 'error';
 const INFERENCE_INTERVAL_MS = 1000 / 24;
+const HAND_POINT_COLORS = [
+  '#ecff76',
+  '#ffb866', '#ffb866', '#ffb866', '#ffb866',
+  '#55e8ff', '#55e8ff', '#55e8ff', '#55e8ff',
+  '#72ffad', '#72ffad', '#72ffad', '#72ffad',
+  '#d98cff', '#d98cff', '#d98cff', '#d98cff',
+  '#ff7f9f', '#ff7f9f', '#ff7f9f', '#ff7f9f',
+] as const;
+const FINGERTIP_INDICES = new Set([4, 8, 12, 16, 20]);
 
 export class HandController {
   private landmarker: HandLandmarker | null = null;
@@ -353,21 +362,76 @@ export class HandController {
     context.save();
     context.translate(width, 0);
     context.scale(-1, 1);
-    for (const hand of result.landmarks) {
-      context.strokeStyle = 'rgba(93, 255, 190, 0.85)';
-      context.fillStyle = '#ecff76';
+
+    if (result.landmarks.length === 2) {
+      const leftWrist = result.landmarks[0][0];
+      const rightWrist = result.landmarks[1][0];
+      const leftX = leftWrist.x * width;
+      const leftY = leftWrist.y * height;
+      const rightX = rightWrist.x * width;
+      const rightY = rightWrist.y * height;
+      const centerX = (leftX + rightX) * 0.5;
+      const centerY = (leftY + rightY) * 0.5;
+
+      context.save();
+      context.setLineDash([10, 7]);
       context.lineWidth = 3;
+      context.strokeStyle = 'rgba(236, 255, 118, 0.82)';
+      context.beginPath();
+      context.moveTo(leftX, leftY);
+      context.lineTo(rightX, rightY);
+      context.stroke();
+      context.setLineDash([]);
+      context.fillStyle = '#ecff76';
+      context.strokeStyle = 'rgba(5, 12, 16, 0.9)';
+      context.lineWidth = 3;
+      context.beginPath();
+      context.arc(centerX, centerY, 7, 0, Math.PI * 2);
+      context.fill();
+      context.stroke();
+      context.restore();
+    }
+
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+    for (const hand of result.landmarks) {
       for (const connection of HandLandmarker.HAND_CONNECTIONS) {
         const a = connection.start;
         const b = connection.end;
+        const startX = hand[a].x * width;
+        const startY = hand[a].y * height;
+        const endX = hand[b].x * width;
+        const endY = hand[b].y * height;
+
+        context.strokeStyle = 'rgba(3, 10, 14, 0.78)';
+        context.lineWidth = 7;
         context.beginPath();
-        context.moveTo(hand[a].x * width, hand[a].y * height);
-        context.lineTo(hand[b].x * width, hand[b].y * height);
+        context.moveTo(startX, startY);
+        context.lineTo(endX, endY);
+        context.stroke();
+
+        context.strokeStyle = HAND_POINT_COLORS[b] ?? HAND_POINT_COLORS[0];
+        context.lineWidth = 3.5;
+        context.beginPath();
+        context.moveTo(startX, startY);
+        context.lineTo(endX, endY);
         context.stroke();
       }
-      for (const point of hand) {
+
+      for (let index = 0; index < hand.length; index += 1) {
+        const point = hand[index];
+        const radius = index === 0 ? 7 : FINGERTIP_INDICES.has(index) ? 6 : 4.5;
+        const x = point.x * width;
+        const y = point.y * height;
+
+        context.fillStyle = 'rgba(3, 10, 14, 0.9)';
         context.beginPath();
-        context.arc(point.x * width, point.y * height, 4, 0, Math.PI * 2);
+        context.arc(x, y, radius + 2, 0, Math.PI * 2);
+        context.fill();
+
+        context.fillStyle = HAND_POINT_COLORS[index] ?? HAND_POINT_COLORS[0];
+        context.beginPath();
+        context.arc(x, y, radius, 0, Math.PI * 2);
         context.fill();
       }
     }
