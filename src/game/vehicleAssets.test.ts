@@ -25,4 +25,22 @@ describe('VehicleAssets wheel animation', () => {
     expect(roller.rotation.y).toBeCloseTo(-Math.PI);
     expect(steeringPivot.rotation.y).toBeLessThan(0);
   });
+
+  it('builds cartoon wheels that roll around their horizontal axles', () => {
+    const assets = new VehicleAssets();
+    const car = assets.createCartoonCar(0xffffff, true);
+    const wheels = car.userData.animatedWheels as Array<{
+      roller: THREE.Group;
+      rollAxis: 'x' | 'y';
+      front: boolean;
+    }>;
+
+    expect(wheels).toHaveLength(4);
+    expect(wheels.every((wheel) => wheel.rollAxis === 'x')).toBe(true);
+    expect(wheels.filter((wheel) => wheel.front)).toHaveLength(2);
+
+    assets.updateWheelAnimation(car, 1, 0, 1 / 60);
+
+    expect(wheels.every((wheel) => wheel.roller.rotation.x < 0)).toBe(true);
+  });
 });

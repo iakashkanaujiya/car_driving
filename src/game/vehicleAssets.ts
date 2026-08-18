@@ -144,10 +144,12 @@ export class VehicleAssets {
 
   createCartoonCar(color: number, player: boolean): THREE.Group {
     const group = new THREE.Group();
-    const paint = new THREE.MeshStandardMaterial({
-      color,
-      roughness: 0.22,
-      metalness: 0.68,
+    const paint = new THREE.MeshPhysicalMaterial({
+      color: player ? DRIVER_CAR_COLOR : color,
+      roughness: 0.18,
+      metalness: 0.38,
+      clearcoat: 1,
+      clearcoatRoughness: 0.1,
       side: THREE.DoubleSide,
     });
     const dark = new THREE.MeshStandardMaterial({
@@ -155,15 +157,24 @@ export class VehicleAssets {
       roughness: 0.48,
       metalness: 0.32,
     });
+    const rubber = new THREE.MeshStandardMaterial({
+      color: 0x08090a,
+      roughness: 0.88,
+      metalness: 0.02,
+    });
     const carbon = new THREE.MeshStandardMaterial({
       color: 0x151a1f,
       roughness: 0.32,
       metalness: 0.62,
     });
-    const glass = new THREE.MeshStandardMaterial({
-      color: player ? 0x315f6b : 0x3b5862,
-      roughness: 0.08,
-      metalness: 0.42,
+    const glass = new THREE.MeshPhysicalMaterial({
+      color: player ? 0x183649 : 0x233f4c,
+      roughness: 0.12,
+      metalness: 0.08,
+      clearcoat: 1,
+      clearcoatRoughness: 0.06,
+      transparent: true,
+      opacity: 0.94,
       side: THREE.DoubleSide,
     });
     const chrome = new THREE.MeshStandardMaterial({
@@ -171,19 +182,39 @@ export class VehicleAssets {
       roughness: 0.22,
       metalness: 0.9,
     });
+    const createRearPanel = (
+      points: Array<[number, number]>,
+      material: THREE.Material,
+      z: number,
+    ): THREE.Mesh => {
+      const shape = new THREE.Shape();
+      shape.moveTo(points[0][0], points[0][1]);
+      for (let index = 1; index < points.length; index += 1)
+        shape.lineTo(points[index][0], points[index][1]);
+      shape.closePath();
+      const panel = new THREE.Mesh(new THREE.ShapeGeometry(shape), material);
+      panel.position.z = z;
+      return panel;
+    };
 
     const bodyProfile: Array<[number, number]> = [
-      [-2.28, 0.35],
-      [-2.2, 0.76],
-      [-1.7, 0.93],
-      [-0.9, 1.02],
-      [0.9, 0.98],
-      [1.72, 0.82],
-      [2.3, 0.5],
-      [2.24, 0.33],
+      [-2.34, 0.31],
+      [-2.36, 0.5],
+      [-2.31, 0.7],
+      [-2.08, 0.85],
+      [-1.76, 0.96],
+      [-1.25, 1.03],
+      [-0.64, 1.06],
+      [0.18, 1.05],
+      [0.9, 1.01],
+      [1.5, 0.93],
+      [1.88, 0.82],
+      [2.16, 0.67],
+      [2.32, 0.53],
+      [2.29, 0.3],
     ];
     const body = new THREE.Mesh(
-      this.createCarProfileGeometry(bodyProfile, 2.02, 0.09, true),
+      this.createCarProfileGeometry(bodyProfile, 2.14, 0.1, true),
       paint,
     );
     body.castShadow = true;
@@ -191,11 +222,13 @@ export class VehicleAssets {
     group.add(body);
 
     const canopyProfile: Array<[number, number]> = [
-      [-1.03, 1.01],
-      [-0.72, 1.54],
-      [-0.42, 1.69],
-      [0.47, 1.69],
-      [1.05, 1.01],
+      [-1.12, 1.02],
+      [-0.94, 1.28],
+      [-0.78, 1.51],
+      [-0.43, 1.68],
+      [0.43, 1.68],
+      [0.72, 1.52],
+      [1.03, 1.01],
     ];
     const canopy = new THREE.Mesh(
       this.createCarProfileGeometry(canopyProfile, 1.5, 0.045),
@@ -221,6 +254,39 @@ export class VehicleAssets {
     rearPillar.rotation.x = 0.72;
     group.add(rearPillar);
 
+    const rearWindowBorder = createRearPanel(
+      [
+        [-0.93, 1.06],
+        [0.93, 1.06],
+        [0.7, 1.61],
+        [-0.7, 1.61],
+      ],
+      carbon,
+      1.075,
+    );
+    group.add(rearWindowBorder);
+    const rearWindow = createRearPanel(
+      [
+        [-0.84, 1.12],
+        [0.84, 1.12],
+        [0.63, 1.54],
+        [-0.63, 1.54],
+      ],
+      glass,
+      1.082,
+    );
+    group.add(rearWindow);
+
+    for (const x of [-0.48, 0.48]) {
+      const deckAccent = new THREE.Mesh(
+        new THREE.BoxGeometry(0.045, 0.035, 0.68),
+        carbon,
+      );
+      deckAccent.position.set(x, 1.035, 1.47);
+      deckAccent.rotation.x = -0.07;
+      group.add(deckAccent);
+    }
+
     for (const x of [-1.02, 1.02]) {
       const skirt = new THREE.Mesh(
         new THREE.BoxGeometry(0.13, 0.17, 3.35),
@@ -240,49 +306,84 @@ export class VehicleAssets {
       group.add(mirror);
     }
 
-    const tireGeometry = new THREE.CylinderGeometry(0.44, 0.44, 0.32, 20);
-    const rimGeometry = new THREE.CylinderGeometry(0.265, 0.265, 0.345, 18);
+    const tireGeometry = new THREE.TorusGeometry(0.31, 0.13, 10, 28);
+    tireGeometry.rotateY(Math.PI / 2);
+    const rimGeometry = new THREE.TorusGeometry(0.215, 0.035, 8, 24);
+    rimGeometry.rotateY(Math.PI / 2);
+    const brakeDiscGeometry = new THREE.CylinderGeometry(
+      0.205,
+      0.205,
+      0.045,
+      22,
+    );
+    brakeDiscGeometry.rotateZ(Math.PI / 2);
+    const brakeDiscMaterial = new THREE.MeshStandardMaterial({
+      color: 0x6d7477,
+      roughness: 0.3,
+      metalness: 0.86,
+    });
+    const caliperMaterial = new THREE.MeshStandardMaterial({
+      color: 0xb81920,
+      roughness: 0.3,
+      metalness: 0.45,
+    });
     const frontWheels: THREE.Group[] = [];
     const animatedWheels: AnimatedWheel[] = [];
-    for (const x of [-1.04, 1.04]) {
+    for (const x of [-1.1, 1.1]) {
       for (const z of [-1.43, 1.39]) {
         const steeringPivot = new THREE.Group();
         steeringPivot.position.set(x, 0.48, z);
-        const wheelAssembly = new THREE.Group();
-        wheelAssembly.rotation.z = Math.PI / 2;
-        const tire = new THREE.Mesh(tireGeometry, dark);
+        const roller = new THREE.Group();
+        const tire = new THREE.Mesh(tireGeometry, rubber);
         tire.castShadow = true;
-        wheelAssembly.add(tire);
-        wheelAssembly.add(new THREE.Mesh(rimGeometry, chrome));
+        roller.add(tire);
 
-        const outerFace = -Math.sign(x) * 0.19;
-        for (let spokeIndex = 0; spokeIndex < 5; spokeIndex += 1) {
-          const angle = (spokeIndex / 5) * Math.PI * 2;
+        const rim = new THREE.Mesh(rimGeometry, chrome);
+        rim.castShadow = true;
+        roller.add(rim);
+
+        const brakeDisc = new THREE.Mesh(brakeDiscGeometry, brakeDiscMaterial);
+        roller.add(brakeDisc);
+        const outerDirection = Math.sign(x);
+
+        for (let spokeIndex = 0; spokeIndex < 6; spokeIndex += 1) {
+          const angle = (spokeIndex / 6) * Math.PI * 2;
           const spoke = new THREE.Mesh(
-            new THREE.BoxGeometry(0.055, 0.035, 0.38),
-            carbon,
+            new THREE.BoxGeometry(0.035, 0.055, 0.33),
+            chrome,
           );
-          spoke.position.y = outerFace;
-          spoke.rotation.y = angle;
-          wheelAssembly.add(spoke);
+          spoke.position.set(
+            outerDirection * 0.135,
+            Math.sin(angle) * 0.12,
+            Math.cos(angle) * 0.12,
+          );
+          spoke.rotation.x = -angle;
+          roller.add(spoke);
         }
-        wheelAssembly.add(
-          new THREE.Mesh(
-            new THREE.CylinderGeometry(0.08, 0.08, 0.38, 12),
-            carbon,
-          ),
+        const hub = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.075, 0.075, 0.27, 16),
+          chrome,
         );
-        steeringPivot.add(wheelAssembly);
+        hub.geometry.rotateZ(Math.PI / 2);
+        roller.add(hub);
+
+        const caliper = new THREE.Mesh(
+          new THREE.BoxGeometry(0.08, 0.16, 0.08),
+          caliperMaterial,
+        );
+        caliper.position.set(-outerDirection * 0.025, 0.02, 0.17);
+        steeringPivot.add(caliper);
+        steeringPivot.add(roller);
         group.add(steeringPivot);
         const front = z < 0;
         if (front) frontWheels.push(steeringPivot);
         animatedWheels.push({
           steeringPivot,
-          roller: wheelAssembly,
+          roller,
           radius: 0.44 * CARTOON_CAR_SCALE,
           front,
-          rollAxis: "y",
-          baseRoll: wheelAssembly.rotation.y,
+          rollAxis: "x",
+          baseRoll: roller.rotation.x,
           baseSteering: steeringPivot.rotation.y,
           rollAngle: 0,
         });
@@ -319,10 +420,10 @@ export class VehicleAssets {
     });
     group.userData.tailMaterial = tailMaterial;
     const rearLightPanel = new THREE.Mesh(
-      new THREE.BoxGeometry(1.62, 0.27, 0.045),
+      new THREE.BoxGeometry(1.98, 0.31, 0.055),
       carbon,
     );
-    rearLightPanel.position.set(0, 0.78, 2.23);
+    rearLightPanel.position.set(0, 0.79, 2.255);
     group.add(rearLightPanel);
     for (const x of [-0.66, 0.66]) {
       const headlight = new THREE.Mesh(
@@ -333,38 +434,71 @@ export class VehicleAssets {
       headlight.rotation.y = x * 0.08;
       group.add(headlight);
 
-      const tail = new THREE.Mesh(
-        new THREE.BoxGeometry(0.58, 0.15, 0.055),
+      const tail = createRearPanel(
+        x < 0
+          ? [
+              [-0.98, 0.92],
+              [-0.3, 0.89],
+              [-0.4, 0.7],
+              [-0.91, 0.74],
+            ]
+          : [
+              [0.3, 0.89],
+              [0.98, 0.92],
+              [0.91, 0.74],
+              [0.4, 0.7],
+            ],
         tailMaterial,
+        2.292,
       );
-      tail.position.set(x, 0.8, 2.265);
       group.add(tail);
     }
     const centerTail = new THREE.Mesh(
-      new THREE.BoxGeometry(0.64, 0.045, 0.04),
+      new THREE.BoxGeometry(0.68, 0.045, 0.04),
       tailMaterial,
     );
-    centerTail.position.set(0, 0.8, 2.27);
+    centerTail.position.set(0, 1.13, 1.105);
     group.add(centerTail);
 
     const rearBumper = new THREE.Mesh(
-      new THREE.BoxGeometry(1.92, 0.26, 0.18),
+      new THREE.BoxGeometry(2.04, 0.27, 0.18),
       carbon,
     );
-    rearBumper.position.set(0, 0.48, 2.22);
+    rearBumper.position.set(0, 0.5, 2.23);
     group.add(rearBumper);
     const diffuser = new THREE.Mesh(
-      new THREE.BoxGeometry(1.45, 0.12, 0.3),
+      new THREE.BoxGeometry(1.82, 0.27, 0.3),
       dark,
     );
-    diffuser.position.set(0, 0.32, 2.2);
+    diffuser.position.set(0, 0.31, 2.25);
     group.add(diffuser);
+    const diffuserFascia = createRearPanel(
+      [
+        [-1.01, 0.59],
+        [1.01, 0.59],
+        [0.84, 0.18],
+        [-0.84, 0.18],
+      ],
+      dark,
+      2.5,
+    );
+    group.add(diffuserFascia);
     const plate = new THREE.Mesh(
       new THREE.BoxGeometry(0.52, 0.19, 0.025),
       new THREE.MeshBasicMaterial({ color: 0xe8ece7 }),
     );
-    plate.position.set(0, 0.63, 2.325);
+    plate.position.set(0, 0.51, 2.515);
     group.add(plate);
+
+    for (const x of [-0.7, -0.35, 0, 0.35, 0.7]) {
+      const fin = new THREE.Mesh(
+        new THREE.BoxGeometry(0.045, 0.17, 0.25),
+        carbon,
+      );
+      fin.position.set(x, 0.2, 2.51);
+      fin.rotation.x = -0.18;
+      group.add(fin);
+    }
 
     for (const x of [-0.63, 0.63]) {
       const exhaust = new THREE.Mesh(
@@ -372,8 +506,38 @@ export class VehicleAssets {
         chrome,
       );
       exhaust.rotation.x = Math.PI / 2;
-      exhaust.position.set(x, 0.32, 2.34);
+      exhaust.position.set(x, 0.37, 2.53);
       group.add(exhaust);
+      const exhaustOpening = new THREE.Mesh(
+        new THREE.CircleGeometry(0.065, 12),
+        dark,
+      );
+      exhaustOpening.position.set(x, 0.37, 2.675);
+      group.add(exhaustOpening);
+    }
+
+    const wing = new THREE.Mesh(
+      new THREE.BoxGeometry(2.24, 0.1, 0.36),
+      carbon,
+    );
+    wing.position.set(0, 1.25, 1.74);
+    wing.castShadow = true;
+    group.add(wing);
+    for (const x of [-0.7, 0.7]) {
+      const support = new THREE.Mesh(
+        new THREE.BoxGeometry(0.075, 0.35, 0.1),
+        carbon,
+      );
+      support.position.set(x, 1.08, 1.72);
+      group.add(support);
+    }
+    for (const x of [-1.11, 1.11]) {
+      const endPlate = new THREE.Mesh(
+        new THREE.BoxGeometry(0.055, 0.24, 0.43),
+        carbon,
+      );
+      endPlate.position.set(x, 1.25, 1.74);
+      group.add(endPlate);
     }
 
     if (player) {
@@ -381,22 +545,6 @@ export class VehicleAssets {
       brakeGlow.position.set(0, 0.58, 2.55);
       group.userData.brakeGlow = brakeGlow;
       group.add(brakeGlow);
-
-      const wing = new THREE.Mesh(
-        new THREE.BoxGeometry(1.78, 0.1, 0.34),
-        carbon,
-      );
-      wing.position.set(0, 1.18, 1.78);
-      wing.castShadow = true;
-      group.add(wing);
-      for (const x of [-0.57, 0.57]) {
-        const support = new THREE.Mesh(
-          new THREE.BoxGeometry(0.07, 0.33, 0.08),
-          carbon,
-        );
-        support.position.set(x, 1.03, 1.76);
-        group.add(support);
-      }
     }
 
     group.scale.setScalar(CARTOON_CAR_SCALE);
@@ -869,9 +1017,9 @@ export class VehicleAssets {
     const geometry = new THREE.ExtrudeGeometry(shape, {
       depth: width,
       steps: 1,
-      curveSegments: 1,
+      curveSegments: 2,
       bevelEnabled: true,
-      bevelSegments: 1,
+      bevelSegments: 3,
       bevelSize: bevel,
       bevelThickness: bevel,
     });
