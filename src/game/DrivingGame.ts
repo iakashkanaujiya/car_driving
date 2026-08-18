@@ -9,6 +9,7 @@ interface TrafficCar {
   mesh: THREE.Group;
   distance: number;
   lane: number;
+  laneOffset: number;
   speed: number;
   targetSpeed: number;
   speedChangeTimer: number;
@@ -35,6 +36,8 @@ interface CarModelSpec {
 }
 
 const carColors = [0xff5a5f, 0x65d1ff, 0xffcc4d, 0xa98cff, 0xf4f2e9, 0x50d890];
+const REAL_CAR_SCALE = 2;
+const CARTOON_CAR_SCALE = 1.55;
 const carModelSpecs: readonly CarModelSpec[] = [
   { id: 'camaro', path: 'models/1970_chevrolet_camaro/scene.gltf', rotationY: Math.PI },
   { id: 'pontiac', path: 'models/1970_Pontiac/scene.gltf', rotationY: -Math.PI / 2 },
@@ -395,8 +398,9 @@ export class DrivingGame {
       const direction: 1 | -1 = index === 0 ? 1 : index === 1 ? -1 : Math.random() < 0.56 ? 1 : -1;
       const car: TrafficCar = {
           mesh: this.createCar(carColors[Math.floor(Math.random() * carColors.length)], false),
-        distance: 0,
-        lane: direction === 1 ? 0 : 1,
+          distance: 0,
+          lane: direction === 1 ? 0 : 1,
+          laneOffset: 0,
         speed: 0,
         targetSpeed: 0,
         speedChangeTimer: 0,
@@ -634,7 +638,7 @@ export class DrivingGame {
       }
     }
 
-    group.scale.setScalar(2);
+    group.scale.setScalar(CARTOON_CAR_SCALE);
     return group;
   }
 
@@ -770,7 +774,7 @@ export class DrivingGame {
     instance.updateMatrixWorld(true);
     const modelBounds = new THREE.Box3().setFromObject(instance, true);
     car.add(instance);
-    car.scale.setScalar(2);
+    car.scale.setScalar(REAL_CAR_SCALE);
     car.userData.modelId = modelId;
     car.userData.frontWheels = [];
     car.userData.tailMaterial = undefined;
@@ -1143,6 +1147,7 @@ export class DrivingGame {
       .reduce((max, other) => Math.max(max, other.distance), this.distance + 120);
     car.distance = ahead ?? furthest + 48 + Math.random() * 95;
     car.lane = car.direction === 1 ? 0 : 1;
+    car.laneOffset = (Math.random() * 2 - 1) * 1.35;
     car.speed = car.direction === 1 ? 20 + Math.random() * 16 : 24 + Math.random() * 12;
     car.targetSpeed = car.speed;
     car.speedChangeTimer = 2.5 + Math.random() * 6;
@@ -1153,6 +1158,8 @@ export class DrivingGame {
   private updateSimulation(dt: number): void {
     const control = this.getControl();
     const curveLimit = curveSpeedLimit(this.distance, GAME.maxSpeed, GAME.minCurveSpeed);
+    const collisionLength = this.carStyle === 'real' ? GAME.collisionLength : GAME.cartoonCollisionLength;
+    const collisionWidth = this.carStyle === 'real' ? GAME.collisionWidth : GAME.cartoonCollisionWidth;
     let targetSpeed = curveLimit;
     let leadDistance = Number.POSITIVE_INFINITY;
     let leadIsIncoming = false;
@@ -1160,8 +1167,8 @@ export class DrivingGame {
 
     for (const car of this.traffic) {
       const gap = car.distance - this.distance;
-      const laneGap = Math.abs(laneOffsets[car.lane] - this.lateral);
-      if (!car.horned && gap > GAME.collisionLength && gap < 32 && laneGap < GAME.collisionWidth + 0.8) {
+      const laneGap = Math.abs(laneOffsets[car.lane] + car.laneOffset - this.lateral);
+      if (!car.horned && gap > collisionLength && gap < 32 && laneGap < collisionWidth + 0.8) {
         car.horned = true;
         if (this.hornCooldown === 0) {
           this.hornCooldown = 3.5;
@@ -1212,11 +1219,11 @@ export class DrivingGame {
       currentRoadCenter,
       currentRoadHeading,
       GAME.roadWidth,
-      1.25,
+      GAME.roadEdgeMargin,
     );
     this.worldX = roadConstraint.worldX;
     this.lateral = roadConstraint.lateral;
-    const boundaryLimit = GAME.roadWidth / 2 - 1.25;
+    const boundaryLimit = GAME.roadWidth / 2 - GAME.roadEdgeMargin;
     const edgeProximity = clamp((Math.abs(this.lateral) - (boundaryLimit - 1.6)) / 1.6, 0, 1);
     if (edgeProximity > 0) {
       const relativeHeading = Math.atan2(
@@ -1252,12 +1259,12 @@ export class DrivingGame {
       car.speed = damp(car.speed, trafficTargetSpeed, 1.25, dt);
       car.distance += car.speed * car.direction * dt;
       const gap = car.distance - this.distance;
-      const laneGap = Math.abs(laneOffsets[car.lane] - this.lateral);
-      if (car.direction === 1 && !car.counted && gap < -GAME.collisionLength) {
+      const laneGap = Math.abs(laneOffsets[car.lane] + car.laneOffset - this.lateral);
+      if (car.direction === 1 && !car.counted && gap < -collisionLength) {
         car.counted = true;
         this.overtakes += 1;
       }
-      if (Math.abs(gap) < GAME.collisionLength && laneGap < GAME.collisionWidth) {
+      if (Math.abs(gap) < collisionLength && laneGap < collisionWidth) {
         this.phase = 'crashed';
         this.speed = 0;
         this.setBrakeLights(this.player, true);
@@ -1330,7 +1337,7 @@ export class DrivingGame {
 
     for (const car of this.traffic) {
       const carHeading = roadHeading(car.distance);
-      const offset = laneOffsets[car.lane];
+      const offset = laneOffsets[car.lane] + car.laneOffset;
       car.mesh.position.set(
         roadCenter(car.distance) + Math.cos(carHeading) * offset,
         0.02,
