@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { GAME, laneOffsets } from './config';
 import { clamp, constrainToRoad, curveSpeedLimit, damp, roadCenter, roadHeading } from './math';
 import type { ControlInput, GamePhase, GameSnapshot } from './types';
@@ -12,6 +14,15 @@ interface TrafficCar {
   speedChangeTimer: number;
   direction: 1 | -1;
   counted: boolean;
+}
+
+interface ForestMaterialOptions {
+  repeatX?: number;
+  repeatY?: number;
+  normalScale?: number;
+  tint?: number;
+  transparent?: boolean;
+  alphaTest?: number;
 }
 
 const carColors = [0xff5a5f, 0x65d1ff, 0xffcc4d, 0xa98cff, 0xf4f2e9, 0x50d890];
@@ -28,12 +39,20 @@ export class DrivingGame {
   private readonly mountains: THREE.Group[] = [];
   private readonly clouds: THREE.Sprite[] = [];
   private readonly sunVisual = new THREE.Group();
+  private readonly forestTextures: THREE.Texture[] = [];
+  private readonly fenceSlots: Array<{ distance: number; side: -1 | 1 }> = [];
+  private readonly fencePostGeometry = new THREE.BoxGeometry(0.2, 1.15, 0.2);
+  private readonly fenceRailGeometry = new THREE.BoxGeometry(0.16, 0.17, 9.7);
+  private readonly fenceDummy = new THREE.Object3D();
+  private readonly fencePosts: THREE.InstancedMesh;
+  private readonly fenceRails: THREE.InstancedMesh;
+  private readonly rockMaterial: THREE.MeshStandardMaterial;
+  private mapleTreePrototype?: THREE.Group;
+  private greatMountainPrototype?: THREE.Group;
   private readonly roadGeometry: THREE.BufferGeometry;
   private readonly roadMesh: THREE.Mesh;
   private readonly shoulderGeometry: THREE.BufferGeometry;
   private readonly shoulderMesh: THREE.Mesh;
-  private readonly edgeGeometries: THREE.BufferGeometry[] = [];
-  private readonly edgeMeshes: THREE.Mesh[] = [];
   private readonly ground: THREE.Mesh;
   private frame = 0;
   private phase: GamePhase = 'ready';
@@ -54,8 +73,8 @@ export class DrivingGame {
     private readonly onUpdate: (snapshot: GameSnapshot) => void,
     private readonly onCrash: () => void,
   ) {
-    this.scene.background = new THREE.Color(0x90bfd0);
-    this.scene.fog = new THREE.FogExp2(0x90bfd0, 0.0044);
+    this.scene.background = new THREE.Color(0x9bb8bd);
+    this.scene.fog = new THREE.FogExp2(0x9bb8bd, 0.0048);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
@@ -67,45 +86,80 @@ export class DrivingGame {
     this.renderer.toneMappingExposure = 1.05;
     container.appendChild(this.renderer.domElement);
 
-    this.roadGeometry = this.createStripGeometry(GAME.roadWidth, 220);
-    this.roadMesh = new THREE.Mesh(
-      this.roadGeometry,
-      new THREE.MeshStandardMaterial({ color: 0x1c252c, roughness: 0.94, metalness: 0.03 }),
+    const roadMaterial = this.createForestMaterial(
+      'Dirt_Road_Bare_baseColor.png',
+      'Dirt_Road_Bare_normal.png',
+      'Dirt_Road_Bare_metallicRoughness.png',
+      { normalScale: 0.48, tint: 0x8b98a5 },
     );
+    const shoulderMaterial = this.createForestMaterial(
+      'Ground_Dirt_baseColor.jpeg',
+      'Ground_Dirt_normal.jpeg',
+      'Ground_Dirt_metallicRoughness.png',
+      { normalScale: 0.42, tint: 0x8f8068 },
+    );
+    const groundMaterial = this.createForestMaterial(
+      'Grass_Close_baseColor.png',
+      'Grass_Close_normal.jpeg',
+      'Grass_Close_metallicRoughness.png',
+      { repeatX: 58, repeatY: 58, normalScale: 0.36, tint: 0x80946b },
+    );
+    this.rockMaterial = this.createForestMaterial(
+      'Broken_Rocks_baseColor.jpeg',
+      'Broken_Rocks_normal.jpeg',
+      'Broken_Rocks_metallicRoughness.png',
+      { normalScale: 0.5, tint: 0x8e8a7e },
+    );
+    const fenceMaterial = new THREE.MeshStandardMaterial({
+      color: 0x514431,
+      map: this.loadForestTexture('Wood_Fence_baseColor.png', true, 3, 1),
+      roughness: 0.96,
+      metalness: 0,
+    });
+
+    this.roadGeometry = this.createStripGeometry(GAME.roadWidth, 220);
+    this.roadMesh = new THREE.Mesh(this.roadGeometry, roadMaterial);
     this.roadMesh.receiveShadow = true;
     this.scene.add(this.roadMesh);
 
-    this.shoulderGeometry = this.createStripGeometry(GAME.roadWidth + 1.25, 220);
-    this.shoulderMesh = new THREE.Mesh(
-      this.shoulderGeometry,
-      new THREE.MeshStandardMaterial({ color: 0xb89c58, roughness: 1 }),
-    );
-    this.shoulderMesh.position.y = -0.045;
+    this.shoulderGeometry = this.createStripGeometry(GAME.roadWidth + 5.5, 220);
+    this.shoulderMesh = new THREE.Mesh(this.shoulderGeometry, shoulderMaterial);
+    this.shoulderMesh.position.y = -0.055;
     this.shoulderMesh.receiveShadow = true;
     this.scene.add(this.shoulderMesh);
 
-    const edgeMaterial = new THREE.MeshBasicMaterial({ color: 0xf5e8b1 });
-    for (const offset of [-GAME.roadWidth / 2 + 0.38, GAME.roadWidth / 2 - 0.38]) {
-      const geometry = this.createStripGeometry(0.22, 220, offset);
-      const edge = new THREE.Mesh(geometry, edgeMaterial);
-      edge.position.y = 0.035;
-      edge.renderOrder = 2;
-      this.edgeGeometries.push(geometry);
-      this.edgeMeshes.push(edge);
-      this.scene.add(edge);
-    }
-
     this.ground = new THREE.Mesh(
       new THREE.PlaneGeometry(1200, 1200),
-      new THREE.MeshStandardMaterial({ color: 0x547b45, roughness: 1 }),
+      groundMaterial,
     );
     this.ground.rotation.x = -Math.PI / 2;
     this.ground.position.y = -0.09;
     this.ground.receiveShadow = true;
     this.scene.add(this.ground);
 
+    const fenceSegments = 36;
+    this.fencePosts = new THREE.InstancedMesh(this.fencePostGeometry, fenceMaterial, fenceSegments * 2);
+    this.fenceRails = new THREE.InstancedMesh(this.fenceRailGeometry, fenceMaterial, fenceSegments * 2);
+    this.fencePosts.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.fenceRails.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.fencePosts.castShadow = true;
+    this.fencePosts.receiveShadow = true;
+    this.fenceRails.castShadow = true;
+    this.fenceRails.receiveShadow = true;
+    this.fencePosts.frustumCulled = false;
+    this.fenceRails.frustumCulled = false;
+    for (let index = 0; index < fenceSegments; index += 1) {
+      this.fenceSlots.push({
+        distance: -45 + index * 9.7,
+        side: Math.floor(index / 6) % 2 === 0 ? -1 : 1,
+      });
+    }
+    this.scene.add(this.fencePosts, this.fenceRails);
+
     this.setupLights();
     this.setupWorld();
+    this.loadMapleTree();
+    this.loadGreatMountain();
     this.scene.add(this.player);
     this.resize();
     window.addEventListener('resize', this.resize);
@@ -155,7 +209,7 @@ export class DrivingGame {
       }
     });
     this.scenery.forEach((object, index) => {
-      object.userData.distance = -45 + index * 17;
+      object.userData.distance = -45 + index * 12.5;
     });
   }
 
@@ -166,7 +220,49 @@ export class DrivingGame {
   dispose(): void {
     cancelAnimationFrame(this.animationFrame);
     window.removeEventListener('resize', this.resize);
+    for (const texture of this.forestTextures) texture.dispose();
     this.renderer.dispose();
+  }
+
+  private loadForestTexture(
+    file: string,
+    colorTexture: boolean,
+    repeatX = 1,
+    repeatY = 1,
+  ): THREE.Texture {
+    const texture = new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}forest/textures/${file}`);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(repeatX, repeatY);
+    texture.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
+    if (colorTexture) texture.colorSpace = THREE.SRGBColorSpace;
+    this.forestTextures.push(texture);
+    return texture;
+  }
+
+  private createForestMaterial(
+    baseColor: string,
+    normal: string,
+    metallicRoughness: string,
+    options: ForestMaterialOptions = {},
+  ): THREE.MeshStandardMaterial {
+    const repeatX = options.repeatX ?? 1;
+    const repeatY = options.repeatY ?? 1;
+    const surfaceMap = this.loadForestTexture(metallicRoughness, false, repeatX, repeatY);
+    return new THREE.MeshStandardMaterial({
+      color: options.tint ?? 0xffffff,
+      map: this.loadForestTexture(baseColor, true, repeatX, repeatY),
+      normalMap: this.loadForestTexture(normal, false, repeatX, repeatY),
+      normalScale: new THREE.Vector2(options.normalScale ?? 0.45, options.normalScale ?? 0.45),
+      roughnessMap: surfaceMap,
+      metalnessMap: surfaceMap,
+      roughness: 0.96,
+      metalness: 0.02,
+      transparent: options.transparent ?? false,
+      alphaTest: options.alphaTest ?? 0,
+      depthWrite: !(options.transparent ?? false),
+      side: THREE.DoubleSide,
+    });
   }
 
   private setupLights(): void {
@@ -215,8 +311,13 @@ export class DrivingGame {
   }
 
   private setupWorld(): void {
-    const markerGeometry = new THREE.BoxGeometry(0.13, 0.025, 5.4);
-    const markerMaterial = new THREE.MeshBasicMaterial({ color: 0xf7f3d0 });
+    const markerGeometry = new THREE.BoxGeometry(0.11, 0.022, 4.6);
+    const markerMaterial = new THREE.MeshBasicMaterial({
+      color: 0xf0eee5,
+      transparent: true,
+      opacity: 0.56,
+      depthWrite: false,
+    });
     for (let index = 0; index < 38; index += 1) {
       const marker = new THREE.Mesh(markerGeometry, markerMaterial);
       marker.userData.slot = index;
@@ -227,14 +328,14 @@ export class DrivingGame {
     for (let index = 0; index < 44; index += 1) {
       const object = index % 5 === 0 ? this.createRock() : this.createTree(index);
       object.userData.slot = index;
-      object.userData.distance = -45 + index * 17;
+      object.userData.distance = -45 + index * 12.5;
       object.userData.side = index % 2 === 0 ? -1 : 1;
-      object.userData.offset = GAME.roadWidth / 2 + 5 + ((index * 7) % 11);
+      object.userData.offset = GAME.roadWidth / 2 + 6 + ((index * 7) % 10);
       this.scenery.push(object);
       this.scene.add(object);
     }
 
-    for (let index = 0; index < 17; index += 1) {
+    for (let index = 0; index < 7; index += 1) {
       const mountain = this.createMountain(index);
       mountain.userData.slot = index;
       this.mountains.push(mountain);
@@ -309,14 +410,19 @@ export class DrivingGame {
     geometry.computeVertexNormals();
     geometry.userData.width = width;
     geometry.userData.centerOffset = centerOffset;
+    geometry.userData.uvWidth = Math.max(1, width / 9);
+    geometry.userData.uvMeters = 11;
     return geometry;
   }
 
   private updateStrip(geometry: THREE.BufferGeometry, start: number, length: number): void {
     const position = geometry.getAttribute('position') as THREE.BufferAttribute;
+    const uv = geometry.getAttribute('uv') as THREE.BufferAttribute;
     const segments = position.count / 2 - 1;
     const halfWidth = geometry.userData.width / 2;
     const centerOffset = geometry.userData.centerOffset as number;
+    const uvWidth = geometry.userData.uvWidth as number;
+    const uvMeters = geometry.userData.uvMeters as number;
     for (let index = 0; index <= segments; index += 1) {
       const distance = start + (index / segments) * length;
       const center = roadCenter(distance);
@@ -326,8 +432,11 @@ export class DrivingGame {
       const vertex = index * 2;
       position.setXYZ(vertex, center + sideX * (centerOffset - halfWidth), 0, -distance + sideZ * (centerOffset - halfWidth));
       position.setXYZ(vertex + 1, center + sideX * (centerOffset + halfWidth), 0, -distance + sideZ * (centerOffset + halfWidth));
+      uv.setXY(vertex, 0, distance / uvMeters);
+      uv.setXY(vertex + 1, uvWidth, distance / uvMeters);
     }
     position.needsUpdate = true;
+    uv.needsUpdate = true;
     geometry.computeVertexNormals();
     geometry.computeBoundingSphere();
   }
@@ -547,57 +656,150 @@ export class DrivingGame {
     return geometry;
   }
 
-  private createTree(index: number): THREE.Group {
-    const group = new THREE.Group();
-    const trunkColor = [0x68452f, 0x775039, 0x5b3d2c][index % 3];
-    const trunk = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.16, 0.34, index % 4 === 0 ? 3.2 : 2.45, 7),
-      new THREE.MeshStandardMaterial({ color: trunkColor, roughness: 1, flatShading: true }),
-    );
-    trunk.position.y = index % 4 === 0 ? 1.6 : 1.22;
-    trunk.castShadow = true;
-    group.add(trunk);
+  private loadMapleTree(): void {
+    const loader = new GLTFLoader();
+    loader.load(
+      `${import.meta.env.BASE_URL}maple_tree/scene.gltf`,
+      (gltf) => {
+        try {
+          const sourceTree = gltf.scene.getObjectByName('instance_0');
+          if (!sourceTree) throw new Error('The maple tree root node was not found.');
 
-    if (index % 4 === 0) {
-      const leafColors = [0x477d42, 0x568b48, 0x3f713b];
-      const clusters = [
-        [-0.65, 3.5, 0.12, 1.2], [0.58, 3.62, -0.05, 1.12],
-        [0.05, 4.25, 0.08, 1.35], [0.05, 3.48, 0.62, 0.94],
-      ];
-      for (let clusterIndex = 0; clusterIndex < clusters.length; clusterIndex += 1) {
-        const [x, y, z, scale] = clusters[clusterIndex];
-        const crown = new THREE.Mesh(
-          new THREE.IcosahedronGeometry(scale, 1),
-          new THREE.MeshStandardMaterial({
-            color: leafColors[(index + clusterIndex) % leafColors.length],
-            roughness: 1,
-            flatShading: true,
-          }),
-        );
-        crown.position.set(x, y, z);
-        crown.scale.y = 0.82 + clusterIndex * 0.04;
-        crown.rotation.set(clusterIndex * 0.3, index * 0.7, clusterIndex * 0.22);
-        crown.castShadow = true;
-        group.add(crown);
+          gltf.scene.updateMatrixWorld(true);
+          const buckets = new Map<string, {
+            material: THREE.MeshStandardMaterial;
+            geometries: THREE.BufferGeometry[];
+          }>();
+
+          sourceTree.traverse((object) => {
+            if (!(object instanceof THREE.Mesh)) return;
+            const sourceMaterial = Array.isArray(object.material) ? object.material[0] : object.material;
+            const key = sourceMaterial.name || `material-${sourceMaterial.id}`;
+            let bucket = buckets.get(key);
+
+            if (!bucket) {
+              const material = sourceMaterial.clone() as THREE.MeshStandardMaterial;
+              material.metalness = 0;
+              material.roughness = key.includes('leaf') ? 0.88 : 0.96;
+              material.aoMap = null;
+              material.emissiveMap = null;
+              material.emissive?.set(0x000000);
+              if (key.includes('leaf')) {
+                material.side = THREE.DoubleSide;
+                material.map = material.map ? this.createCleanLeafTexture(material.map) : null;
+                material.alphaMap = null;
+                material.color.set(0x9ab08f);
+                material.alphaTest = 0.38;
+                material.transparent = false;
+                material.depthWrite = true;
+              }
+              bucket = { material, geometries: [] };
+              buckets.set(key, bucket);
+            }
+
+            const transformed = object.geometry.clone();
+            transformed.applyMatrix4(object.matrixWorld);
+            let geometry = transformed;
+            if (transformed.index) {
+              geometry = transformed.toNonIndexed();
+              transformed.dispose();
+            }
+            for (const attribute of Object.keys(geometry.attributes)) {
+              if (!['position', 'normal', 'uv'].includes(attribute)) geometry.deleteAttribute(attribute);
+            }
+            if (!geometry.getAttribute('normal')) geometry.computeVertexNormals();
+            bucket.geometries.push(geometry);
+          });
+
+          const content = new THREE.Group();
+          for (const bucket of buckets.values()) {
+            const merged = mergeGeometries(bucket.geometries, false);
+            bucket.geometries.forEach((geometry) => geometry.dispose());
+            if (!merged) continue;
+            merged.computeBoundingBox();
+            merged.computeBoundingSphere();
+            const mesh = new THREE.Mesh(merged, bucket.material);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            content.add(mesh);
+          }
+
+          if (content.children.length === 0) throw new Error('The maple tree geometry could not be merged.');
+          const bounds = new THREE.Box3().setFromObject(content);
+          const size = bounds.getSize(new THREE.Vector3());
+          const center = bounds.getCenter(new THREE.Vector3());
+          content.position.set(-center.x, -bounds.min.y, -center.z);
+
+          const prototype = new THREE.Group();
+          prototype.scale.setScalar(10 / Math.max(1, size.y));
+          prototype.add(content);
+          this.mapleTreePrototype = prototype;
+
+          for (const object of this.scenery) {
+            if (object.userData.kind !== 'maple-tree') continue;
+            object.clear();
+            object.add(prototype.clone(true));
+          }
+        } catch (error) {
+          console.error('Could not prepare the maple tree model.', error);
+        }
+      },
+      undefined,
+      (error) => console.error('Could not load the maple tree model.', error),
+    );
+  }
+
+  private createCleanLeafTexture(source: THREE.Texture): THREE.CanvasTexture | null {
+    const image = source.image as CanvasImageSource & { width?: number; height?: number };
+    const width = image?.width ?? 0;
+    const height = image?.height ?? 0;
+    if (!width || !height) return null;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    if (!context) return null;
+
+    context.drawImage(image, 0, 0, width, height);
+    const pixels = context.getImageData(0, 0, width, height);
+    for (let index = 0; index < pixels.data.length; index += 4) {
+      const red = pixels.data[index];
+      const green = pixels.data[index + 1];
+      const blue = pixels.data[index + 2];
+      const minimum = Math.min(red, green, blue);
+      const maximum = Math.max(red, green, blue);
+      const neutralBackground = minimum > 150 && maximum - minimum < 46;
+      const alpha = neutralBackground ? clamp((210 - minimum) * 6, 0, 255) : 255;
+      if (alpha < 255) {
+        // Keep transparent texels forest-green so generated mipmaps cannot
+        // blend the source image's white background into leaf edges.
+        pixels.data[index] = 38;
+        pixels.data[index + 1] = 66;
+        pixels.data[index + 2] = 28;
       }
-    } else {
-      const green = [0x2f673c, 0x3e7b43, 0x295b38][index % 3];
-      for (let layer = 0; layer < 4; layer += 1) {
-        const crown = new THREE.Mesh(
-          new THREE.ConeGeometry(1.62 - layer * 0.23, 2.45, 8),
-          new THREE.MeshStandardMaterial({
-            color: new THREE.Color(green).offsetHSL(layer * 0.008, 0, layer * 0.018),
-            roughness: 1,
-            flatShading: true,
-          }),
-        );
-        crown.position.y = 2.25 + layer * 0.88;
-        crown.rotation.y = layer * 0.63 + index;
-        crown.scale.x = 0.9 + ((index + layer) % 3) * 0.06;
-        crown.castShadow = true;
-        group.add(crown);
-      }
+      pixels.data[index + 3] = alpha;
     }
+    context.putImageData(pixels, 0, 0);
+
+    const cleanTexture = new THREE.CanvasTexture(canvas);
+    cleanTexture.colorSpace = source.colorSpace;
+    cleanTexture.flipY = source.flipY;
+    cleanTexture.wrapS = source.wrapS;
+    cleanTexture.wrapT = source.wrapT;
+    cleanTexture.magFilter = source.magFilter;
+    cleanTexture.minFilter = source.minFilter;
+    cleanTexture.anisotropy = source.anisotropy;
+    cleanTexture.channel = source.channel;
+    cleanTexture.needsUpdate = true;
+    this.forestTextures.push(cleanTexture);
+    return cleanTexture;
+  }
+
+  private createTree(_index: number): THREE.Group {
+    const group = new THREE.Group();
+    group.userData.kind = 'maple-tree';
+    if (this.mapleTreePrototype) group.add(this.mapleTreePrototype.clone(true));
     return group;
   }
 
@@ -605,7 +807,7 @@ export class DrivingGame {
     const group = new THREE.Group();
     const rock = new THREE.Mesh(
       new THREE.DodecahedronGeometry(1.25, 0),
-      new THREE.MeshStandardMaterial({ color: 0x7a8174, roughness: 1 }),
+      this.rockMaterial,
     );
     rock.scale.set(1.2, 0.7, 0.9);
     rock.position.y = 0.7;
@@ -614,32 +816,58 @@ export class DrivingGame {
     return group;
   }
 
-  private createMountain(index: number): THREE.Group {
-    const group = new THREE.Group();
-    const palette = [0x4c6270, 0x607684, 0x405865, 0x71828a];
-    const radius = 34 + (index % 4) * 8;
-    const height = 38 + (index % 5) * 7;
-    const mountain = new THREE.Mesh(
-      this.createMountainGeometry(radius, height, index * 1.73),
-      new THREE.MeshStandardMaterial({
-        color: palette[index % palette.length],
-        roughness: 1,
-        flatShading: true,
-      }),
-    );
-    mountain.position.y = height / 2 - 1;
-    mountain.rotation.y = (index * 1.73) % Math.PI;
-    group.add(mountain);
+  private loadGreatMountain(): void {
+    const loader = new GLTFLoader();
+    loader.load(
+      `${import.meta.env.BASE_URL}great_mountain/scene.gltf`,
+      (gltf) => {
+        try {
+          gltf.scene.updateMatrixWorld(true);
+          const source = gltf.scene.getObjectByName('Object_2');
+          if (!(source instanceof THREE.Mesh)) throw new Error('The mountain mesh was not found.');
 
-    if (index % 3 !== 1) {
-      const snow = new THREE.Mesh(
-        this.createMountainGeometry(radius * 0.35, height * 0.25, index * 2.31 + 4),
-        new THREE.MeshStandardMaterial({ color: 0xdce9e8, roughness: 0.95, flatShading: true }),
-      );
-      snow.position.y = height * 0.88;
-      snow.rotation.y = mountain.rotation.y;
-      group.add(snow);
-    }
+          const geometry = source.geometry.clone();
+          geometry.applyMatrix4(source.matrixWorld);
+          geometry.computeBoundingBox();
+          const bounds = geometry.boundingBox;
+          if (!bounds) throw new Error('The mountain bounds could not be calculated.');
+          const size = bounds.getSize(new THREE.Vector3());
+          const center = bounds.getCenter(new THREE.Vector3());
+          geometry.translate(-center.x, -bounds.min.y, -center.z);
+          geometry.computeBoundingSphere();
+
+          const sourceMaterial = Array.isArray(source.material) ? source.material[0] : source.material;
+          const material = sourceMaterial.clone() as THREE.MeshStandardMaterial;
+          material.color.set(0x8999a3);
+          material.metalness = 0;
+          material.roughness = 1;
+          material.emissiveMap = null;
+          material.emissive?.set(0x000000);
+
+          const mesh = new THREE.Mesh(geometry, material);
+          mesh.castShadow = false;
+          mesh.receiveShadow = false;
+          const prototype = new THREE.Group();
+          prototype.scale.setScalar(52 / Math.max(1, size.y));
+          prototype.add(mesh);
+          this.greatMountainPrototype = prototype;
+
+          for (const mountain of this.mountains) {
+            mountain.clear();
+            mountain.add(prototype.clone(true));
+          }
+        } catch (error) {
+          console.error('Could not prepare the great mountain model.', error);
+        }
+      },
+      undefined,
+      (error) => console.error('Could not load the great mountain model.', error),
+    );
+  }
+
+  private createMountain(_index: number): THREE.Group {
+    const group = new THREE.Group();
+    if (this.greatMountainPrototype) group.add(this.greatMountainPrototype.clone(true));
     return group;
   }
 
@@ -669,22 +897,6 @@ export class DrivingGame {
     texture.minFilter = THREE.LinearFilter;
     texture.magFilter = THREE.LinearFilter;
     return texture;
-  }
-
-  private createMountainGeometry(radius: number, height: number, seed: number): THREE.ConeGeometry {
-    const geometry = new THREE.ConeGeometry(radius, height, 8, 3);
-    const position = geometry.getAttribute('position') as THREE.BufferAttribute;
-    for (let index = 0; index < position.count; index += 1) {
-      const x = position.getX(index);
-      const z = position.getZ(index);
-      const angle = Math.atan2(z, x);
-      const irregularity = 1 + Math.sin(angle * 3 + seed) * 0.1 + Math.cos(angle * 5 - seed) * 0.055;
-      position.setX(index, x * irregularity);
-      position.setZ(index, z * irregularity);
-    }
-    position.needsUpdate = true;
-    geometry.computeVertexNormals();
-    return geometry;
   }
 
   private spawnTraffic(car: TrafficCar, ahead?: number, randomizeDirection = false): void {
@@ -811,12 +1023,54 @@ export class DrivingGame {
     }
   }
 
+  private updateRoadsideFences(): void {
+    const segmentLength = 9.7;
+    const ringLength = this.fenceSlots.length * segmentLength;
+    const offsetMagnitude = GAME.roadWidth / 2 + 1.75;
+    let postIndex = 0;
+    let railIndex = 0;
+
+    const setInstance = (
+      mesh: THREE.InstancedMesh,
+      index: number,
+      distance: number,
+      side: -1 | 1,
+      height: number,
+    ): void => {
+      const heading = roadHeading(distance);
+      const offset = side * offsetMagnitude;
+      this.fenceDummy.position.set(
+        roadCenter(distance) + Math.cos(heading) * offset,
+        height,
+        -distance - Math.sin(heading) * offset,
+      );
+      this.fenceDummy.rotation.set(0, heading, 0);
+      this.fenceDummy.scale.set(1, 1, 1);
+      this.fenceDummy.updateMatrix();
+      mesh.setMatrixAt(index, this.fenceDummy.matrix);
+    };
+
+    for (const slot of this.fenceSlots) {
+      if (slot.distance < this.distance - 65) slot.distance += ringLength;
+      const midpoint = slot.distance + segmentLength / 2;
+      setInstance(this.fencePosts, postIndex, slot.distance, slot.side, 0.57);
+      setInstance(this.fencePosts, postIndex + 1, slot.distance + segmentLength, slot.side, 0.57);
+      setInstance(this.fenceRails, railIndex, midpoint, slot.side, 0.48);
+      setInstance(this.fenceRails, railIndex + 1, midpoint, slot.side, 0.91);
+      postIndex += 2;
+      railIndex += 2;
+    }
+
+    this.fencePosts.instanceMatrix.needsUpdate = true;
+    this.fenceRails.instanceMatrix.needsUpdate = true;
+  }
+
   private updateWorld(dt: number): void {
     const start = Math.max(-40, this.distance - GAME.lookBehind);
     const length = GAME.lookAhead + GAME.lookBehind + 150;
     this.updateStrip(this.shoulderGeometry, start, length);
     this.updateStrip(this.roadGeometry, start, length);
-    for (const edgeGeometry of this.edgeGeometries) this.updateStrip(edgeGeometry, start, length);
+    this.updateRoadsideFences();
 
     const centerX = roadCenter(this.distance);
     this.player.position.set(this.worldX, 0.02, -this.distance);
@@ -855,7 +1109,7 @@ export class DrivingGame {
       const slot = object.userData.slot as number;
       let distance = object.userData.distance as number;
       if (distance < this.distance - 70) {
-        distance += this.scenery.length * 17;
+        distance += this.scenery.length * 12.5;
         object.userData.distance = distance;
       }
       const headingAtObject = roadHeading(distance);
@@ -872,12 +1126,12 @@ export class DrivingGame {
 
     for (const mountain of this.mountains) {
       const slot = mountain.userData.slot as number;
-      const row = slot % 3;
-      const distance = this.distance + 245 + row * 74;
-      const horizonOffset = (slot - 8) * 31 + (row - 1) * 12;
-      mountain.position.x = roadCenter(distance) + horizonOffset;
-      mountain.position.z = -distance;
-      mountain.rotation.y = roadHeading(distance) * 0.25;
+      const row = slot % 2;
+      const distance = this.distance + 270 + row * 88;
+      const horizonOffset = (slot - 3) * 88 + (row === 0 ? -18 : 24);
+      mountain.position.set(roadCenter(distance) + horizonOffset, -6, -distance);
+      mountain.rotation.y = roadHeading(distance) * 0.25 + slot * 0.71;
+      mountain.scale.setScalar(0.78 + (slot % 3) * 0.12);
     }
 
     const sunDistance = this.distance + 350;
@@ -896,6 +1150,19 @@ export class DrivingGame {
     }
 
     this.ground.position.set(centerX, -0.09, -this.distance - 180);
+    const groundMaterial = this.ground.material as THREE.MeshStandardMaterial;
+    const groundTextures = [
+      groundMaterial.map,
+      groundMaterial.normalMap,
+      groundMaterial.roughnessMap,
+      groundMaterial.metalnessMap,
+    ];
+    // PlaneGeometry's V axis points toward negative world Z after the ground is
+    // rotated flat. Offset from the plane's world position so recentering the
+    // large ground mesh never makes its texture travel with the player.
+    for (const texture of groundTextures) {
+      texture?.offset.set(this.ground.position.x / 20.7, -this.ground.position.z / 20.7);
+    }
 
     const forward = new THREE.Vector3(-Math.sin(this.vehicleHeading), 0, -Math.cos(this.vehicleHeading));
     const desiredCamera = this.player.position.clone().addScaledVector(forward, -11.5).add(new THREE.Vector3(0, 6.1, 0));
