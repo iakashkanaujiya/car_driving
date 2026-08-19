@@ -1,21 +1,30 @@
 import * as THREE from 'three';
 
-export interface ForestMaterialOptions {
+export interface SurfaceMaterialOptions {
   repeatX?: number;
   repeatY?: number;
   normalScale?: number;
   tint?: number;
+  textureRoot?: string;
   transparent?: boolean;
   alphaTest?: number;
 }
 
-export class ForestTextureStore {
+export class SurfaceTextureStore {
   private readonly textures: THREE.Texture[] = [];
 
   constructor(private readonly maxAnisotropy: number) {}
 
-  load(file: string, colorTexture: boolean, repeatX = 1, repeatY = 1): THREE.Texture {
-    const texture = new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}forest/textures/${file}`);
+  load(
+    file: string,
+    colorTexture: boolean,
+    repeatX = 1,
+    repeatY = 1,
+    textureRoot = 'roads/textures',
+  ): THREE.Texture {
+    const texture = new THREE.TextureLoader().load(
+      `${import.meta.env.BASE_URL}${textureRoot}/${file}`,
+    );
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
     texture.repeat.set(repeatX, repeatY);
@@ -29,15 +38,22 @@ export class ForestTextureStore {
     baseColor: string,
     normal: string,
     metallicRoughness: string,
-    options: ForestMaterialOptions = {},
+    options: SurfaceMaterialOptions = {},
   ): THREE.MeshStandardMaterial {
     const repeatX = options.repeatX ?? 1;
     const repeatY = options.repeatY ?? 1;
-    const surfaceMap = this.load(metallicRoughness, false, repeatX, repeatY);
+    const textureRoot = options.textureRoot ?? 'roads/textures';
+    const surfaceMap = this.load(
+      metallicRoughness,
+      false,
+      repeatX,
+      repeatY,
+      textureRoot,
+    );
     return new THREE.MeshStandardMaterial({
       color: options.tint ?? 0xffffff,
-      map: this.load(baseColor, true, repeatX, repeatY),
-      normalMap: this.load(normal, false, repeatX, repeatY),
+      map: this.load(baseColor, true, repeatX, repeatY, textureRoot),
+      normalMap: this.load(normal, false, repeatX, repeatY, textureRoot),
       normalScale: new THREE.Vector2(options.normalScale ?? 0.45, options.normalScale ?? 0.45),
       roughnessMap: surfaceMap,
       metalnessMap: surfaceMap,

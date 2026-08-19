@@ -13,7 +13,7 @@ import { SceneryAssets } from "./sceneryAssets";
 import {
   addSceneLighting,
   createCloudTexture,
-  ForestTextureStore,
+  SurfaceTextureStore,
 } from "./sceneAssets";
 import type { CarStyle, ControlInput, GamePhase, GameSnapshot } from "./types";
 import { DEFAULT_CAR_MODEL_ID, VehicleAssets } from "./vehicleAssets";
@@ -32,6 +32,10 @@ interface TrafficCar {
   horned: boolean;
 }
 
+const GROUND_SIZE = 1200;
+const GRASS_TEXTURE_REPEAT = 30;
+const GRASS_TILE_METERS = GROUND_SIZE / GRASS_TEXTURE_REPEAT;
+
 export class DrivingGame {
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(58, 1, 0.1, 800);
@@ -40,12 +44,11 @@ export class DrivingGame {
   private readonly vehicleAssets = new VehicleAssets();
   private readonly player = this.vehicleAssets.createCartoonCar(0xe9ff42, true);
   private readonly traffic: TrafficCar[] = [];
-  private readonly laneMarkers: THREE.Mesh[] = [];
   private readonly scenery: THREE.Group[] = [];
   private readonly mountains: THREE.Group[] = [];
   private readonly clouds: THREE.Sprite[] = [];
   private readonly sunVisual: THREE.Group;
-  private readonly textureStore: ForestTextureStore;
+  private readonly textureStore: SurfaceTextureStore;
   private readonly sceneryAssets: SceneryAssets;
   private readonly fenceSlots: Array<{ distance: number; side: -1 | 1 }> = [];
   private readonly fencePostGeometry = new THREE.BoxGeometry(0.2, 1.15, 0.2);
@@ -100,43 +103,61 @@ export class DrivingGame {
     this.renderer.toneMappingExposure = 1.05;
     container.appendChild(this.renderer.domElement);
 
-    this.textureStore = new ForestTextureStore(
+    this.textureStore = new SurfaceTextureStore(
       this.renderer.capabilities.getMaxAnisotropy(),
     );
 
     const roadMaterial = this.textureStore.createMaterial(
-      "Dirt_Road_Bare_baseColor.png",
-      "Dirt_Road_Bare_normal.png",
-      "Dirt_Road_Bare_metallicRoughness.png",
-      { normalScale: 0.48, tint: 0xa8a39b },
+      "RoadLines_baseColor.jpeg",
+      "RoadLines_normal.png",
+      "RoadLines_metallicRoughness.png",
+      {
+        textureRoot: "roads/textures",
+        normalScale: 0.34,
+        tint: 0xffffff,
+      },
     );
     const shoulderMaterial = this.textureStore.createMaterial(
-      "Ground_Dirt_baseColor.jpeg",
-      "Ground_Dirt_normal.jpeg",
-      "Ground_Dirt_metallicRoughness.png",
-      { normalScale: 0.42, tint: 0x8f8068 },
+      "Sidewalk01_baseColor.jpeg",
+      "Sidewalk01_normal.png",
+      "Sidewalk01_metallicRoughness.png",
+      {
+        textureRoot: "roads/textures",
+        normalScale: 0.38,
+        tint: 0xffffff,
+      },
     );
     const groundMaterial = this.textureStore.createMaterial(
-      "Grass_Close_baseColor.png",
-      "Grass_Close_normal.jpeg",
-      "Grass_Close_metallicRoughness.png",
-      { repeatX: 58, repeatY: 58, normalScale: 0.36, tint: 0x80946b },
+      "Grass02_baseColor.jpeg",
+      "Grass02_normal.png",
+      "Grass02_metallicRoughness.png",
+      {
+        textureRoot: "roads/textures",
+        repeatX: GRASS_TEXTURE_REPEAT,
+        repeatY: GRASS_TEXTURE_REPEAT,
+        normalScale: 0.34,
+        tint: 0xffffff,
+      },
     );
-    const rockMaterial = this.textureStore.createMaterial(
-      "Broken_Rocks_baseColor.jpeg",
-      "Broken_Rocks_normal.jpeg",
-      "Broken_Rocks_metallicRoughness.png",
-      { normalScale: 0.5, tint: 0x8e8a7e },
-    );
+    const rockMaterial = new THREE.MeshStandardMaterial({
+      color: 0x77736b,
+      roughness: 0.94,
+      metalness: 0.02,
+    });
     this.sceneryAssets = new SceneryAssets(rockMaterial);
     const fenceMaterial = new THREE.MeshStandardMaterial({
       color: 0x514431,
-      map: this.textureStore.load("Wood_Fence_baseColor.png", true, 3, 1),
       roughness: 0.96,
       metalness: 0,
     });
 
-    this.roadGeometry = createRoadStrip(GAME.roadWidth, 220);
+    this.roadGeometry = createRoadStrip(
+      GAME.roadWidth,
+      220,
+      0,
+      1,
+      GAME.roadWidth,
+    );
     this.roadMesh = new THREE.Mesh(this.roadGeometry, roadMaterial);
     this.roadMesh.receiveShadow = true;
     this.scene.add(this.roadMesh);
@@ -148,7 +169,7 @@ export class DrivingGame {
     this.scene.add(this.shoulderMesh);
 
     this.ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(1200, 1200),
+      new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE),
       groundMaterial,
     );
     this.ground.rotation.x = -Math.PI / 2;
@@ -268,20 +289,6 @@ export class DrivingGame {
   }
 
   private setupWorld(): void {
-    const markerGeometry = new THREE.BoxGeometry(0.11, 0.022, 4.6);
-    const markerMaterial = new THREE.MeshBasicMaterial({
-      color: 0xf0eee5,
-      transparent: true,
-      opacity: 0.56,
-      depthWrite: false,
-    });
-    for (let index = 0; index < 38; index += 1) {
-      const marker = new THREE.Mesh(markerGeometry, markerMaterial);
-      marker.userData.slot = index;
-      this.laneMarkers.push(marker);
-      this.scene.add(marker);
-    }
-
     for (let index = 0; index < 44; index += 1) {
       const object = index % 6 === 0
         ? this.sceneryAssets.createRock()
@@ -706,15 +713,6 @@ export class DrivingGame {
       this.vehicleAssets.updateWheelAnimation(car.mesh, car.speed * dt, 0, dt);
     }
 
-    const markerBase = Math.floor((this.distance - 35) / 12) * 12;
-    for (const marker of this.laneMarkers) {
-      const slot = marker.userData.slot as number;
-      const distance = markerBase + slot * 12;
-      const markerHeading = roadHeading(distance);
-      marker.position.set(roadCenter(distance), 0.025, -distance);
-      marker.rotation.y = markerHeading;
-    }
-
     for (const object of this.scenery) {
       const slot = object.userData.slot as number;
       let distance = object.userData.distance as number;
@@ -784,8 +782,8 @@ export class DrivingGame {
     // large ground mesh never makes its texture travel with the player.
     for (const texture of groundTextures) {
       texture?.offset.set(
-        this.ground.position.x / 20.7,
-        -this.ground.position.z / 20.7,
+        this.ground.position.x / GRASS_TILE_METERS,
+        -this.ground.position.z / GRASS_TILE_METERS,
       );
     }
 

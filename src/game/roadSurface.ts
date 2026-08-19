@@ -1,7 +1,13 @@
 import * as THREE from 'three';
 import { roadCenter, roadHeading } from './math';
 
-export function createRoadStrip(width: number, segments: number, centerOffset = 0): THREE.BufferGeometry {
+export function createRoadStrip(
+  width: number,
+  segments: number,
+  centerOffset = 0,
+  uvWidth = Math.max(1, width / 9),
+  uvMeters = 11,
+): THREE.BufferGeometry {
   const positions = new Float32Array((segments + 1) * 2 * 3);
   const uvs = new Float32Array((segments + 1) * 2 * 2);
   const indices: number[] = [];
@@ -25,8 +31,8 @@ export function createRoadStrip(width: number, segments: number, centerOffset = 
   geometry.computeVertexNormals();
   geometry.userData.width = width;
   geometry.userData.centerOffset = centerOffset;
-  geometry.userData.uvWidth = Math.max(1, width / 9);
-  geometry.userData.uvMeters = 11;
+  geometry.userData.uvWidth = uvWidth;
+  geometry.userData.uvMeters = uvMeters;
   return geometry;
 }
 
