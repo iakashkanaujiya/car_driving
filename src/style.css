@@ -153,22 +153,13 @@ h2 { font-size: clamp(50px, 7vw, 78px); color: var(--acid); }
 .instruction-row div:last-child { border: 0; }
 .instruction-row b { font-size: 25px; color: var(--acid); font-style: italic; }
 .instruction-row span { font: 500 9px/1.45 'DM Mono', monospace; color: rgba(255,255,255,.65); letter-spacing: .04em; }
-.car-style-picker { display: grid; grid-template-columns: auto 1fr 1fr; align-items: stretch; gap: 7px; margin: -10px 0 12px; }
-.car-style-picker > span { display: flex; align-items: center; padding-right: 5px; color: rgba(255,255,255,.42); font: 600 8px 'DM Mono', monospace; letter-spacing: .14em; }
-.car-style-option { min-width: 0; padding: 7px 12px; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.035); color: rgba(255,255,255,.58); cursor: pointer; text-align: left; transition: border-color .18s, background .18s, color .18s; }
-.car-style-option strong, .car-style-option small { display: block; }
-.car-style-option strong { font-size: 10px; letter-spacing: .08em; }
-.car-style-option small { margin-top: 2px; color: rgba(255,255,255,.34); font: 500 7px 'DM Mono', monospace; letter-spacing: .07em; }
-.car-style-option:hover { border-color: rgba(233,255,66,.62); color: white; }
-.car-style-option.is-active { border-color: var(--acid); background: rgba(233,255,66,.11); color: var(--acid); box-shadow: inset 3px 0 0 var(--acid); }
-.car-style-option.is-active small { color: rgba(233,255,66,.62); }
-.car-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: -4px 0 13px; }
+.car-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: -10px 0 8px; }
 .car-options label { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 9px; padding: 7px 9px; border: 1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.035); transition: opacity .18s; }
 .car-options label > span { color: rgba(255,255,255,.46); font: 600 7px 'DM Mono', monospace; letter-spacing: .11em; white-space: nowrap; }
 .car-options select { min-width: 0; width: 100%; height: 28px; padding: 0 24px 0 8px; border: 1px solid rgba(233,255,66,.38); border-radius: 0; background: #182126; color: var(--acid); font: 700 9px 'DM Mono', monospace; letter-spacing: .04em; cursor: pointer; }
 .car-options select:focus { outline: 1px solid var(--acid); outline-offset: 1px; }
-.car-options label.is-disabled { opacity: .3; }
-.car-options select:disabled { cursor: not-allowed; }
+.traffic-performance-note { display: flex; align-items: center; justify-content: center; gap: 7px; margin: 0 0 12px; color: rgba(255,255,255,.43); font: 500 7px 'DM Mono', monospace; letter-spacing: .04em; }
+.traffic-performance-note i { display: grid; place-items: center; width: 14px; height: 14px; flex: 0 0 14px; border: 1px solid rgba(255,204,77,.55); border-radius: 50%; color: #ffcc4d; font-style: normal; }
 .asset-download { margin: -4px 0 13px; padding: 8px 10px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.025); text-align: left; transition: border-color .2s, background .2s; }
 .asset-download-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: rgba(255,255,255,.62); font: 600 8px 'DM Mono', monospace; letter-spacing: .1em; }
 .asset-download-head b { color: var(--acid); font-weight: 500; }
@@ -265,8 +256,6 @@ h2 { font-size: clamp(50px, 7vw, 78px); color: var(--acid); }
   .instruction-row div:last-child { border-right: 0; }
   .instruction-row span { font-size: 7px; }
   .wheel-guide { transform: scale(.78); margin: -14px -42px -10px; }
-  .car-style-picker { grid-template-columns: 1fr 1fr; margin-top: -8px; }
-  .car-style-picker > span { display: none; }
   .car-options { grid-template-columns: 1fr; }
   .modal-actions { flex-direction: column; }
   .primary-button, .secondary-button { width: 100%; }
@@ -298,7 +287,6 @@ h2 { font-size: clamp(50px, 7vw, 78px); color: var(--acid); }
   .intro-modal .lead { margin-block: 10px; line-height: 1.55; }
   .wheel-guide { height: 108px; transform: scale(.72); margin: -10px 0; }
   .instruction-row { margin-block: 0 13px; }
-  .car-style-picker { margin-bottom: 9px; }
   .car-options { margin-bottom: 9px; }
   .asset-download { margin-bottom: 9px; padding-block: 6px; }
   .instruction-row div { padding-block: 8px; }
@@ -330,7 +318,6 @@ h2 { font-size: clamp(50px, 7vw, 78px); color: var(--acid); }
   .intro-modal { padding-block: 14px; }
   .intro-modal h1 { font-size: 40px; }
   .instruction-row { margin-block: 8px; }
-  .car-style-picker { margin-block: -2px 7px; }
   .car-options { margin-bottom: 7px; }
   .modal-actions { flex-wrap: nowrap; }
   .primary-button, .secondary-button { height: 38px; }

@@ -3,7 +3,7 @@ import { HandController } from './controls/HandController';
 import { KeyboardController } from './controls/KeyboardController';
 import { TRAFFIC_COUNT_OPTIONS } from './game/config';
 import { DrivingGame } from './game/DrivingGame';
-import type { CarStyle, ControlMode, GameSnapshot } from './game/types';
+import type { ControlMode, GameSnapshot } from './game/types';
 import { CAR_MODEL_OPTIONS, DEFAULT_CAR_MODEL_ID } from './game/vehicleAssets';
 import type { CarModelId } from './game/vehicleAssets';
 import { cacheRealCarAssets } from './services/carAssetCache';
@@ -70,19 +70,10 @@ app.innerHTML = `
           <div><b>02</b><span>Hold two closed<br>hands apart</span></div>
           <div><b>03</b><span>Rotate them<br>to steer</span></div>
         </div>
-        <div class="car-style-picker" role="group" aria-label="Choose car style">
-          <span>CAR STYLE</span>
-          <button id="car-style-concept" class="car-style-option is-active" type="button" aria-pressed="true">
-            <strong>CONCEPT CARS</strong><small>LUXURY MODEL</small>
-          </button>
-          <button id="car-style-real" class="car-style-option" type="button" aria-pressed="false">
-            <strong>REAL CARS</strong><small>GLTF MODELS</small>
-          </button>
-        </div>
         <div id="car-options" class="car-options">
-          <label id="driver-car-option" class="is-disabled">
-            <span>DRIVER CAR</span>
-            <select id="driver-car" aria-label="Choose driver car" disabled>
+          <label>
+            <span>YOUR CAR</span>
+            <select id="driver-car" aria-label="Choose your car model">
               ${CAR_MODEL_OPTIONS.map(({ id, label }) => `<option value="${id}"${id === DEFAULT_CAR_MODEL_ID ? ' selected' : ''}>${label}</option>`).join('')}
             </select>
           </label>
@@ -93,9 +84,10 @@ app.innerHTML = `
             </select>
           </label>
         </div>
+        <p class="traffic-performance-note"><i>!</i> Selecting more traffic cars may reduce frame rates on lower-powered devices.</p>
         <div class="modal-actions">
           <button id="camera-start" class="primary-button"><span>START WITH HANDS</span><i>→</i></button>
-          <button id="keyboard-start" class="secondary-button">USE KEYBOARD INSTEAD <small>← A / D →</small></button>
+          <button id="keyboard-start" class="secondary-button">USE KEYBOARD INSTEAD <small>WASD / ARROWS</small></button>
         </div>
         <p class="privacy"><i>●</i> Camera processing stays on this device. No video is saved or uploaded.</p>
       </div>
@@ -151,7 +143,6 @@ let handController: HandController | null = null;
 const keyboard = new KeyboardController();
 let lastSnapshot: GameSnapshot | null = null;
 let soundEnabled = true;
-let selectedCarStyle: CarStyle = 'concept';
 let selectedDriverCar: CarModelId = DEFAULT_CAR_MODEL_ID;
 let selectedTrafficCount = 16;
 
@@ -337,7 +328,6 @@ async function installRealCarAssets(): Promise<boolean> {
 
   const cached = await cacheRealCarAssets(updateCarAssetProgress);
   if (cached) {
-    await game.setCarStyle('concept');
     gate.dataset.state = 'ready';
     await new Promise<void>((resolve) => window.setTimeout(resolve, 450));
     gate.classList.add('is-hidden');
@@ -419,23 +409,6 @@ byId('asset-download-retry').addEventListener('click', () => {
   realCarAssetsReady = installRealCarAssets();
 });
 
-function selectCarStyle(style: CarStyle): void {
-  selectedCarStyle = style;
-  for (const option of ['real', 'concept'] as const) {
-    const button = byId<HTMLButtonElement>(`car-style-${option}`);
-    const active = option === style;
-    button.classList.toggle('is-active', active);
-    button.setAttribute('aria-pressed', active.toString());
-  }
-  const driverOption = byId<HTMLElement>('driver-car-option');
-  const driverSelect = byId<HTMLSelectElement>('driver-car');
-  const disabled = style !== 'real';
-  driverOption.classList.toggle('is-disabled', disabled);
-  driverSelect.disabled = disabled;
-}
-
-byId('car-style-real').addEventListener('click', () => selectCarStyle('real'));
-byId('car-style-concept').addEventListener('click', () => selectCarStyle('concept'));
 byId<HTMLSelectElement>('driver-car').addEventListener('change', (event) => {
   selectedDriverCar = (event.currentTarget as HTMLSelectElement).value as CarModelId;
 });
@@ -447,15 +420,11 @@ async function prepareSelectedCars(button?: HTMLButtonElement): Promise<void> {
   const originalContent = button?.innerHTML;
   if (button) {
     button.disabled = true;
-    button.textContent = selectedCarStyle === 'real' ? 'LOADING REAL CARS…' : 'LOADING CONCEPT CAR…';
+    button.textContent = 'LOADING CARS…';
   }
   try {
     await realCarAssetsReady;
-    await game.setCarStyle(
-      selectedCarStyle,
-      selectedDriverCar,
-      selectedTrafficCount,
-    );
+    await game.setCars(selectedDriverCar, selectedTrafficCount);
   } finally {
     if (button && originalContent !== undefined) {
       button.innerHTML = originalContent;
@@ -551,7 +520,7 @@ byId<HTMLButtonElement>('camera-start').addEventListener('click', async (event) 
       cameraShell.classList.remove('is-calibrating');
       setTracking('CAMERA UNAVAILABLE', 'off');
       cameraShell.classList.add('is-offline');
-      showDriveReady('KEYBOARD MODE.', 'Camera access was unavailable. Use A / D or the arrow keys to steer.');
+      showDriveReady('KEYBOARD MODE.', 'Use W or ↑ to accelerate, S or ↓ to brake, and A / D or ← / → to steer. Braking stops the car without reversing.');
       mode = 'keyboard';
     }
   });
@@ -572,7 +541,7 @@ async function useKeyboard(): Promise<void> {
   cameraShell.classList.add('is-offline', 'is-hidden');
   setTracking('KEYBOARD CONTROL', 'ok');
   cameraHint.textContent = 'CAMERA OFF';
-  showDriveReady('KEYBOARD READY.', 'Use A / D or the left and right arrow keys. Acceleration and braking remain automatic.');
+  showDriveReady('KEYBOARD READY.', 'Use W or ↑ to accelerate, S or ↓ to brake, and A / D or ← / → to steer. Braking stops the car without reversing.');
 }
 
 byId('keyboard-start').addEventListener('click', useKeyboard);

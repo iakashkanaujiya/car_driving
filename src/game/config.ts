@@ -6,6 +6,7 @@ export const GAME = {
   maxSpeed: 45,
   minCurveSpeed: 18,
   acceleration: 8,
+  coastDeceleration: 2.4,
   serviceBrake: 13,
   emergencyBrake: 25,
   steeringRate: 8.5,

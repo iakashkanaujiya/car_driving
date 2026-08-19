@@ -17,7 +17,7 @@ import {
   updateSceneShadow,
 } from "./sceneAssets";
 import type { SceneLighting } from "./sceneAssets";
-import type { CarStyle, ControlInput, GamePhase, GameSnapshot } from "./types";
+import type { ControlInput, GamePhase, GameSnapshot } from "./types";
 import { DEFAULT_CAR_MODEL_ID, VehicleAssets } from "./vehicleAssets";
 import type { CarModelId, LoadedCarModel } from "./vehicleAssets";
 
@@ -44,7 +44,7 @@ export class DrivingGame {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly clock = new THREE.Clock();
   private readonly vehicleAssets = new VehicleAssets();
-  private readonly player = this.vehicleAssets.createCartoonCar(0xe9ff42, true);
+  private readonly player = new THREE.Group();
   private readonly traffic: TrafficCar[] = [];
   private readonly scenery: THREE.Group[] = [];
   private readonly mountains: THREE.Group[] = [];
@@ -74,11 +74,9 @@ export class DrivingGame {
   private overtakes = 0;
   private assistMessage = "READY";
   private hornCooldown = 0;
-  private carStyle: CarStyle = "concept";
+  private driverCar: CarModelId = DEFAULT_CAR_MODEL_ID;
   private carModelsPromise?: Promise<LoadedCarModel[]>;
-  private conceptModelPromise?: Promise<LoadedCarModel | null>;
-  private realCarsApplied = false;
-  private conceptCarsApplied = false;
+  private carModelsApplied = false;
   private lastSnapshot = 0;
   private animationFrame = 0;
 
@@ -269,18 +267,13 @@ export class DrivingGame {
     return this.phase;
   }
 
-  async setCarStyle(
-    style: CarStyle,
+  async setCars(
     driverCar: CarModelId = DEFAULT_CAR_MODEL_ID,
     trafficCount: number = GAME.trafficCount,
   ): Promise<void> {
-    this.carStyle = style;
+    this.driverCar = driverCar;
     this.setTrafficCount(trafficCount);
-    if (style === "real") {
-      await this.loadCarModels(driverCar);
-    } else {
-      await this.loadConceptCars();
-    }
+    await this.loadCarModels(driverCar);
   }
 
   dispose(): void {
@@ -339,10 +332,7 @@ export class DrivingGame {
       const direction: 1 | -1 =
         index === 0 ? 1 : index === 1 ? -1 : Math.random() < 0.56 ? 1 : -1;
       const car: TrafficCar = {
-        mesh: this.vehicleAssets.createCartoonCar(
-          this.vehicleAssets.randomColor(),
-          false,
-        ),
+        mesh: new THREE.Group(),
         distance: 0,
         lane: direction === 1 ? 0 : 1,
         laneOffset: 0,
@@ -376,10 +366,10 @@ export class DrivingGame {
   }
 
   private async loadCarModels(driverCar: CarModelId): Promise<void> {
-    if (this.realCarsApplied) return;
-    this.carModelsPromise ??= this.vehicleAssets.loadRealModels(driverCar);
+    if (this.carModelsApplied) return;
+    this.carModelsPromise ??= this.vehicleAssets.loadCarModels(driverCar);
     const available = await this.carModelsPromise;
-    if (this.carStyle !== "real" || available.length === 0) return;
+    if (available.length === 0) return;
 
     const playerModel = available.find((model) => model.playerPrototype);
     if (playerModel?.playerPrototype) {
@@ -401,30 +391,7 @@ export class DrivingGame {
         model.id,
       );
     });
-    this.realCarsApplied = true;
-  }
-
-  private async loadConceptCars(): Promise<void> {
-    if (this.conceptCarsApplied) return;
-    this.conceptModelPromise ??= this.vehicleAssets.loadConceptModel();
-    const model = await this.conceptModelPromise;
-    if (this.carStyle !== "concept" || !model?.playerPrototype) return;
-
-    this.vehicleAssets.replaceVisual(
-      this.player,
-      model.playerPrototype,
-      true,
-      model.id,
-    );
-    this.traffic.forEach((car) => {
-      this.vehicleAssets.replaceVisual(
-        car.mesh,
-        model.trafficPrototype,
-        false,
-        model.id,
-      );
-    });
-    this.conceptCarsApplied = true;
+    this.carModelsApplied = true;
   }
 
   private spawnTraffic(
@@ -458,14 +425,13 @@ export class DrivingGame {
       GAME.maxSpeed,
       GAME.minCurveSpeed,
     );
-    const collisionLength =
-      this.carStyle === "real"
-        ? GAME.collisionLength
-        : GAME.conceptCollisionLength;
-    const collisionWidth =
-      this.carStyle === "real"
-        ? GAME.collisionWidth
-        : GAME.conceptCollisionWidth;
+    const conceptDriver = this.driverCar === "luxury-concept";
+    const collisionLength = conceptDriver
+      ? GAME.conceptCollisionLength
+      : GAME.collisionLength;
+    const collisionWidth = conceptDriver
+      ? GAME.conceptCollisionWidth
+      : GAME.collisionWidth;
     let targetSpeed = curveLimit;
     let leadDistance = Number.POSITIVE_INFINITY;
     let leadIsIncoming = false;
@@ -505,6 +471,8 @@ export class DrivingGame {
       }
     }
 
+    const manualSpeedControl =
+      control.accelerating !== undefined || control.braking !== undefined;
     if (!control.active) {
       targetSpeed = 0;
       this.assistMessage = "HANDS LOST · AUTO BRAKE";
@@ -516,25 +484,49 @@ export class DrivingGame {
         leadDistance < 15 ? "EMERGENCY BRAKE" : "TRAFFIC ASSIST";
     } else if (curveLimit < GAME.maxSpeed - 4) {
       this.assistMessage = "CURVE ASSIST";
+    } else if (manualSpeedControl && control.braking) {
+      this.assistMessage = "BRAKING";
+    } else if (manualSpeedControl && control.accelerating) {
+      this.assistMessage = "ACCELERATING";
+    } else if (manualSpeedControl) {
+      this.assistMessage = "COASTING";
     } else {
       this.assistMessage = "CRUISING";
     }
 
-    const acceleration =
-      targetSpeed > this.speed
-        ? GAME.acceleration
-        : leadDistance < 15 || (leadIsIncoming && leadDistance < 32)
+    const safetyBraking = targetSpeed < this.speed - 0.35;
+    let acceleration: number;
+    if (manualSpeedControl && control.active) {
+      if (control.braking || !control.accelerating) targetSpeed = 0;
+      acceleration = safetyBraking
+        ? leadDistance < 15 || (leadIsIncoming && leadDistance < 32)
           ? GAME.emergencyBrake
-          : GAME.serviceBrake;
+          : GAME.serviceBrake
+        : control.braking
+          ? GAME.serviceBrake
+          : control.accelerating
+            ? GAME.acceleration
+            : GAME.coastDeceleration;
+    } else {
+      acceleration =
+        targetSpeed > this.speed
+          ? GAME.acceleration
+          : leadDistance < 15 || (leadIsIncoming && leadDistance < 32)
+            ? GAME.emergencyBrake
+            : GAME.serviceBrake;
+    }
     this.vehicleAssets.setBrakeLights(
       this.player,
-      targetSpeed < this.speed - 0.35,
+      safetyBraking || control.braking === true,
     );
-    this.speed = damp(
-      this.speed,
-      targetSpeed,
-      acceleration / Math.max(8, Math.abs(targetSpeed - this.speed)),
-      dt,
+    this.speed = Math.max(
+      0,
+      damp(
+        this.speed,
+        targetSpeed,
+        acceleration / Math.max(8, Math.abs(targetSpeed - this.speed)),
+        dt,
+      ),
     );
     if (targetSpeed === 0 && this.speed < 0.3) this.speed = 0;
 

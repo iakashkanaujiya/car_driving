@@ -21,25 +21,26 @@ https://<your-github-username>.github.io/car_driving/
 
 ## Available car models
 
-Real-car mode lets you select any of these vehicles as the driver car. Traffic reuses the same model collection with randomized realistic paint colors.
+Choose any of these vehicles directly on the start screen. Traffic reuses the same model collection with randomized realistic paint colors.
 
 | Vehicle | Driver car | Traffic car |
 | --- | :---: | :---: |
 | 2017 Ford F-150 Raptor (default) | Yes | Yes |
 | 2023 Ford Everest Sport | Yes | Yes |
 | Hyundai Ioniq 5 | Yes | Yes |
+| 2018 Audi e-tron GT Concept | Yes | Yes |
 
-Concept-car mode uses the 2018 Audi e-tron GT Concept for both the driver and traffic. Both car modes support 0, 4, 8, 12, or 16 traffic cars.
+You can select 0, 4, 8, 12, or 16 traffic cars. Higher traffic counts may reduce frame rates on lower-powered devices.
 
 On the first visit, a setup popup keeps the game locked while it downloads approximately 31 MB of car models and embedded textures with live progress. These files are stored in the browser cache and reused on later visits. Interrupted downloads can be retried and resume from files that are already cached.
 
 ## Controls
 
 - **Hand mode:** hold two closed hands apart, keep them level during calibration, then rotate them like a steering wheel.
-- **Keyboard mode:** use `A` / `D` or the left / right arrow keys.
+- **Keyboard mode:** use `W` or up arrow to accelerate, `S` or down arrow to brake, and `A` / `D` or left / right arrows to steer. Braking stops at zero; there is no reverse gear.
 - **Pause:** use the Pause button or press `Escape`.
 
-The car accelerates automatically and slows for traffic, sharper curves, and lost hand tracking. Drive on the left with same-direction traffic; the right lane carries oncoming vehicles and can be used carefully for overtaking.
+Hand-control mode accelerates automatically. Keyboard mode uses manual acceleration and braking. Traffic and curve assists can slow the car in either mode. Drive on the left with same-direction traffic; the right lane carries oncoming vehicles and can be used carefully for overtaking.
 
 ## Checks
 

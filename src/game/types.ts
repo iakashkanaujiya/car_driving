@@ -1,11 +1,12 @@
 export type GamePhase = 'loading' | 'permission' | 'calibrating' | 'ready' | 'playing' | 'paused' | 'crashed';
 export type ControlMode = 'hands' | 'keyboard';
-export type CarStyle = 'real' | 'concept';
 
 export interface ControlInput {
   steering: number;
   confidence: number;
   active: boolean;
+  accelerating?: boolean;
+  braking?: boolean;
 }
 
 export interface GameSnapshot {
