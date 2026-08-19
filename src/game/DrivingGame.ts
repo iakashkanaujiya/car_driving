@@ -805,13 +805,13 @@ export class DrivingGame {
     updateSceneShadow(this.lighting, shadowCenter);
     const desiredCamera = this.player.position
       .clone()
-      .addScaledVector(forward, -10)
-      .add(new THREE.Vector3(0, 5.5, 0));
+      .addScaledVector(forward, -8.5)
+      .add(new THREE.Vector3(0, 4.3, 0));
     this.camera.position.lerp(desiredCamera, 1 - Math.exp(-5 * dt));
     const target = this.player.position
       .clone()
-      .addScaledVector(forward, 14)
-      .add(new THREE.Vector3(0, 1.2, 0));
+      .addScaledVector(forward, 12)
+      .add(new THREE.Vector3(0, 1, 0));
     this.camera.lookAt(target);
   }
 

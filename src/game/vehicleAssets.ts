@@ -5,8 +5,9 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 export type CarModelId =
   | "ford-f150-raptor"
   | "ford-everest-sport"
-  | "ioniq-5";
-export type VehicleModelId = CarModelId | "luxury-concept";
+  | "ioniq-5"
+  | "luxury-concept";
+export type VehicleModelId = CarModelId;
 
 export const DEFAULT_CAR_MODEL_ID: CarModelId = "ford-f150-raptor";
 
@@ -14,6 +15,7 @@ export const CAR_MODEL_OPTIONS: readonly { id: CarModelId; label: string }[] = [
   { id: "ford-f150-raptor", label: "2017 Ford F-150 Raptor" },
   { id: "ford-everest-sport", label: "2023 Ford Everest Sport" },
   { id: "ioniq-5", label: "Hyundai Ioniq 5" },
+  { id: "luxury-concept", label: "2018 Audi e-tron GT Concept" },
 ];
 
 interface CarModelSpec {
@@ -82,7 +84,7 @@ const DRIVER_CAR_COLOR = 0xf5f7f4;
 const REAL_CAR_SCALE = 2;
 const PROCEDURAL_CAR_SCALE = 1.55;
 const CONCEPT_CAR_SCALE = 2;
-const REAL_MODEL_SPECS: readonly CarModelSpec[] = [
+const STANDARD_REAL_MODEL_SPECS: readonly CarModelSpec[] = [
   {
     id: "ford-f150-raptor",
     path: "models/2017_ford_f-150_raptor.glb",
@@ -131,10 +133,11 @@ const CONCEPT_MODEL_SPEC: CarModelSpec = {
     brakingIntensity: 8.5,
   },
 };
-const MODEL_SPECS: readonly CarModelSpec[] = [
-  ...REAL_MODEL_SPECS,
+const REAL_MODEL_SPECS: readonly CarModelSpec[] = [
+  ...STANDARD_REAL_MODEL_SPECS,
   CONCEPT_MODEL_SPEC,
 ];
+const MODEL_SPECS = REAL_MODEL_SPECS;
 
 export class VehicleAssets {
   randomColor(): number {

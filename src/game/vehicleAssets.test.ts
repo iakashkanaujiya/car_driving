@@ -1,6 +1,15 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { VehicleAssets } from './vehicleAssets';
+import { CAR_MODEL_OPTIONS, VehicleAssets } from './vehicleAssets';
+
+describe('Vehicle model roster', () => {
+  it('offers the Audi e-tron in the real-car selector', () => {
+    expect(CAR_MODEL_OPTIONS).toContainEqual({
+      id: 'luxury-concept',
+      label: '2018 Audi e-tron GT Concept',
+    });
+  });
+});
 
 describe('VehicleAssets wheel animation', () => {
   it('rolls a wheel from distance travelled and steers front wheels', () => {
