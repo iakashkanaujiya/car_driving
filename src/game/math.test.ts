@@ -10,9 +10,14 @@ describe('driving math', () => {
 
   it('maps a two-hand rotation into normalized steering', () => {
     const neutral = steeringFromHands({ x: 0, y: 0 }, { x: 1, y: 0 }, 0);
-    const turned = steeringFromHands({ x: 0, y: 0 }, { x: 1, y: 0.7 }, 0);
+    const turned = steeringFromHands({ x: 0, y: 0 }, { x: 1, y: 0.35 }, 0);
     expect(neutral).toBe(0);
-    expect(turned).toBeGreaterThan(0.6);
+    expect(turned).toBeGreaterThan(0.5);
+  });
+
+  it('reaches full steering with about 35 degrees of hand rotation', () => {
+    const fullTurn = steeringFromHands({ x: 0, y: 0 }, { x: 1, y: 0.7 }, 0);
+    expect(fullTurn).toBe(1);
   });
 
   it('reduces target speed for upcoming curvature', () => {

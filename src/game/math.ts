@@ -33,11 +33,14 @@ export function steeringFromHands(
   neutralAngle: number,
   deadZone = 0.045,
 ): number {
+  // Reach full steering with a comfortable hand rotation while preserving a
+  // small neutral zone that filters camera-tracking jitter.
+  const steeringRange = 0.56;
   const angle = Math.atan2(right.y - left.y, right.x - left.x);
   let delta = Math.atan2(Math.sin(angle - neutralAngle), Math.cos(angle - neutralAngle));
   if (Math.abs(delta) <= deadZone) return 0;
   delta -= Math.sign(delta) * deadZone;
-  return clamp(delta / 0.72, -1, 1);
+  return clamp(delta / steeringRange, -1, 1);
 }
 
 export function curveSpeedLimit(distance: number, maxSpeed: number, minSpeed: number): number {
