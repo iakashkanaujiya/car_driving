@@ -50,6 +50,19 @@ On the first visit, a setup popup keeps the game locked while it downloads appro
 
 Hand-control mode accelerates automatically. Keyboard mode uses manual acceleration and braking. Traffic and curve assists can slow the car in either mode. Drive on the left with same-direction traffic; the right lane carries oncoming vehicles and can be used carefully for overtaking.
 
+## Architecture
+
+The runtime is organized by responsibility:
+
+- `src/app` coordinates menus, input mode, asset readiness, and game lifecycle.
+- `src/game/simulation` contains deterministic gameplay rules that can be tested without WebGL.
+- `src/game/world` owns reusable Three.js scene systems and their GPU-resource lifecycle.
+- `src/ui` renders the static shell, startup gate, and HUD.
+- `src/audio` owns the procedural Web Audio graph.
+- `src/controls` contains keyboard and hand-tracking input adapters.
+
+Keep game rules deterministic by passing state in and returning results. DOM and Three.js mutations should stay at the edges, and every scene system that allocates GPU resources should expose `dispose()`.
+
 ## Checks
 
 ```bash

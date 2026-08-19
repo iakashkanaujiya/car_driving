@@ -10,6 +10,7 @@ import {
 } from "./math";
 import { createRoadStrip, updateRoadStrip } from "./roadSurface";
 import { SceneryAssets } from "./sceneryAssets";
+import { createSpeedPlan, scanTraffic } from "./simulation/drivingAssist";
 import {
   addSceneLighting,
   createCloudTexture,
@@ -25,6 +26,7 @@ import {
   VehicleAssets,
 } from "./vehicleAssets";
 import type { CarModelId, LoadedCarModel } from "./vehicleAssets";
+import { RoadsideFenceSystem } from "./world/RoadsideFenceSystem";
 
 interface TrafficCar {
   mesh: THREE.Group;
@@ -60,12 +62,7 @@ export class DrivingGame {
   private readonly textureStore: SurfaceTextureStore;
   private readonly sceneryAssets: SceneryAssets;
   private readonly sceneAssetsReady: Promise<void>;
-  private readonly fenceSlots: Array<{ distance: number; side: -1 | 1 }> = [];
-  private readonly fencePostGeometry = new THREE.BoxGeometry(0.2, 1.15, 0.2);
-  private readonly fenceRailGeometry = new THREE.BoxGeometry(0.16, 0.17, 9.7);
-  private readonly fenceDummy = new THREE.Object3D();
-  private readonly fencePosts: THREE.InstancedMesh;
-  private readonly fenceRails: THREE.InstancedMesh;
+  private readonly roadsideFences: RoadsideFenceSystem;
   private readonly roadGeometry: THREE.BufferGeometry;
   private readonly roadMesh: THREE.Mesh;
   private readonly roadSnow: THREE.Mesh;
@@ -156,11 +153,6 @@ export class DrivingGame {
       metalness: 0.02,
     });
     this.sceneryAssets = new SceneryAssets(rockMaterial);
-    const fenceMaterial = new THREE.MeshStandardMaterial({
-      color: 0x514431,
-      roughness: 0.96,
-      metalness: 0,
-    });
 
     this.roadGeometry = createRoadStrip(
       GAME.roadWidth,
@@ -238,32 +230,7 @@ export class DrivingGame {
     this.groundSnow.renderOrder = 1;
     this.scene.add(this.groundSnow);
 
-    const fenceSegments = 36;
-    this.fencePosts = new THREE.InstancedMesh(
-      this.fencePostGeometry,
-      fenceMaterial,
-      fenceSegments * 2,
-    );
-    this.fenceRails = new THREE.InstancedMesh(
-      this.fenceRailGeometry,
-      fenceMaterial,
-      fenceSegments * 2,
-    );
-    this.fencePosts.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    this.fenceRails.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    this.fencePosts.castShadow = true;
-    this.fencePosts.receiveShadow = true;
-    this.fenceRails.castShadow = true;
-    this.fenceRails.receiveShadow = true;
-    this.fencePosts.frustumCulled = false;
-    this.fenceRails.frustumCulled = false;
-    for (let index = 0; index < fenceSegments; index += 1) {
-      this.fenceSlots.push({
-        distance: -45 + index * 9.7,
-        side: Math.floor(index / 6) % 2 === 0 ? -1 : 1,
-      });
-    }
-    this.scene.add(this.fencePosts, this.fenceRails);
+    this.roadsideFences = new RoadsideFenceSystem(this.scene);
 
     this.lighting = addSceneLighting(this.scene);
     this.setupWorld();
@@ -362,6 +329,7 @@ export class DrivingGame {
   dispose(): void {
     cancelAnimationFrame(this.animationFrame);
     window.removeEventListener("resize", this.resize);
+    this.roadsideFences.dispose();
     this.textureStore.dispose();
     this.renderer.dispose();
   }
@@ -525,11 +493,9 @@ export class DrivingGame {
     const collisionWidth = conceptDriver
       ? GAME.conceptCollisionWidth
       : GAME.collisionWidth;
-    let targetSpeed = curveLimit;
-    let leadDistance = Number.POSITIVE_INFINITY;
-    let leadIsIncoming = false;
     this.hornCooldown = Math.max(0, this.hornCooldown - dt);
 
+    // Horn state is an audiovisual side effect; speed planning stays pure and testable.
     for (const car of this.traffic) {
       const gap = car.distance - this.distance;
       const laneGap = Math.abs(
@@ -547,67 +513,12 @@ export class DrivingGame {
           this.onHorn();
         }
       }
-      if (gap > 0 && gap < leadDistance && laneGap < 2.35) {
-        leadDistance = gap;
-        leadIsIncoming = car.direction === -1;
-        if (car.direction === -1 && gap < 95) {
-          targetSpeed = Math.min(
-            targetSpeed,
-            GAME.maxSpeed * clamp((gap - 13) / 55, 0, 1),
-          );
-        } else if (car.direction === 1 && gap < 58) {
-          targetSpeed = Math.min(
-            targetSpeed,
-            car.speed * clamp((gap - 7) / 28, 0, 1),
-          );
-        }
-      }
     }
 
-    const manualSpeedControl =
-      control.accelerating !== undefined || control.braking !== undefined;
-    if (!control.active) {
-      targetSpeed = 0;
-      this.assistMessage = "HANDS LOST · AUTO BRAKE";
-    } else if (leadIsIncoming && leadDistance < 70) {
-      this.assistMessage =
-        leadDistance < 28 ? "ONCOMING · EMERGENCY BRAKE" : "ONCOMING VEHICLE";
-    } else if (leadDistance < 32) {
-      this.assistMessage =
-        leadDistance < 15 ? "EMERGENCY BRAKE" : "TRAFFIC ASSIST";
-    } else if (curveLimit < GAME.maxSpeed - 4) {
-      this.assistMessage = "CURVE ASSIST";
-    } else if (manualSpeedControl && control.braking) {
-      this.assistMessage = "BRAKING";
-    } else if (manualSpeedControl && control.accelerating) {
-      this.assistMessage = "ACCELERATING";
-    } else if (manualSpeedControl) {
-      this.assistMessage = "COASTING";
-    } else {
-      this.assistMessage = "CRUISING";
-    }
-
-    const safetyBraking = targetSpeed < this.speed - 0.35;
-    let acceleration: number;
-    if (manualSpeedControl && control.active) {
-      if (control.braking || !control.accelerating) targetSpeed = 0;
-      acceleration = safetyBraking
-        ? leadDistance < 15 || (leadIsIncoming && leadDistance < 32)
-          ? GAME.emergencyBrake
-          : GAME.serviceBrake
-        : control.braking
-          ? GAME.serviceBrake
-          : control.accelerating
-            ? GAME.acceleration
-            : GAME.coastDeceleration;
-    } else {
-      acceleration =
-        targetSpeed > this.speed
-          ? GAME.acceleration
-          : leadDistance < 15 || (leadIsIncoming && leadDistance < 32)
-            ? GAME.emergencyBrake
-            : GAME.serviceBrake;
-    }
+    const threat = scanTraffic(this.traffic, this.distance, this.lateral, curveLimit);
+    const speedPlan = createSpeedPlan(control, this.speed, curveLimit, threat);
+    const { targetSpeed, acceleration, safetyBraking } = speedPlan;
+    this.assistMessage = speedPlan.assistMessage;
     this.vehicleAssets.setBrakeLights(
       this.player,
       safetyBraking || control.braking === true,
@@ -722,60 +633,12 @@ export class DrivingGame {
     }
   }
 
-  private updateRoadsideFences(): void {
-    const segmentLength = 9.7;
-    const ringLength = this.fenceSlots.length * segmentLength;
-    const offsetMagnitude = GAME.roadWidth / 2 + 1.75;
-    let postIndex = 0;
-    let railIndex = 0;
-
-    const setInstance = (
-      mesh: THREE.InstancedMesh,
-      index: number,
-      distance: number,
-      side: -1 | 1,
-      height: number,
-    ): void => {
-      const heading = roadHeading(distance);
-      const offset = side * offsetMagnitude;
-      this.fenceDummy.position.set(
-        roadCenter(distance) + Math.cos(heading) * offset,
-        height,
-        -distance - Math.sin(heading) * offset,
-      );
-      this.fenceDummy.rotation.set(0, heading, 0);
-      this.fenceDummy.scale.set(1, 1, 1);
-      this.fenceDummy.updateMatrix();
-      mesh.setMatrixAt(index, this.fenceDummy.matrix);
-    };
-
-    for (const slot of this.fenceSlots) {
-      if (slot.distance < this.distance - 65) slot.distance += ringLength;
-      const midpoint = slot.distance + segmentLength / 2;
-      setInstance(this.fencePosts, postIndex, slot.distance, slot.side, 0.57);
-      setInstance(
-        this.fencePosts,
-        postIndex + 1,
-        slot.distance + segmentLength,
-        slot.side,
-        0.57,
-      );
-      setInstance(this.fenceRails, railIndex, midpoint, slot.side, 0.48);
-      setInstance(this.fenceRails, railIndex + 1, midpoint, slot.side, 0.91);
-      postIndex += 2;
-      railIndex += 2;
-    }
-
-    this.fencePosts.instanceMatrix.needsUpdate = true;
-    this.fenceRails.instanceMatrix.needsUpdate = true;
-  }
-
   private updateWorld(dt: number): void {
     const start = Math.max(-40, this.distance - GAME.lookBehind);
     const length = GAME.lookAhead + GAME.lookBehind + 150;
     updateRoadStrip(this.shoulderGeometry, start, length);
     updateRoadStrip(this.roadGeometry, start, length);
-    this.updateRoadsideFences();
+    this.roadsideFences.update(this.distance);
 
     const centerX = roadCenter(this.distance);
     this.player.position.set(this.worldX, 0.02, -this.distance);
