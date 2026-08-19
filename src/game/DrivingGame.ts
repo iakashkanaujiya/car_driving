@@ -691,6 +691,10 @@ export class DrivingGame {
     );
 
     for (const car of this.traffic) {
+      const gap = car.distance - this.distance;
+      const visible = gap > -90 && gap < GAME.lookAhead + 80;
+      car.mesh.visible = visible;
+      if (!visible) continue;
       const carHeading = roadHeading(car.distance);
       const offset = laneOffsets[car.lane] + car.laneOffset;
       car.mesh.position.set(
@@ -699,7 +703,11 @@ export class DrivingGame {
         -car.distance - Math.sin(carHeading) * offset,
       );
       car.mesh.rotation.y = carHeading + (car.direction === -1 ? Math.PI : 0);
-      this.vehicleAssets.updateWheelAnimation(car.mesh, car.speed * dt, 0, dt);
+      const detailDistance = Math.abs(gap);
+      this.vehicleAssets.setShadowCasting(car.mesh, detailDistance < 65);
+      if (detailDistance < 70) {
+        this.vehicleAssets.updateWheelAnimation(car.mesh, car.speed * dt, 0, dt);
+      }
     }
 
     for (const object of this.scenery) {
