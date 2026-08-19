@@ -819,11 +819,13 @@ export class DrivingGame {
     if (!playing && now - this.lastIdleRender < IDLE_RENDER_INTERVAL_MS) return;
     if (playing) this.updateSimulation(dt);
     this.updateWorld(dt);
-    this.renderer.render(this.scene, this.camera);
     if (playing) {
       const settings = this.adaptiveQuality.recordFrame(frameSeconds);
       if (settings) this.applyRenderQuality(settings);
     }
+    // Quality changes resize and clear the WebGL drawing buffer. Rendering
+    // afterward fills it in the same animation frame and prevents a black flash.
+    this.renderer.render(this.scene, this.camera);
     if (!playing) this.lastIdleRender = now;
 
     if (now - this.lastSnapshot > 80) {
@@ -849,7 +851,6 @@ export class DrivingGame {
 
   private applyRenderQuality(settings: RenderQualitySettings): void {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, settings.pixelRatioCap));
-    this.renderer.setSize(this.container.clientWidth, this.container.clientHeight, false);
     const shadow = this.lighting.sun.shadow;
     if (shadow.mapSize.x !== settings.shadowMapSize) {
       shadow.mapSize.set(settings.shadowMapSize, settings.shadowMapSize);
