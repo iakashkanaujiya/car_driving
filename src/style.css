@@ -27,6 +27,12 @@ button { color: inherit; }
   background: #111820;
 }
 
+.game-shell:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  min-height: 100vh;
+}
+
 .game-shell::after {
   content: '';
   position: absolute;

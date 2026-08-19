@@ -25,6 +25,7 @@ app.innerHTML = `
         <div id="tracking-pill" class="tracking-pill">
           <span class="status-dot"></span><span id="tracking-label">INPUT NOT SET</span>
         </div>
+        <button id="fullscreen-button" class="icon-button" aria-label="Enter full screen" aria-pressed="false">FULL SCREEN</button>
         <button id="mute-button" class="icon-button" aria-label="Toggle sound">SOUND ON</button>
         <button id="pause-button" class="icon-button" aria-label="Pause game">PAUSE</button>
       </div>
@@ -131,6 +132,7 @@ const byId = <T extends HTMLElement>(id: string): T => {
 };
 
 const viewport = byId<HTMLDivElement>('viewport');
+const gameShell = document.querySelector<HTMLElement>('.game-shell')!;
 const overlay = byId<HTMLElement>('overlay');
 const hud = byId<HTMLElement>('hud');
 const video = byId<HTMLVideoElement>('camera-video');
@@ -140,6 +142,9 @@ const trackingPill = byId<HTMLElement>('tracking-pill');
 const trackingLabel = byId<HTMLElement>('tracking-label');
 const cameraHint = byId<HTMLElement>('camera-hint');
 const pauseButton = byId<HTMLButtonElement>('pause-button');
+const fullscreenButton = byId<HTMLButtonElement>('fullscreen-button');
+
+fullscreenButton.hidden = !document.fullscreenEnabled;
 
 let mode: ControlMode = 'hands';
 let handController: HandController | null = null;
@@ -614,8 +619,28 @@ byId('mute-button').addEventListener('click', (event) => {
   (event.currentTarget as HTMLButtonElement).textContent = soundEnabled ? 'SOUND ON' : 'SOUND OFF';
 });
 
+fullscreenButton.addEventListener('click', async () => {
+  if (document.fullscreenElement) {
+    await document.exitFullscreen();
+  } else {
+    await gameShell.requestFullscreen();
+  }
+});
+
+document.addEventListener('fullscreenchange', () => {
+  const active = document.fullscreenElement !== null;
+  fullscreenButton.textContent = active ? 'EXIT FULL SCREEN' : 'FULL SCREEN';
+  fullscreenButton.setAttribute('aria-label', active ? 'Exit full screen' : 'Enter full screen');
+  fullscreenButton.setAttribute('aria-pressed', active.toString());
+});
+
 window.addEventListener('keydown', (event) => {
-  if (event.code === 'Escape') pauseButton.click();
+  if (event.code !== 'Escape') return;
+  if (document.fullscreenElement) {
+    void document.exitFullscreen();
+    return;
+  }
+  pauseButton.click();
 });
 
 window.addEventListener('beforeunload', () => {
