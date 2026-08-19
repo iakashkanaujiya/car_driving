@@ -1,3 +1,5 @@
+export const TRAFFIC_COUNT_OPTIONS = [0, 4, 8, 12, 16] as const;
+
 export const GAME = {
   roadWidth: 28,
   laneWidth: 11.5,

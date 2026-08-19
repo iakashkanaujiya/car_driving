@@ -273,8 +273,8 @@ export class DrivingGame {
     trafficCount: number = GAME.trafficCount,
   ): Promise<void> {
     this.carStyle = style;
+    this.setTrafficCount(trafficCount);
     if (style === "real") {
-      this.setTrafficCount(trafficCount);
       await this.loadCarModels(driverCar);
     } else {
       await this.loadConceptCars();
@@ -365,7 +365,7 @@ export class DrivingGame {
 
   private setTrafficCount(requestedCount: number): void {
     const trafficCount = Math.round(
-      clamp(requestedCount, 2, GAME.trafficCount),
+      clamp(requestedCount, 0, GAME.trafficCount),
     );
     while (this.traffic.length > trafficCount) {
       const removed = this.traffic.pop();

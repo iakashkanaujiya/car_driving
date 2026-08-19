@@ -156,13 +156,13 @@ h2 { font-size: clamp(50px, 7vw, 78px); color: var(--acid); }
 .car-style-option:hover { border-color: rgba(233,255,66,.62); color: white; }
 .car-style-option.is-active { border-color: var(--acid); background: rgba(233,255,66,.11); color: var(--acid); box-shadow: inset 3px 0 0 var(--acid); }
 .car-style-option.is-active small { color: rgba(233,255,66,.62); }
-.real-car-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: -4px 0 13px; transition: opacity .18s; }
-.real-car-options label { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 9px; padding: 7px 9px; border: 1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.035); }
-.real-car-options label > span { color: rgba(255,255,255,.46); font: 600 7px 'DM Mono', monospace; letter-spacing: .11em; white-space: nowrap; }
-.real-car-options select { min-width: 0; width: 100%; height: 28px; padding: 0 24px 0 8px; border: 1px solid rgba(233,255,66,.38); border-radius: 0; background: #182126; color: var(--acid); font: 700 9px 'DM Mono', monospace; letter-spacing: .04em; cursor: pointer; }
-.real-car-options select:focus { outline: 1px solid var(--acid); outline-offset: 1px; }
-.real-car-options.is-disabled { opacity: .3; }
-.real-car-options select:disabled { cursor: not-allowed; }
+.car-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: -4px 0 13px; }
+.car-options label { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 9px; padding: 7px 9px; border: 1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.035); transition: opacity .18s; }
+.car-options label > span { color: rgba(255,255,255,.46); font: 600 7px 'DM Mono', monospace; letter-spacing: .11em; white-space: nowrap; }
+.car-options select { min-width: 0; width: 100%; height: 28px; padding: 0 24px 0 8px; border: 1px solid rgba(233,255,66,.38); border-radius: 0; background: #182126; color: var(--acid); font: 700 9px 'DM Mono', monospace; letter-spacing: .04em; cursor: pointer; }
+.car-options select:focus { outline: 1px solid var(--acid); outline-offset: 1px; }
+.car-options label.is-disabled { opacity: .3; }
+.car-options select:disabled { cursor: not-allowed; }
 .asset-download { margin: -4px 0 13px; padding: 8px 10px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.025); text-align: left; transition: border-color .2s, background .2s; }
 .asset-download-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: rgba(255,255,255,.62); font: 600 8px 'DM Mono', monospace; letter-spacing: .1em; }
 .asset-download-head b { color: var(--acid); font-weight: 500; }
@@ -261,7 +261,7 @@ h2 { font-size: clamp(50px, 7vw, 78px); color: var(--acid); }
   .wheel-guide { transform: scale(.78); margin: -14px -42px -10px; }
   .car-style-picker { grid-template-columns: 1fr 1fr; margin-top: -8px; }
   .car-style-picker > span { display: none; }
-  .real-car-options { grid-template-columns: 1fr; }
+  .car-options { grid-template-columns: 1fr; }
   .modal-actions { flex-direction: column; }
   .primary-button, .secondary-button { width: 100%; }
   .run-stats { left: 15px; top: 72px; }
@@ -293,7 +293,7 @@ h2 { font-size: clamp(50px, 7vw, 78px); color: var(--acid); }
   .wheel-guide { height: 108px; transform: scale(.72); margin: -10px 0; }
   .instruction-row { margin-block: 0 13px; }
   .car-style-picker { margin-bottom: 9px; }
-  .real-car-options { margin-bottom: 9px; }
+  .car-options { margin-bottom: 9px; }
   .asset-download { margin-bottom: 9px; padding-block: 6px; }
   .instruction-row div { padding-block: 8px; }
   .primary-button, .secondary-button { height: 42px; }
@@ -325,7 +325,7 @@ h2 { font-size: clamp(50px, 7vw, 78px); color: var(--acid); }
   .intro-modal h1 { font-size: 40px; }
   .instruction-row { margin-block: 8px; }
   .car-style-picker { margin-block: -2px 7px; }
-  .real-car-options { margin-bottom: 7px; }
+  .car-options { margin-bottom: 7px; }
   .modal-actions { flex-wrap: nowrap; }
   .primary-button, .secondary-button { height: 38px; }
   .asset-gate-modal { padding-block: 17px; }

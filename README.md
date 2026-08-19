@@ -28,7 +28,7 @@ Real-car mode lets you select any of these vehicles as the driver car. Traffic r
 | 2023 Ford Everest Sport (default) | Yes | Yes |
 | Hyundai Ioniq 5 | Yes | Yes |
 
-Concept-car mode uses the 2018 Audi e-tron GT Concept for both the driver and traffic. Real-car mode remains selectable, with traffic configurable for 4, 8, 12, or 16 cars.
+Concept-car mode uses the 2018 Audi e-tron GT Concept for both the driver and traffic. Both car modes support 0, 4, 8, 12, or 16 traffic cars.
 
 On the first visit, a setup popup keeps the game locked while it downloads approximately 24 MB of car models and embedded textures with live progress. These files are stored in the browser cache and reused on later visits. Interrupted downloads can be retried and resume from files that are already cached.
 

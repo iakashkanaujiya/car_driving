@@ -1,6 +1,7 @@
 import './style.css';
 import { HandController } from './controls/HandController';
 import { KeyboardController } from './controls/KeyboardController';
+import { TRAFFIC_COUNT_OPTIONS } from './game/config';
 import { DrivingGame } from './game/DrivingGame';
 import type { CarStyle, ControlMode, GameSnapshot } from './game/types';
 import { CAR_MODEL_OPTIONS, DEFAULT_CAR_MODEL_ID } from './game/vehicleAssets';
@@ -77,8 +78,8 @@ app.innerHTML = `
             <strong>REAL CARS</strong><small>GLTF MODELS</small>
           </button>
         </div>
-        <div id="real-car-options" class="real-car-options is-disabled">
-          <label>
+        <div id="car-options" class="car-options">
+          <label id="driver-car-option" class="is-disabled">
             <span>DRIVER CAR</span>
             <select id="driver-car" aria-label="Choose driver car" disabled>
               ${CAR_MODEL_OPTIONS.map(({ id, label }) => `<option value="${id}"${id === DEFAULT_CAR_MODEL_ID ? ' selected' : ''}>${label}</option>`).join('')}
@@ -86,11 +87,8 @@ app.innerHTML = `
           </label>
           <label>
             <span>TRAFFIC CARS</span>
-            <select id="traffic-count" aria-label="Choose number of traffic cars" disabled>
-              <option value="4">4 CARS</option>
-              <option value="8">8 CARS</option>
-              <option value="12">12 CARS</option>
-              <option value="16" selected>16 CARS</option>
+            <select id="traffic-count" aria-label="Choose number of traffic cars">
+              ${TRAFFIC_COUNT_OPTIONS.map((count) => `<option value="${count}"${count === 16 ? ' selected' : ''}>${count === 0 ? 'NO TRAFFIC' : `${count} CARS`}</option>`).join('')}
             </select>
           </label>
         </div>
@@ -424,12 +422,11 @@ function selectCarStyle(style: CarStyle): void {
     button.classList.toggle('is-active', active);
     button.setAttribute('aria-pressed', active.toString());
   }
-  const realOptions = byId<HTMLElement>('real-car-options');
+  const driverOption = byId<HTMLElement>('driver-car-option');
+  const driverSelect = byId<HTMLSelectElement>('driver-car');
   const disabled = style !== 'real';
-  realOptions.classList.toggle('is-disabled', disabled);
-  for (const select of realOptions.querySelectorAll<HTMLSelectElement>('select')) {
-    select.disabled = disabled;
-  }
+  driverOption.classList.toggle('is-disabled', disabled);
+  driverSelect.disabled = disabled;
 }
 
 byId('car-style-real').addEventListener('click', () => selectCarStyle('real'));

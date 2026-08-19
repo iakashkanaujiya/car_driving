@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GAME, laneOffsets } from './config';
+import { GAME, laneOffsets, TRAFFIC_COUNT_OPTIONS } from './config';
 import { clamp, constrainToRoad, curveSpeedLimit, steeringFromHands } from './math';
 
 describe('driving math', () => {
@@ -26,6 +26,10 @@ describe('driving math', () => {
     for (const offset of laneOffsets) {
       expect(Math.abs(offset) + GAME.collisionWidth / 2).toBeLessThan(GAME.roadWidth / 2);
     }
+  });
+
+  it('allows the game to run without traffic', () => {
+    expect(TRAFFIC_COUNT_OPTIONS).toEqual([0, 4, 8, 12, 16]);
   });
 
   it('keeps the complete vehicle body inside the road boundaries', () => {
