@@ -1,10 +1,10 @@
 import { EngineSound } from '../audio/EngineSound';
 import type { HandController } from '../controls/HandController';
 import { KeyboardController } from '../controls/KeyboardController';
-import { DrivingGame } from '../game/DrivingGame';
+import type { DrivingGame } from '../game/DrivingGame';
 import type { ControlInput, ControlMode, GameSnapshot } from '../game/types';
-import { DEFAULT_CAR_MODEL_ID } from '../game/vehicleAssets';
-import type { CarModelId } from '../game/vehicleAssets';
+import { DEFAULT_CAR_MODEL_ID } from '../game/vehicleCatalog';
+import type { CarModelId } from '../game/vehicleCatalog';
 import { cacheAssets } from '../services/assetCache';
 import { AssetGate } from '../ui/AssetGate';
 import { byId } from '../ui/dom';
@@ -105,7 +105,7 @@ export class DrivingApplication {
 
     this.assetGate.markPreparing();
     if (!this.game) {
-      this.game = this.createGame();
+      this.game = await this.createGame();
       this.sceneReady = this.game.whenReady().then(
         () => true,
         (error) => {
@@ -125,7 +125,8 @@ export class DrivingApplication {
     return true;
   }
 
-  private createGame(): DrivingGame {
+  private async createGame(): Promise<DrivingGame> {
+    const { DrivingGame } = await import('../game/DrivingGame');
     return new DrivingGame(
       this.viewport,
       () => this.getControl(),

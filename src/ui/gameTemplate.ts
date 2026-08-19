@@ -3,7 +3,7 @@ import {
   CAR_MODEL_OPTIONS,
   CAR_MODEL_VARIETY_OPTIONS,
   DEFAULT_CAR_MODEL_ID,
-} from '../game/vehicleAssets';
+} from '../game/vehicleCatalog';
 
 /** Builds the static application shell. Dynamic overlays remain in the app controller. */
 export function createGameTemplate(): string {

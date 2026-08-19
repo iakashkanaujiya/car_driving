@@ -38,7 +38,7 @@ Choose any of these vehicles directly on the start screen. Traffic reuses the sa
 
 You can select 0, 4, 8, 12, or 16 traffic cars and choose how many different models appear. Car variety defaults to 1, which reuses the selected driver model for traffic and reduces model parsing and memory use. Higher traffic counts or model variety may reduce frame rates on lower-powered devices.
 
-On the first visit, a setup popup keeps the game locked while it downloads approximately 31 MB of car models and embedded textures with live progress. These files are stored in the browser cache and reused on later visits. Interrupted downloads can be retried and resume from files that are already cached.
+On the first visit, a setup popup keeps the game locked while it downloads approximately 27 MB of core scenery and road textures with live progress. Only selected car models are downloaded afterward; each model is stored on first use and reused on later visits. Interrupted core downloads can be retried and resume from files that are already cached.
 
 ## Controls
 

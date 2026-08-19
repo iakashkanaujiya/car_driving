@@ -6,10 +6,6 @@ const projectRoot = process.cwd();
 const publicRoot = path.join(projectRoot, 'public');
 const requiredAssets = [
   'great_mountain/landscape_mountain_optimized.glb',
-  'models/2017_ford_f-150_raptor.glb',
-  'models/2018_audi_e-tron_gt_concept.glb',
-  'models/ford_everest_sport_2023.glb',
-  'models/hyundai_ioniq_5_-_lowpoly.glb',
   'roads/textures/Grass02_baseColor.jpeg',
   'roads/textures/Grass02_metallicRoughness.png',
   'roads/textures/Grass02_normal.png',

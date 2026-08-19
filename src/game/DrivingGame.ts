@@ -26,11 +26,14 @@ import {
 import type { SceneLighting } from "./sceneAssets";
 import type { ControlInput, GamePhase, GameSnapshot } from "./types";
 import {
-  DEFAULT_CAR_MODEL_ID,
-  selectCarModelIds,
   VehicleAssets,
 } from "./vehicleAssets";
-import type { CarModelId, LoadedCarModel } from "./vehicleAssets";
+import type { LoadedCarModel } from "./vehicleAssets";
+import {
+  DEFAULT_CAR_MODEL_ID,
+  selectCarModelIds,
+} from "./vehicleCatalog";
+import type { CarModelId } from "./vehicleCatalog";
 import { RoadsideFenceSystem } from "./world/RoadsideFenceSystem";
 
 interface TrafficCar {

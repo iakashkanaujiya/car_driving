@@ -29,12 +29,23 @@ self.addEventListener('fetch', (event) => {
   ) return;
 
   event.respondWith((async () => {
+    let currentCache = null;
     if (currentAssetCacheName) {
-      const currentCache = await caches.open(currentAssetCacheName);
+      currentCache = await caches.open(currentAssetCacheName);
       const currentMatch = await currentCache.match(event.request);
       if (currentMatch) return currentMatch;
     }
-    return fetch(event.request);
+    const response = await fetch(event.request);
+    // Vehicle packs are optional at startup. Persist each selected model on
+    // first use so later runs retain the original offline-friendly behavior.
+    if (
+      currentCache &&
+      response.ok &&
+      url.pathname.includes('/models/')
+    ) {
+      await currentCache.put(event.request, response.clone());
+    }
+    return response;
   })());
 });
 
