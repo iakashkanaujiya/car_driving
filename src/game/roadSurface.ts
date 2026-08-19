@@ -9,10 +9,15 @@ export function createRoadStrip(
   uvMeters = 11,
 ): THREE.BufferGeometry {
   const positions = new Float32Array((segments + 1) * 2 * 3);
+  const normals = new Float32Array((segments + 1) * 2 * 3);
   const uvs = new Float32Array((segments + 1) * 2 * 2);
   const indices: number[] = [];
 
   for (let index = 0; index <= segments; index += 1) {
+    // The road bends only in the horizontal plane, so every vertex normal is
+    // permanently world-up. Recomputing normals as the ribbon moves is wasted.
+    normals[index * 6 + 1] = 1;
+    normals[index * 6 + 4] = 1;
     const uvOffset = index * 4;
     uvs[uvOffset] = 0;
     uvs[uvOffset + 1] = index / segments;
@@ -26,9 +31,9 @@ export function createRoadStrip(
 
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
   geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
   geometry.setIndex(indices);
-  geometry.computeVertexNormals();
   geometry.userData.width = width;
   geometry.userData.centerOffset = centerOffset;
   geometry.userData.uvWidth = uvWidth;
@@ -60,6 +65,5 @@ export function updateRoadStrip(geometry: THREE.BufferGeometry, start: number, l
 
   position.needsUpdate = true;
   uv.needsUpdate = true;
-  geometry.computeVertexNormals();
   geometry.computeBoundingSphere();
 }

@@ -34,6 +34,9 @@ export class RoadsideFenceSystem {
     this.material,
     SEGMENT_COUNT * 2,
   );
+  private initialized = false;
+  private lastPlayerDistance = 0;
+  private nextRecycleDistance = Number.NEGATIVE_INFINITY;
 
   constructor(private readonly scene: THREE.Scene) {
     this.posts.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -56,12 +59,18 @@ export class RoadsideFenceSystem {
   }
 
   update(playerDistance: number): void {
+    if (this.initialized && playerDistance < this.lastPlayerDistance - 1) {
+      this.resetSlots();
+    }
+    this.lastPlayerDistance = playerDistance;
+    if (this.initialized && playerDistance <= this.nextRecycleDistance) return;
+
     const ringLength = this.slots.length * SEGMENT_LENGTH;
     let postIndex = 0;
     let railIndex = 0;
 
     for (const slot of this.slots) {
-      if (slot.distance < playerDistance - 65) slot.distance += ringLength;
+      while (slot.distance < playerDistance - 65) slot.distance += ringLength;
       const midpoint = slot.distance + SEGMENT_LENGTH / 2;
       this.setInstance(this.posts, postIndex, slot.distance, slot.side, 0.57);
       this.setInstance(this.posts, postIndex + 1, slot.distance + SEGMENT_LENGTH, slot.side, 0.57);
@@ -73,6 +82,8 @@ export class RoadsideFenceSystem {
 
     this.posts.instanceMatrix.needsUpdate = true;
     this.rails.instanceMatrix.needsUpdate = true;
+    this.initialized = true;
+    this.nextRecycleDistance = Math.min(...this.slots.map((slot) => slot.distance + 65));
   }
 
   dispose(): void {
@@ -100,5 +111,14 @@ export class RoadsideFenceSystem {
     this.transform.scale.set(1, 1, 1);
     this.transform.updateMatrix();
     mesh.setMatrixAt(index, this.transform.matrix);
+  }
+
+  private resetSlots(): void {
+    this.slots.forEach((slot, index) => {
+      slot.distance = -45 + index * SEGMENT_LENGTH;
+      slot.side = Math.floor(index / 6) % 2 === 0 ? -1 : 1;
+    });
+    this.initialized = false;
+    this.nextRecycleDistance = Number.NEGATIVE_INFINITY;
   }
 }

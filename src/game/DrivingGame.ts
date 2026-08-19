@@ -46,6 +46,8 @@ const GRASS_TEXTURE_REPEAT = 30;
 const GRASS_TILE_METERS = GROUND_SIZE / GRASS_TEXTURE_REPEAT;
 const SNOW_TEXTURE_REPEAT = 12;
 const SNOW_TILE_METERS = GROUND_SIZE / SNOW_TEXTURE_REPEAT;
+const ROAD_UPDATE_INTERVAL = 1 / 30;
+const IDLE_RENDER_INTERVAL_MS = 200;
 
 export class DrivingGame {
   private readonly scene = new THREE.Scene();
@@ -70,7 +72,10 @@ export class DrivingGame {
   private readonly shoulderMesh: THREE.Mesh;
   private readonly ground: THREE.Mesh;
   private readonly groundSnow: THREE.Mesh;
-  private frame = 0;
+  private readonly forward = new THREE.Vector3();
+  private readonly shadowCenter = new THREE.Vector3();
+  private readonly desiredCamera = new THREE.Vector3();
+  private readonly cameraTarget = new THREE.Vector3();
   private phase: GamePhase = "ready";
   private distance = 0;
   private speed = 0;
@@ -86,6 +91,9 @@ export class DrivingGame {
   private carModelsApplied = false;
   private sceneAssetsLoaded = false;
   private lastSnapshot = 0;
+  private lastIdleRender = 0;
+  private roadUpdateElapsed = Number.POSITIVE_INFINITY;
+  private lastRoadUpdateDistance = Number.NaN;
   private animationFrame = 0;
 
   constructor(
@@ -298,6 +306,7 @@ export class DrivingGame {
     });
     this.scenery.forEach((object, index) => {
       object.userData.distance = -45 + index * 12.5;
+      object.userData.worldPositioned = false;
     });
   }
 
@@ -343,6 +352,9 @@ export class DrivingGame {
       object.userData.distance = -45 + index * 12.5;
       object.userData.side = index % 2 === 0 ? -1 : 1;
       object.userData.offset = GAME.roadWidth / 2 + 6 + ((index * 7) % 10);
+      object.userData.worldPositioned = false;
+      object.rotation.y = (index * 2.39) % (Math.PI * 2);
+      object.scale.setScalar(0.72 + (index % 5) * 0.11);
       this.scenery.push(object);
       this.scene.add(object);
     }
@@ -634,10 +646,17 @@ export class DrivingGame {
   }
 
   private updateWorld(dt: number): void {
-    const start = Math.max(-40, this.distance - GAME.lookBehind);
-    const length = GAME.lookAhead + GAME.lookBehind + 150;
-    updateRoadStrip(this.shoulderGeometry, start, length);
-    updateRoadStrip(this.roadGeometry, start, length);
+    this.roadUpdateElapsed += dt;
+    const roadJumped = !Number.isFinite(this.lastRoadUpdateDistance)
+      || Math.abs(this.distance - this.lastRoadUpdateDistance) > 5;
+    if (roadJumped || this.roadUpdateElapsed >= ROAD_UPDATE_INTERVAL) {
+      const start = Math.max(-40, this.distance - GAME.lookBehind);
+      const length = GAME.lookAhead + GAME.lookBehind + 150;
+      updateRoadStrip(this.shoulderGeometry, start, length);
+      updateRoadStrip(this.roadGeometry, start, length);
+      this.lastRoadUpdateDistance = this.distance;
+      this.roadUpdateElapsed = 0;
+    }
     this.roadsideFences.update(this.distance);
 
     const centerX = roadCenter(this.distance);
@@ -669,23 +688,24 @@ export class DrivingGame {
     }
 
     for (const object of this.scenery) {
-      const slot = object.userData.slot as number;
       let distance = object.userData.distance as number;
+      let needsPosition = object.userData.worldPositioned !== true;
       if (distance < this.distance - 70) {
         distance += this.scenery.length * 12.5;
         object.userData.distance = distance;
+        needsPosition = true;
       }
-      const headingAtObject = roadHeading(distance);
-      const offset =
-        (object.userData.side as number) * (object.userData.offset as number);
-      object.position.set(
-        roadCenter(distance) + Math.cos(headingAtObject) * offset,
-        0,
-        -distance - Math.sin(headingAtObject) * offset,
-      );
-      object.rotation.y = (slot * 2.39) % (Math.PI * 2);
-      const scale = 0.72 + (slot % 5) * 0.11;
-      object.scale.setScalar(scale);
+      if (needsPosition) {
+        const headingAtObject = roadHeading(distance);
+        const offset =
+          (object.userData.side as number) * (object.userData.offset as number);
+        object.position.set(
+          roadCenter(distance) + Math.cos(headingAtObject) * offset,
+          0,
+          -distance - Math.sin(headingAtObject) * offset,
+        );
+        object.userData.worldPositioned = true;
+      }
     }
 
     for (const mountain of this.mountains) {
@@ -729,21 +749,15 @@ export class DrivingGame {
     this.ground.position.set(centerX, -0.09, -this.distance - 180);
     this.groundSnow.position.set(centerX, -0.075, -this.distance - 180);
     const groundMaterial = this.ground.material as THREE.MeshStandardMaterial;
-    const groundTextures = [
-      groundMaterial.map,
-      groundMaterial.normalMap,
-      groundMaterial.roughnessMap,
-      groundMaterial.metalnessMap,
-    ];
     // PlaneGeometry's V axis points toward negative world Z after the ground is
     // rotated flat. Offset from the plane's world position so recentering the
     // large ground mesh never makes its texture travel with the player.
-    for (const texture of groundTextures) {
-      texture?.offset.set(
-        this.ground.position.x / GRASS_TILE_METERS,
-        -this.ground.position.z / GRASS_TILE_METERS,
-      );
-    }
+    const grassOffsetX = this.ground.position.x / GRASS_TILE_METERS;
+    const grassOffsetY = -this.ground.position.z / GRASS_TILE_METERS;
+    groundMaterial.map?.offset.set(grassOffsetX, grassOffsetY);
+    groundMaterial.normalMap?.offset.set(grassOffsetX, grassOffsetY);
+    groundMaterial.roughnessMap?.offset.set(grassOffsetX, grassOffsetY);
+    groundMaterial.metalnessMap?.offset.set(grassOffsetX, grassOffsetY);
     const groundSnowMaterial = this.groundSnow
       .material as THREE.MeshStandardMaterial;
     groundSnowMaterial.map?.offset.set(
@@ -751,36 +765,36 @@ export class DrivingGame {
       -this.groundSnow.position.z / SNOW_TILE_METERS,
     );
 
-    const forward = new THREE.Vector3(
+    this.forward.set(
       -Math.sin(this.vehicleHeading),
       0,
       -Math.cos(this.vehicleHeading),
     );
-    const shadowCenter = this.player.position
-      .clone()
-      .addScaledVector(forward, 32);
-    updateSceneShadow(this.lighting, shadowCenter);
-    const desiredCamera = this.player.position
-      .clone()
-      .addScaledVector(forward, -8.5)
-      .add(new THREE.Vector3(0, 4.3, 0));
-    this.camera.position.lerp(desiredCamera, 1 - Math.exp(-5 * dt));
-    const target = this.player.position
-      .clone()
-      .addScaledVector(forward, 12)
-      .add(new THREE.Vector3(0, 1, 0));
-    this.camera.lookAt(target);
+    this.shadowCenter.copy(this.player.position).addScaledVector(this.forward, 32);
+    updateSceneShadow(this.lighting, this.shadowCenter);
+    this.desiredCamera
+      .copy(this.player.position)
+      .addScaledVector(this.forward, -8.5);
+    this.desiredCamera.y += 4.3;
+    this.camera.position.lerp(this.desiredCamera, 1 - Math.exp(-5 * dt));
+    this.cameraTarget
+      .copy(this.player.position)
+      .addScaledVector(this.forward, 12);
+    this.cameraTarget.y += 1;
+    this.camera.lookAt(this.cameraTarget);
   }
 
   private animate = (): void => {
     this.animationFrame = requestAnimationFrame(this.animate);
     const dt = Math.min(this.clock.getDelta(), 0.05);
-    if (this.phase === "playing") this.updateSimulation(dt);
+    const now = performance.now();
+    const playing = this.phase === "playing";
+    if (!playing && now - this.lastIdleRender < IDLE_RENDER_INTERVAL_MS) return;
+    if (playing) this.updateSimulation(dt);
     this.updateWorld(dt);
     this.renderer.render(this.scene, this.camera);
-    this.frame += 1;
+    if (!playing) this.lastIdleRender = now;
 
-    const now = performance.now();
     if (now - this.lastSnapshot > 80) {
       this.lastSnapshot = now;
       this.onUpdate({
