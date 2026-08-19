@@ -84,6 +84,65 @@ export class SurfaceTextureStore {
   }
 }
 
+export function createSnowPatchTexture(seed: number): THREE.CanvasTexture {
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Could not create the snow texture.');
+
+  let state = seed >>> 0;
+  const random = (): number => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return state / 0x100000000;
+  };
+
+  for (let index = 0; index < 72; index += 1) {
+    const x = random() * size;
+    const y = random() * size;
+    const radius = 4 + random() * 20;
+    const opacity = 0.16 + random() * 0.3;
+    const xOffsets = [0];
+    const yOffsets = [0];
+    if (x < radius) xOffsets.push(size);
+    if (x > size - radius) xOffsets.push(-size);
+    if (y < radius) yOffsets.push(size);
+    if (y > size - radius) yOffsets.push(-size);
+
+    for (const xOffset of xOffsets) {
+      for (const yOffset of yOffsets) {
+        const patchX = x + xOffset;
+        const patchY = y + yOffset;
+        const gradient = context.createRadialGradient(
+          patchX,
+          patchY,
+          radius * 0.08,
+          patchX,
+          patchY,
+          radius,
+        );
+        gradient.addColorStop(0, `rgba(245, 249, 250, ${opacity})`);
+        gradient.addColorStop(0.58, `rgba(238, 244, 246, ${opacity * 0.72})`);
+        gradient.addColorStop(1, 'rgba(232, 240, 243, 0)');
+        context.fillStyle = gradient;
+        context.fillRect(
+          patchX - radius,
+          patchY - radius,
+          radius * 2,
+          radius * 2,
+        );
+      }
+    }
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  return texture;
+}
+
 export function addSceneLighting(scene: THREE.Scene): SceneLighting {
   const hemisphere = new THREE.HemisphereLight(0xdaf7ff, 0x31442c, 1.55);
   scene.add(hemisphere);

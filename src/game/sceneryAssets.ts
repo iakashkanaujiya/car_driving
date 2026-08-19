@@ -154,37 +154,30 @@ export class SceneryAssets {
   loadMountains(targets: readonly THREE.Group[]): void {
     const loader = new GLTFLoader();
     loader.load(
-      `${import.meta.env.BASE_URL}great_mountain/scene.gltf`,
+      `${import.meta.env.BASE_URL}great_mountain/landscape_mountain_optimized.glb`,
       (gltf) => {
         try {
           gltf.scene.updateMatrixWorld(true);
-          const source = gltf.scene.getObjectByName('Object_2');
-          if (!(source instanceof THREE.Mesh)) throw new Error('The mountain mesh was not found.');
-
-          const geometry = source.geometry.clone();
-          geometry.applyMatrix4(source.matrixWorld);
-          geometry.computeBoundingBox();
-          const bounds = geometry.boundingBox;
-          if (!bounds) throw new Error('The mountain bounds could not be calculated.');
+          const bounds = new THREE.Box3().setFromObject(gltf.scene);
           const size = bounds.getSize(new THREE.Vector3());
           const center = bounds.getCenter(new THREE.Vector3());
-          geometry.translate(-center.x, -bounds.min.y, -center.z);
-          geometry.computeBoundingSphere();
+          if (!Number.isFinite(size.y) || size.y <= 0) {
+            throw new Error('The mountain bounds could not be calculated.');
+          }
 
-          const sourceMaterial = Array.isArray(source.material) ? source.material[0] : source.material;
-          const material = sourceMaterial.clone() as THREE.MeshStandardMaterial;
-          material.color.set(0x8999a3);
-          material.metalness = 0;
-          material.roughness = 1;
-          material.emissiveMap = null;
-          material.emissive?.set(0x000000);
+          gltf.scene.traverse((object) => {
+            if (!(object instanceof THREE.Mesh)) return;
+            object.castShadow = false;
+            object.receiveShadow = false;
+          });
 
-          const mesh = new THREE.Mesh(geometry, material);
-          mesh.castShadow = false;
-          mesh.receiveShadow = false;
+          const content = new THREE.Group();
+          content.position.set(-center.x, -bounds.min.y, -center.z);
+          content.add(gltf.scene);
+
           const prototype = new THREE.Group();
-          prototype.scale.setScalar(52 / Math.max(1, size.y));
-          prototype.add(mesh);
+          prototype.scale.setScalar(85 / size.y);
+          prototype.add(content);
           this.greatMountainPrototype = prototype;
 
           for (const mountain of targets) {

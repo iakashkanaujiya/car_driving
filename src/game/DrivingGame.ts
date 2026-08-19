@@ -13,6 +13,7 @@ import { SceneryAssets } from "./sceneryAssets";
 import {
   addSceneLighting,
   createCloudTexture,
+  createSnowPatchTexture,
   SurfaceTextureStore,
   updateSceneShadow,
 } from "./sceneAssets";
@@ -37,6 +38,8 @@ interface TrafficCar {
 const GROUND_SIZE = 1200;
 const GRASS_TEXTURE_REPEAT = 30;
 const GRASS_TILE_METERS = GROUND_SIZE / GRASS_TEXTURE_REPEAT;
+const SNOW_TEXTURE_REPEAT = 12;
+const SNOW_TILE_METERS = GROUND_SIZE / SNOW_TEXTURE_REPEAT;
 
 export class DrivingGame {
   private readonly scene = new THREE.Scene();
@@ -60,9 +63,11 @@ export class DrivingGame {
   private readonly fenceRails: THREE.InstancedMesh;
   private readonly roadGeometry: THREE.BufferGeometry;
   private readonly roadMesh: THREE.Mesh;
+  private readonly roadSnow: THREE.Mesh;
   private readonly shoulderGeometry: THREE.BufferGeometry;
   private readonly shoulderMesh: THREE.Mesh;
   private readonly ground: THREE.Mesh;
+  private readonly groundSnow: THREE.Mesh;
   private frame = 0;
   private phase: GamePhase = "ready";
   private distance = 0;
@@ -162,6 +167,30 @@ export class DrivingGame {
     this.roadMesh.receiveShadow = true;
     this.scene.add(this.roadMesh);
 
+    const roadSnowTexture = createSnowPatchTexture(0x51a9c3);
+    roadSnowTexture.repeat.set(0.55, 0.22);
+    roadSnowTexture.anisotropy = Math.min(
+      4,
+      this.renderer.capabilities.getMaxAnisotropy(),
+    );
+    this.textureStore.track(roadSnowTexture);
+    this.roadSnow = new THREE.Mesh(
+      this.roadGeometry,
+      new THREE.MeshStandardMaterial({
+        color: 0xeaf0f1,
+        map: roadSnowTexture,
+        transparent: true,
+        opacity: 0.48,
+        depthWrite: false,
+        roughness: 1,
+        metalness: 0,
+      }),
+    );
+    this.roadSnow.position.y = 0.015;
+    this.roadSnow.receiveShadow = true;
+    this.roadSnow.renderOrder = 2;
+    this.scene.add(this.roadSnow);
+
     this.shoulderGeometry = createRoadStrip(GAME.roadWidth + 5.5, 220);
     this.shoulderMesh = new THREE.Mesh(this.shoulderGeometry, shoulderMaterial);
     this.shoulderMesh.position.y = -0.055;
@@ -176,6 +205,32 @@ export class DrivingGame {
     this.ground.position.y = -0.09;
     this.ground.receiveShadow = true;
     this.scene.add(this.ground);
+
+    const groundSnowTexture = createSnowPatchTexture(0xb7e134);
+    groundSnowTexture.repeat.set(SNOW_TEXTURE_REPEAT, SNOW_TEXTURE_REPEAT);
+    groundSnowTexture.anisotropy = Math.min(
+      4,
+      this.renderer.capabilities.getMaxAnisotropy(),
+    );
+    this.textureStore.track(groundSnowTexture);
+    this.groundSnow = new THREE.Mesh(
+      this.ground.geometry,
+      new THREE.MeshStandardMaterial({
+        color: 0xe6edef,
+        map: groundSnowTexture,
+        transparent: true,
+        opacity: 0.72,
+        depthWrite: false,
+        roughness: 1,
+        metalness: 0,
+        side: THREE.DoubleSide,
+      }),
+    );
+    this.groundSnow.rotation.x = -Math.PI / 2;
+    this.groundSnow.position.y = -0.075;
+    this.groundSnow.receiveShadow = true;
+    this.groundSnow.renderOrder = 1;
+    this.scene.add(this.groundSnow);
 
     const fenceSegments = 36;
     this.fencePosts = new THREE.InstancedMesh(
@@ -300,7 +355,7 @@ export class DrivingGame {
       this.scene.add(object);
     }
 
-    for (let index = 0; index < 7; index += 1) {
+    for (let index = 0; index < 4; index += 1) {
       const mountain = this.sceneryAssets.createMountain();
       mountain.userData.slot = index;
       this.mountains.push(mountain);
@@ -744,16 +799,18 @@ export class DrivingGame {
 
     for (const mountain of this.mountains) {
       const slot = mountain.userData.slot as number;
-      const row = slot % 2;
-      const distance = this.distance + 270 + row * 88;
-      const horizonOffset = (slot - 3) * 88 + (row === 0 ? -18 : 24);
+      const pair = Math.floor(slot / 2);
+      const isLeft = slot % 2 === 0;
+      const distance = this.distance + 275 + pair * 95;
+      const horizonOffset = (pair === 0 ? 215 : 390) * (isLeft ? -1 : 1);
       mountain.position.set(
         roadCenter(distance) + horizonOffset,
         -6,
         -distance,
       );
-      mountain.rotation.y = roadHeading(distance) * 0.25 + slot * 0.71;
-      mountain.scale.setScalar(0.78 + (slot % 3) * 0.12);
+      mountain.rotation.y =
+        roadHeading(distance) * 0.25 + (isLeft ? 0.18 : -0.18) + pair * 0.12;
+      mountain.scale.setScalar(pair === 0 ? 1 : 0.86);
     }
 
     const sunDistance = this.distance + 350;
@@ -779,6 +836,7 @@ export class DrivingGame {
     }
 
     this.ground.position.set(centerX, -0.09, -this.distance - 180);
+    this.groundSnow.position.set(centerX, -0.075, -this.distance - 180);
     const groundMaterial = this.ground.material as THREE.MeshStandardMaterial;
     const groundTextures = [
       groundMaterial.map,
@@ -795,6 +853,12 @@ export class DrivingGame {
         -this.ground.position.z / GRASS_TILE_METERS,
       );
     }
+    const groundSnowMaterial = this.groundSnow
+      .material as THREE.MeshStandardMaterial;
+    groundSnowMaterial.map?.offset.set(
+      this.groundSnow.position.x / SNOW_TILE_METERS,
+      -this.groundSnow.position.z / SNOW_TILE_METERS,
+    );
 
     const forward = new THREE.Vector3(
       -Math.sin(this.vehicleHeading),
