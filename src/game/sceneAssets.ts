@@ -20,6 +20,8 @@ const SUN_SHADOW_OFFSET = new THREE.Vector3(-45, 75, 30);
 
 export class SurfaceTextureStore {
   private readonly textures: THREE.Texture[] = [];
+  private readonly pendingLoads: Promise<void>[] = [];
+  private readonly loadErrors: string[] = [];
 
   constructor(private readonly maxAnisotropy: number) {}
 
@@ -30,8 +32,18 @@ export class SurfaceTextureStore {
     repeatY = 1,
     textureRoot = 'roads/textures',
   ): THREE.Texture {
+    let markLoaded = (): void => undefined;
+    const pendingLoad = new Promise<void>((resolve) => {
+      markLoaded = resolve;
+    });
     const texture = new THREE.TextureLoader().load(
       `${import.meta.env.BASE_URL}${textureRoot}/${file}`,
+      markLoaded,
+      undefined,
+      () => {
+        this.loadErrors.push(`Could not load ${textureRoot}/${file}.`);
+        markLoaded();
+      },
     );
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
@@ -39,6 +51,7 @@ export class SurfaceTextureStore {
     texture.anisotropy = Math.min(8, this.maxAnisotropy);
     if (colorTexture) texture.colorSpace = THREE.SRGBColorSpace;
     this.textures.push(texture);
+    this.pendingLoads.push(pendingLoad);
     return texture;
   }
 
@@ -72,6 +85,13 @@ export class SurfaceTextureStore {
       depthWrite: !(options.transparent ?? false),
       side: THREE.DoubleSide,
     });
+  }
+
+  async whenReady(): Promise<void> {
+    await Promise.all(this.pendingLoads);
+    if (this.loadErrors.length > 0) {
+      throw new Error(this.loadErrors.join(' '));
+    }
   }
 
   track(texture: THREE.Texture): void {

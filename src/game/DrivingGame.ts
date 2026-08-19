@@ -19,7 +19,11 @@ import {
 } from "./sceneAssets";
 import type { SceneLighting } from "./sceneAssets";
 import type { ControlInput, GamePhase, GameSnapshot } from "./types";
-import { DEFAULT_CAR_MODEL_ID, VehicleAssets } from "./vehicleAssets";
+import {
+  DEFAULT_CAR_MODEL_ID,
+  selectCarModelIds,
+  VehicleAssets,
+} from "./vehicleAssets";
 import type { CarModelId, LoadedCarModel } from "./vehicleAssets";
 
 interface TrafficCar {
@@ -55,6 +59,7 @@ export class DrivingGame {
   private readonly lighting: SceneLighting;
   private readonly textureStore: SurfaceTextureStore;
   private readonly sceneryAssets: SceneryAssets;
+  private readonly sceneAssetsReady: Promise<void>;
   private readonly fenceSlots: Array<{ distance: number; side: -1 | 1 }> = [];
   private readonly fencePostGeometry = new THREE.BoxGeometry(0.2, 1.15, 0.2);
   private readonly fenceRailGeometry = new THREE.BoxGeometry(0.16, 0.17, 9.7);
@@ -82,6 +87,7 @@ export class DrivingGame {
   private driverCar: CarModelId = DEFAULT_CAR_MODEL_ID;
   private carModelsPromise?: Promise<LoadedCarModel[]>;
   private carModelsApplied = false;
+  private sceneAssetsLoaded = false;
   private lastSnapshot = 0;
   private animationFrame = 0;
 
@@ -261,8 +267,15 @@ export class DrivingGame {
 
     this.lighting = addSceneLighting(this.scene);
     this.setupWorld();
-    this.sceneryAssets.loadNature(this.scenery);
-    this.sceneryAssets.loadMountains(this.mountains);
+    const natureReady = this.sceneryAssets.loadNature(this.scenery);
+    const mountainsReady = this.sceneryAssets.loadMountains(this.mountains);
+    this.sceneAssetsReady = Promise.all([
+      this.textureStore.whenReady(),
+      natureReady,
+      mountainsReady,
+    ]).then(() => {
+      this.sceneAssetsLoaded = true;
+    });
     this.scene.add(this.player);
     this.resize();
     window.addEventListener("resize", this.resize);
@@ -270,6 +283,9 @@ export class DrivingGame {
   }
 
   start(): void {
+    if (!this.sceneAssetsLoaded || !this.carModelsApplied) {
+      throw new Error("The game cannot start before all required assets load.");
+    }
     if (this.phase === "crashed") this.reset();
     this.phase = "playing";
     this.clock.getDelta();
@@ -320,6 +336,10 @@ export class DrivingGame {
 
   getPhase(): GamePhase {
     return this.phase;
+  }
+
+  whenReady(): Promise<void> {
+    return this.sceneAssetsReady;
   }
 
   async setCars(
@@ -434,17 +454,21 @@ export class DrivingGame {
       modelCount,
     );
     const available = await this.carModelsPromise;
-    if (available.length === 0) return;
+    const expectedModelCount = selectCarModelIds(driverCar, modelCount).length;
+    if (available.length !== expectedModelCount) {
+      throw new Error("One or more selected car models could not be loaded.");
+    }
 
     const playerModel = available.find((model) => model.playerPrototype);
-    if (playerModel?.playerPrototype) {
-      this.vehicleAssets.replaceVisual(
-        this.player,
-        playerModel.playerPrototype,
-        true,
-        playerModel.id,
-      );
+    if (!playerModel?.playerPrototype) {
+      throw new Error("The selected driver car could not be loaded.");
     }
+    this.vehicleAssets.replaceVisual(
+      this.player,
+      playerModel.playerPrototype,
+      true,
+      playerModel.id,
+    );
 
     const trafficStart = Math.floor(Math.random() * available.length);
     this.traffic.forEach((car, index) => {

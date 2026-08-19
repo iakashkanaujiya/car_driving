@@ -40,8 +40,8 @@ export class SceneryAssets {
     return group;
   }
 
-  loadNature(targets: readonly THREE.Group[]): void {
-    this.loadNatureModel(targets, {
+  loadNature(targets: readonly THREE.Group[]): Promise<void> {
+    return this.loadNatureModel(targets, {
       kind: 'pine-tree',
       path: PINE_TREE_MODEL_PATH,
       targetHeight: 11,
@@ -49,31 +49,23 @@ export class SceneryAssets {
     });
   }
 
-  private loadNatureModel(
+  private async loadNatureModel(
     targets: readonly THREE.Group[],
     options: NatureModelOptions,
-  ): void {
+  ): Promise<void> {
     const loader = new GLTFLoader();
-    loader.load(
+    const gltf = await loader.loadAsync(
       `${import.meta.env.BASE_URL}${options.path}`,
-      (gltf) => {
-        try {
-          const prototype = this.prepareNatureModel(gltf.scene, options);
-          if (options.kind === 'pine-tree') this.pineTreePrototype = prototype;
-
-          for (const object of targets) {
-            if (object.userData.kind === options.kind) {
-              object.clear();
-              object.add(prototype.clone(true));
-            }
-          }
-        } catch (error) {
-          console.error(`Could not prepare ${options.kind}.`, error);
-        }
-      },
-      undefined,
-      (error) => console.error(`Could not load ${options.kind}.`, error),
     );
+    const prototype = this.prepareNatureModel(gltf.scene, options);
+    if (options.kind === 'pine-tree') this.pineTreePrototype = prototype;
+
+    for (const object of targets) {
+      if (object.userData.kind === options.kind) {
+        object.clear();
+        object.add(prototype.clone(true));
+      }
+    }
   }
 
   private prepareNatureModel(
@@ -151,46 +143,38 @@ export class SceneryAssets {
     return prototype;
   }
 
-  loadMountains(targets: readonly THREE.Group[]): void {
+  async loadMountains(targets: readonly THREE.Group[]): Promise<void> {
     const loader = new GLTFLoader();
-    loader.load(
+    const gltf = await loader.loadAsync(
       `${import.meta.env.BASE_URL}great_mountain/landscape_mountain_optimized.glb`,
-      (gltf) => {
-        try {
-          gltf.scene.updateMatrixWorld(true);
-          const bounds = new THREE.Box3().setFromObject(gltf.scene);
-          const size = bounds.getSize(new THREE.Vector3());
-          const center = bounds.getCenter(new THREE.Vector3());
-          if (!Number.isFinite(size.y) || size.y <= 0) {
-            throw new Error('The mountain bounds could not be calculated.');
-          }
-
-          gltf.scene.traverse((object) => {
-            if (!(object instanceof THREE.Mesh)) return;
-            object.castShadow = false;
-            object.receiveShadow = false;
-          });
-
-          const content = new THREE.Group();
-          content.position.set(-center.x, -bounds.min.y, -center.z);
-          content.add(gltf.scene);
-
-          const prototype = new THREE.Group();
-          prototype.scale.setScalar(85 / size.y);
-          prototype.add(content);
-          this.greatMountainPrototype = prototype;
-
-          for (const mountain of targets) {
-            mountain.clear();
-            mountain.add(prototype.clone(true));
-          }
-        } catch (error) {
-          console.error('Could not prepare the great mountain model.', error);
-        }
-      },
-      undefined,
-      (error) => console.error('Could not load the great mountain model.', error),
     );
+    gltf.scene.updateMatrixWorld(true);
+    const bounds = new THREE.Box3().setFromObject(gltf.scene);
+    const size = bounds.getSize(new THREE.Vector3());
+    const center = bounds.getCenter(new THREE.Vector3());
+    if (!Number.isFinite(size.y) || size.y <= 0) {
+      throw new Error('The mountain bounds could not be calculated.');
+    }
+
+    gltf.scene.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      object.castShadow = false;
+      object.receiveShadow = false;
+    });
+
+    const content = new THREE.Group();
+    content.position.set(-center.x, -bounds.min.y, -center.z);
+    content.add(gltf.scene);
+
+    const prototype = new THREE.Group();
+    prototype.scale.setScalar(85 / size.y);
+    prototype.add(content);
+    this.greatMountainPrototype = prototype;
+
+    for (const mountain of targets) {
+      mountain.clear();
+      mountain.add(prototype.clone(true));
+    }
   }
 
 }

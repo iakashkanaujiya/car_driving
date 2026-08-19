@@ -322,6 +322,13 @@ const game = new DrivingGame(viewport, getControl, (snapshot) => {
   byId('steer-indicator').style.left = `${50 + steering * 46}%`;
   engineSound.update(snapshot.speedKph);
 }, () => showCrash(), () => engineSound.hornThreeTimes());
+const sceneAssetsReady = game.whenReady().then(
+  () => true,
+  (error) => {
+    console.error('Could not load all scene assets.', error);
+    return false;
+  },
+);
 
 let realCarAssetsReady = installRealCarAssets();
 
@@ -426,25 +433,48 @@ byId<HTMLSelectElement>('car-model-count').addEventListener('change', (event) =>
   selectedCarModelCount = Number((event.currentTarget as HTMLSelectElement).value);
 });
 
-async function prepareSelectedCars(button?: HTMLButtonElement): Promise<void> {
+async function prepareSelectedCars(button?: HTMLButtonElement): Promise<boolean> {
   const originalContent = button?.innerHTML;
   if (button) {
     button.disabled = true;
-    button.textContent = 'LOADING CARS…';
+    button.textContent = 'LOADING GAME...';
   }
   try {
-    await realCarAssetsReady;
+    const [carAssetsAvailable, sceneAvailable] = await Promise.all([
+      realCarAssetsReady,
+      sceneAssetsReady,
+    ]);
+    if (!carAssetsAvailable || !sceneAvailable) {
+      throw new Error('Required game assets are unavailable.');
+    }
     await game.setCars(
       selectedDriverCar,
       selectedTrafficCount,
       selectedCarModelCount,
     );
+    return true;
+  } catch (error) {
+    console.error('Could not prepare the game.', error);
+    showGameLoadError();
+    return false;
   } finally {
     if (button && originalContent !== undefined) {
       button.innerHTML = originalContent;
       button.disabled = false;
     }
   }
+}
+
+function showGameLoadError(): void {
+  overlay.classList.remove('is-hidden');
+  overlay.innerHTML = `
+    <div class="modal compact-modal">
+      <div class="eyebrow danger"><span></span> LOADING INTERRUPTED</div>
+      <h2>ASSETS NOT READY.</h2>
+      <p>The game will not start until every required texture and model has loaded. Check your connection and try again.</p>
+      <button id="reload-game" class="secondary-button">RELOAD GAME</button>
+    </div>`;
+  byId('reload-game').addEventListener('click', () => window.location.reload());
 }
 
 function setTracking(text: string, state: 'ok' | 'warn' | 'off' = 'off'): void {
@@ -493,7 +523,7 @@ function showCrash(): void {
 }
 
 byId<HTMLButtonElement>('camera-start').addEventListener('click', async (event) => {
-  await prepareSelectedCars(event.currentTarget as HTMLButtonElement);
+  if (!(await prepareSelectedCars(event.currentTarget as HTMLButtonElement))) return;
   mode = 'hands';
   engineSound.start();
   cameraShell.classList.remove('is-offline', 'is-hidden');
@@ -548,7 +578,7 @@ byId<HTMLButtonElement>('camera-start').addEventListener('click', async (event) 
 
 async function useKeyboard(): Promise<void> {
   const startButton = document.getElementById('keyboard-start') as HTMLButtonElement | null;
-  await prepareSelectedCars(startButton ?? undefined);
+  if (!(await prepareSelectedCars(startButton ?? undefined))) return;
   mode = 'keyboard';
   handController?.stop();
   cameraShell.classList.remove('is-calibrating');
