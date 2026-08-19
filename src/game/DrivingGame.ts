@@ -106,7 +106,7 @@ export class DrivingGame {
       powerPreference: "high-performance",
     });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
-    this.renderer.setSize(container.clientWidth, container.clientHeight);
+    this.renderer.setSize(container.clientWidth, container.clientHeight, false);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -336,6 +336,10 @@ export class DrivingGame {
 
   getPhase(): GamePhase {
     return this.phase;
+  }
+
+  refreshViewport(): void {
+    this.resize();
   }
 
   whenReady(): Promise<void> {

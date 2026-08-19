@@ -693,6 +693,9 @@ document.addEventListener('fullscreenchange', () => {
   fullscreenButton.textContent = active ? 'EXIT FULL SCREEN' : 'FULL SCREEN';
   fullscreenButton.setAttribute('aria-label', active ? 'Exit full screen' : 'Enter full screen');
   fullscreenButton.setAttribute('aria-pressed', active.toString());
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => game?.refreshViewport());
+  });
 });
 
 window.addEventListener('keydown', (event) => {
