@@ -10,6 +10,14 @@ export interface SurfaceMaterialOptions {
   alphaTest?: number;
 }
 
+export interface SceneLighting {
+  sun: THREE.DirectionalLight;
+  target: THREE.Object3D;
+  visual: THREE.Group;
+}
+
+const SUN_SHADOW_OFFSET = new THREE.Vector3(-45, 75, 30);
+
 export class SurfaceTextureStore {
   private readonly textures: THREE.Texture[] = [];
 
@@ -76,19 +84,24 @@ export class SurfaceTextureStore {
   }
 }
 
-export function addSceneLighting(scene: THREE.Scene): THREE.Group {
-  const hemisphere = new THREE.HemisphereLight(0xdaf7ff, 0x31442c, 2.3);
+export function addSceneLighting(scene: THREE.Scene): SceneLighting {
+  const hemisphere = new THREE.HemisphereLight(0xdaf7ff, 0x31442c, 1.55);
   scene.add(hemisphere);
 
   const sun = new THREE.DirectionalLight(0xfff1ce, 3.2);
-  sun.position.set(-45, 75, 30);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(1536, 1536);
-  sun.shadow.camera.left = -45;
-  sun.shadow.camera.right = 45;
-  sun.shadow.camera.top = 55;
-  sun.shadow.camera.bottom = -25;
-  scene.add(sun);
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.left = -38;
+  sun.shadow.camera.right = 38;
+  sun.shadow.camera.top = 48;
+  sun.shadow.camera.bottom = -32;
+  sun.shadow.camera.near = 1;
+  sun.shadow.camera.far = 180;
+  sun.shadow.bias = -0.00012;
+  sun.shadow.normalBias = 0.025;
+  const target = new THREE.Object3D();
+  sun.target = target;
+  scene.add(sun, target);
 
   const sunCanvas = document.createElement('canvas');
   sunCanvas.width = 256;
@@ -121,7 +134,17 @@ export function addSceneLighting(scene: THREE.Scene): THREE.Group {
     new THREE.MeshBasicMaterial({ color: 0xfff1a3, fog: false, depthTest: false }),
   ));
   scene.add(sunVisual);
-  return sunVisual;
+  const lighting = { sun, target, visual: sunVisual };
+  updateSceneShadow(lighting, new THREE.Vector3());
+  return lighting;
+}
+
+export function updateSceneShadow(
+  lighting: SceneLighting,
+  center: THREE.Vector3,
+): void {
+  lighting.target.position.copy(center);
+  lighting.sun.position.copy(center).add(SUN_SHADOW_OFFSET);
 }
 
 export function createCloudTexture(): THREE.CanvasTexture {

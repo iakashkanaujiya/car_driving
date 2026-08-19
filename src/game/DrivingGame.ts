@@ -14,7 +14,9 @@ import {
   addSceneLighting,
   createCloudTexture,
   SurfaceTextureStore,
+  updateSceneShadow,
 } from "./sceneAssets";
+import type { SceneLighting } from "./sceneAssets";
 import type { CarStyle, ControlInput, GamePhase, GameSnapshot } from "./types";
 import { DEFAULT_CAR_MODEL_ID, VehicleAssets } from "./vehicleAssets";
 import type { CarModelId, LoadedCarModel } from "./vehicleAssets";
@@ -47,7 +49,7 @@ export class DrivingGame {
   private readonly scenery: THREE.Group[] = [];
   private readonly mountains: THREE.Group[] = [];
   private readonly clouds: THREE.Sprite[] = [];
-  private readonly sunVisual: THREE.Group;
+  private readonly lighting: SceneLighting;
   private readonly textureStore: SurfaceTextureStore;
   private readonly sceneryAssets: SceneryAssets;
   private readonly fenceSlots: Array<{ distance: number; side: -1 | 1 }> = [];
@@ -204,7 +206,7 @@ export class DrivingGame {
     }
     this.scene.add(this.fencePosts, this.fenceRails);
 
-    this.sunVisual = addSceneLighting(this.scene);
+    this.lighting = addSceneLighting(this.scene);
     this.setupWorld();
     this.sceneryAssets.loadNature(this.scenery);
     this.sceneryAssets.loadMountains(this.mountains);
@@ -753,7 +755,7 @@ export class DrivingGame {
     }
 
     const sunDistance = this.distance + 350;
-    this.sunVisual.position.set(
+    this.lighting.visual.position.set(
       roadCenter(sunDistance) - 92,
       102,
       -sunDistance,
@@ -797,6 +799,10 @@ export class DrivingGame {
       0,
       -Math.cos(this.vehicleHeading),
     );
+    const shadowCenter = this.player.position
+      .clone()
+      .addScaledVector(forward, 32);
+    updateSceneShadow(this.lighting, shadowCenter);
     const desiredCamera = this.player.position
       .clone()
       .addScaledVector(forward, -10)
