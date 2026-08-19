@@ -68,4 +68,28 @@ describe('VehicleAssets wheel animation', () => {
     expect(wheel.roller.parent).toBe(wheel.steeringPivot);
   });
 
+  it('brightens and restores the concept car rear lights', () => {
+    const assets = new VehicleAssets();
+    const car = new THREE.Group();
+    const prototype = new THREE.Group();
+    const tailMaterial = new THREE.MeshStandardMaterial({ color: 0xe70001 });
+    tailMaterial.name = 'Material.010';
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(1, 0.1, 0.1), tailMaterial);
+    tail.name = 'concept-tail';
+    prototype.add(tail);
+
+    assets.replaceVisual(car, prototype, true, 'luxury-concept');
+    const preparedTail = car.getObjectByName('concept-tail') as THREE.Mesh;
+    const material = preparedTail.material as THREE.MeshStandardMaterial;
+    const restingIntensity = material.emissiveIntensity;
+
+    assets.setBrakeLights(car, true);
+    expect(material.emissiveIntensity).toBeGreaterThan(restingIntensity);
+    expect(material.emissive.getHex()).toBe(0xff0712);
+
+    assets.setBrakeLights(car, false);
+    expect(material.emissiveIntensity).toBeCloseTo(restingIntensity);
+    expect(material.emissive.getHex()).toBe(0x320003);
+  });
+
 });

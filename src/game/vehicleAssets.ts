@@ -19,6 +19,7 @@ interface CarModelSpec {
   displayScale: number;
   paintMaterials: readonly string[];
   rimMaterials?: readonly string[];
+  tailMaterials?: readonly string[];
   removePaintTexture?: boolean;
 }
 
@@ -43,6 +44,13 @@ interface CarLoftStation {
   halfWidth: number;
   bottom: number;
   top: number;
+}
+
+interface ModelBrakeLight {
+  material: THREE.MeshStandardMaterial;
+  restColor: number;
+  restEmissive: number;
+  restIntensity: number;
 }
 
 export interface LoadedCarModel {
@@ -87,6 +95,7 @@ const CONCEPT_MODEL_SPEC: CarModelSpec = {
   displayScale: CONCEPT_CAR_SCALE,
   paintMaterials: ["Material.003"],
   rimMaterials: ["Material.001"],
+  tailMaterials: ["Material.010"],
 };
 const MODEL_SPECS: readonly CarModelSpec[] = [
   ...REAL_MODEL_SPECS,
@@ -593,6 +602,7 @@ export class VehicleAssets {
       player ? DRIVER_CAR_COLOR : this.randomColor(),
       player,
     );
+    const modelBrakeLights = this.prepareModelBrakeLights(instance, modelId);
     instance.updateMatrixWorld(true);
     const modelBounds = new THREE.Box3().setFromObject(instance, true);
     car.add(instance);
@@ -602,6 +612,7 @@ export class VehicleAssets {
     car.userData.frontWheels = [];
     car.userData.animatedWheels = [];
     car.userData.tailMaterial = undefined;
+    car.userData.modelBrakeLights = modelBrakeLights;
     car.userData.brakeGlow = undefined;
     car.userData.highBrakeOnly = false;
 
@@ -633,6 +644,17 @@ export class VehicleAssets {
   }
 
   setBrakeLights(car: THREE.Group, braking: boolean): void {
+    const modelBrakeLights = car.userData.modelBrakeLights as
+      | ModelBrakeLight[]
+      | undefined;
+    for (const light of modelBrakeLights ?? []) {
+      light.material.color.setHex(braking ? 0xff2732 : light.restColor);
+      light.material.emissive.setHex(
+        braking ? 0xff0712 : light.restEmissive,
+      );
+      light.material.emissiveIntensity = braking ? 5.2 : light.restIntensity;
+    }
+
     const material = car.userData.tailMaterial as
       | THREE.MeshStandardMaterial
       | undefined;
@@ -955,6 +977,52 @@ export class VehicleAssets {
         ? object.material.map(tintMaterial)
         : tintMaterial(object.material);
     });
+  }
+
+  private prepareModelBrakeLights(
+    car: THREE.Group,
+    modelId: VehicleModelId,
+  ): ModelBrakeLight[] {
+    const modelSpec = MODEL_SPECS.find((spec) => spec.id === modelId);
+    const tailNames = new Set(modelSpec?.tailMaterials ?? []);
+    if (tailNames.size === 0) return [];
+
+    const materialClones = new Map<
+      THREE.MeshStandardMaterial,
+      ModelBrakeLight
+    >();
+    const prepareMaterial = (source: THREE.Material): THREE.Material => {
+      if (
+        !(source instanceof THREE.MeshStandardMaterial) ||
+        !tailNames.has(source.name)
+      ) {
+        return source;
+      }
+      const existing = materialClones.get(source);
+      if (existing) return existing.material;
+
+      const material = source.clone();
+      const light: ModelBrakeLight = {
+        material,
+        restColor: 0x8f1118,
+        restEmissive: 0x320003,
+        restIntensity: 0.85,
+      };
+      material.color.setHex(light.restColor);
+      material.emissive.setHex(light.restEmissive);
+      material.emissiveIntensity = light.restIntensity;
+      material.needsUpdate = true;
+      materialClones.set(source, light);
+      return material;
+    };
+
+    car.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      object.material = Array.isArray(object.material)
+        ? object.material.map(prepareMaterial)
+        : prepareMaterial(object.material);
+    });
+    return [...materialClones.values()];
   }
 
   private addHighMountedBrakeLight(car: THREE.Group, bounds: THREE.Box3): void {
