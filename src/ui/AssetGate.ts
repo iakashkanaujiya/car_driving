@@ -28,6 +28,8 @@ export class AssetGate {
     this.setApplicationLocked(true);
     this.root.classList.remove('is-hidden');
     this.root.dataset.state = 'loading';
+    this.title.textContent = 'GETTING ROAD READY';
+    this.message.textContent = 'Saving core game assets now for faster future starts.';
     this.retryButton.classList.add('is-hidden');
   }
 
@@ -69,20 +71,20 @@ export class AssetGate {
         this.detail.textContent = `${formatBytes(progress.loadedBytes)} / ${formatBytes(progress.totalBytes)} saved · ${progress.completedFiles} / ${progress.totalFiles} files`;
         break;
       case 'preparing':
-        this.title.innerHTML = 'GAME IS<br>LOADING.';
-        this.message.textContent = 'All files are cached. Preparing textures and scenery for the game...';
+        this.title.textContent = 'BUILDING THE ROAD';
+        this.message.textContent = 'Assets are saved. Preparing the world for your drive...';
         this.label.textContent = 'PREPARING GAME';
         this.detail.textContent = 'Decoding cached textures, trees, and mountain assets...';
         break;
       case 'ready':
-        this.title.innerHTML = 'GAME<br>READY.';
-        this.message.textContent = 'All required assets are stored and prepared.';
+        this.title.textContent = 'READY TO DRIVE';
+        this.message.textContent = 'Your road is ready and stored for future visits.';
         this.label.textContent = 'ASSETS READY';
         this.detail.textContent = `${formatBytes(progress.totalBytes)} saved in browser storage for future visits.`;
         break;
       default:
-        this.title.innerHTML = 'GAME LOAD<br>INTERRUPTED.';
-        this.message.textContent = 'The game stays locked until every required asset is safely downloaded.';
+        this.title.textContent = 'DOWNLOAD INTERRUPTED';
+        this.message.textContent = 'The required game assets could not be saved.';
         this.label.textContent = 'ASSET LOAD FAILED';
         this.percent.textContent = '!';
         this.loader.style.setProperty('--download-progress', '360deg');

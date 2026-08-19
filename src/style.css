@@ -172,17 +172,24 @@ h2 { font-size: clamp(50px, 7vw, 78px); color: var(--acid); }
 .asset-download[data-state='ready'] .asset-download-track i { background: var(--mint); box-shadow: 0 0 10px rgba(88,255,194,.58); }
 .asset-download[data-state='error'], .asset-download[data-state='unsupported'] { border-color: rgba(255,204,77,.34); }
 .asset-download[data-state='error'] .asset-download-track i, .asset-download[data-state='unsupported'] .asset-download-track i { background: #ffcc4d; box-shadow: none; }
-.asset-gate { position: absolute; z-index: 100; inset: 0; display: grid; place-items: center; padding: 18px; overflow: auto; background: radial-gradient(circle at 50% 46%, rgba(23,34,41,.94), rgba(3,6,8,.985)); backdrop-filter: blur(18px); transition: opacity .35s ease, visibility .35s ease; }
-.asset-gate-modal { max-width: 560px; }
-.asset-gate-modal h2 { font-size: clamp(46px, 8vw, 72px); }
-.asset-gate-modal > p { max-width: 460px; }
-.asset-loader { --download-progress: 0deg; width: 122px; height: 122px; margin: 20px auto; display: grid; place-items: center; position: relative; border-radius: 50%; background: conic-gradient(var(--acid) var(--download-progress), rgba(255,255,255,.09) 0); box-shadow: 0 0 35px rgba(233,255,66,.08); transition: background .15s linear; }
-.asset-loader::after { content: ''; position: absolute; inset: 7px; border-radius: 50%; background: #0b1116; box-shadow: inset 0 0 22px rgba(0,0,0,.62); }
-.asset-loader span { z-index: 1; color: var(--acid); font: 500 20px 'DM Mono', monospace; }
-.asset-gate .asset-download { margin: 0 0 18px; padding: 11px 13px; }
-.asset-gate .asset-download-head { justify-content: center; }
-.asset-gate .asset-download small { text-align: center; white-space: normal; }
-.asset-gate .secondary-button { min-width: 190px; }
+.asset-gate { position: absolute; z-index: 100; inset: 0; display: grid; place-items: end stretch; padding: 0 0 clamp(14px, 2.5vh, 24px); overflow: hidden; background: #030608; isolation: isolate; transition: opacity .35s ease, visibility .35s ease; }
+/* This lightweight poster paints independently of the larger cached game assets. */
+.asset-gate::before { content: ''; position: absolute; z-index: 1; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(3,6,8,0) 35%, rgba(3,6,8,.08) 62%, rgba(3,6,8,.56) 100%); }
+.asset-gate-poster { position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; opacity: .98; filter: saturate(.96) contrast(1.01); }
+.asset-gate-modal { z-index: 2; display: grid; grid-template-columns: minmax(260px, .75fr) minmax(420px, 1.25fr); align-items: center; gap: clamp(24px, 4vw, 64px); width: 100%; max-width: none; margin: 0; padding: 14px clamp(20px, 4vw, 58px); border-width: 1px 0 0; background: linear-gradient(90deg, rgba(6,11,15,.94), rgba(9,15,19,.84)); box-shadow: 0 -18px 50px rgba(0,0,0,.3); backdrop-filter: blur(14px); clip-path: none; text-align: left; }
+.asset-gate-modal::before { left: clamp(20px, 4vw, 58px); }
+.asset-gate-modal::after { display: none; }
+.asset-gate-copy .eyebrow { justify-content: flex-start; }
+.asset-gate-modal h2 { margin-top: 6px; font-size: clamp(25px, 2.5vw, 31px); line-height: .9; white-space: nowrap; }
+.asset-gate-copy > p { display: none; }
+.asset-gate-progress { display: grid; grid-template-columns: 58px minmax(0, 1fr); align-items: center; gap: 12px; width: 100%; max-width: 720px; min-width: 0; justify-self: end; }
+.asset-loader { --download-progress: 0deg; width: 58px; height: 58px; display: grid; place-items: center; position: relative; border-radius: 50%; background: conic-gradient(var(--acid) var(--download-progress), rgba(255,255,255,.09) 0); box-shadow: 0 0 35px rgba(233,255,66,.08); transition: background .15s linear; }
+.asset-loader::after { content: ''; position: absolute; inset: 5px; border-radius: 50%; background: #0b1116; box-shadow: inset 0 0 22px rgba(0,0,0,.62); }
+.asset-loader span { z-index: 1; color: var(--acid); font: 500 13px 'DM Mono', monospace; }
+.asset-gate .asset-download { min-width: 0; margin: 0; padding: 10px 12px; }
+.asset-gate .asset-download small { white-space: normal; }
+.asset-gate .secondary-button { grid-column: 1 / -1; min-width: 0; width: 100%; height: 38px; }
+.asset-gate .secondary-button.is-hidden { display: none; }
 .asset-gate[data-state='ready'] .asset-loader { background: var(--mint); box-shadow: 0 0 40px rgba(88,255,194,.16); }
 .asset-gate[data-state='ready'] .asset-loader span { color: var(--mint); }
 .asset-gate[data-state='error'] .asset-loader { background: #ff655d; box-shadow: 0 0 40px rgba(255,101,93,.14); }
@@ -267,6 +274,13 @@ h2 { font-size: clamp(50px, 7vw, 78px); color: var(--acid); }
   .speed-panel { left: 17px; bottom: 21px; width: 130px; }
   .speed-number > span { font-size: 47px; }
   .steer-meter, .assist { display: none; }
+  .asset-gate { place-items: end stretch; padding: 0 0 10px; }
+  .asset-gate-poster { object-position: center; }
+  .asset-gate-modal { grid-template-columns: minmax(100px, .65fr) minmax(180px, 1.35fr); gap: 10px; width: 100%; padding: 11px 14px; }
+  .asset-gate-modal::before { left: 14px; }
+  .asset-gate-modal h2 { font-size: clamp(19px, 5vw, 24px); white-space: normal; }
+  .asset-gate-progress { grid-template-columns: 46px minmax(0, 1fr); gap: 8px; }
+  .asset-loader { width: 46px; height: 46px; }
 }
 
 @media (max-width: 480px) {
@@ -279,6 +293,15 @@ h2 { font-size: clamp(50px, 7vw, 78px); color: var(--acid); }
   .instruction-row b { font-size: 20px; }
   .privacy { display: none; }
   .camera-shell.is-calibrating { right: 15px; bottom: 15px; width: min(230px, calc(100vw - 30px), 46vh); }
+  .asset-gate-modal { grid-template-columns: minmax(88px, .55fr) minmax(170px, 1.45fr); gap: 8px; padding: 9px 10px; }
+  .asset-gate-modal::before { left: 10px; }
+  .asset-gate-copy .eyebrow { font-size: 7px; letter-spacing: .1em; }
+  .asset-gate-modal h2 { font-size: 20px; }
+  .asset-gate-progress { grid-template-columns: 42px minmax(0, 1fr); gap: 7px; }
+  .asset-loader { width: 42px; height: 42px; }
+  .asset-loader span { font-size: 10px; }
+  .asset-gate .asset-download { padding: 7px 8px; }
+  .asset-gate .asset-download small { display: none; }
 }
 
 @media (max-height: 820px) and (min-width: 761px) {
@@ -294,6 +317,7 @@ h2 { font-size: clamp(50px, 7vw, 78px); color: var(--acid); }
   .primary-button, .secondary-button { height: 42px; }
   .privacy { margin-top: 9px; }
   .compact-modal { padding-block: 30px; }
+  .asset-gate-modal { padding-block: 14px; }
 }
 
 @media (max-height: 650px) and (min-width: 600px) {
@@ -312,6 +336,7 @@ h2 { font-size: clamp(50px, 7vw, 78px); color: var(--acid); }
   .camera-shell { width: min(230px, 38vw); bottom: 16px; right: 18px; }
   .camera-shell.is-calibrating { width: min(280px, 44vw, 56vh); }
   .compact-modal { padding-block: 24px; }
+  .asset-gate-modal { padding-block: 14px; }
 }
 
 @media (max-height: 520px) and (min-width: 600px) {
@@ -322,10 +347,10 @@ h2 { font-size: clamp(50px, 7vw, 78px); color: var(--acid); }
   .car-options { margin-bottom: 7px; }
   .modal-actions { flex-wrap: nowrap; }
   .primary-button, .secondary-button { height: 38px; }
-  .asset-gate-modal { padding-block: 17px; }
-  .asset-gate-modal h2 { font-size: 40px; }
-  .asset-gate-modal > p { margin-block: 8px; }
-  .asset-loader { width: 86px; height: 86px; margin-block: 9px; }
+  .asset-gate-modal { padding-block: 12px; }
+  .asset-gate-modal h2 { font-size: 26px; }
+  .asset-gate-copy > p { display: none; }
+  .asset-loader { width: 50px; height: 50px; }
 }
 
 @media (min-width: 761px) and (max-width: 1100px) {

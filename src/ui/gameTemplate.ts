@@ -7,6 +7,7 @@ import {
 
 /** Builds the static application shell. Dynamic overlays remain in the app controller. */
 export function createGameTemplate(): string {
+  const loadingPosterPath = `${import.meta.env.BASE_URL}images/driftline-poster-loading.webp`;
   const carOptions = CAR_MODEL_OPTIONS.map(({ id, label }) =>
     `<option value="${id}"${id === DEFAULT_CAR_MODEL_ID ? ' selected' : ''}>${label}</option>`,
   ).join('');
@@ -89,17 +90,22 @@ export function createGameTemplate(): string {
       </section>
 
       <section id="asset-gate" class="asset-gate" role="dialog" aria-modal="true" aria-labelledby="asset-gate-title">
-        <div class="modal compact-modal asset-gate-modal">
-          <div class="eyebrow"><span></span> GAME STARTUP</div>
-          <h2 id="asset-gate-title">GAME IS<br>LOADING.</h2>
-          <p id="asset-gate-message">Downloading and preparing the required game files. Future visits will load from browser storage.</p>
-          <div id="asset-loader" class="asset-loader" aria-hidden="true"><span id="asset-download-percent">0%</span></div>
-          <div id="asset-download" class="asset-download" data-state="checking" role="status" aria-live="polite">
-            <div class="asset-download-head"><span id="asset-download-label">CHECKING ASSETS</span></div>
-            <div class="asset-download-track"><i id="asset-download-fill"></i></div>
-            <small id="asset-download-detail">Checking browser storage...</small>
+        <img class="asset-gate-poster" src="${loadingPosterPath}" alt="" aria-hidden="true" decoding="async" fetchpriority="high">
+        <div class="modal asset-gate-modal">
+          <div class="asset-gate-copy">
+            <div class="eyebrow"><span></span> GAME STARTUP</div>
+            <h2 id="asset-gate-title">GETTING ROAD READY</h2>
+            <p id="asset-gate-message">Saving core game assets now for faster future starts.</p>
           </div>
-          <button id="asset-download-retry" class="secondary-button is-hidden" type="button">RETRY DOWNLOAD</button>
+          <div class="asset-gate-progress">
+            <div id="asset-loader" class="asset-loader" aria-hidden="true"><span id="asset-download-percent">0%</span></div>
+            <div id="asset-download" class="asset-download" data-state="checking" role="status" aria-live="polite">
+              <div class="asset-download-head"><span id="asset-download-label">CHECKING ASSETS</span></div>
+              <div class="asset-download-track"><i id="asset-download-fill"></i></div>
+              <small id="asset-download-detail">Checking browser storage...</small>
+            </div>
+            <button id="asset-download-retry" class="secondary-button is-hidden" type="button">RETRY DOWNLOAD</button>
+          </div>
         </div>
       </section>
 
