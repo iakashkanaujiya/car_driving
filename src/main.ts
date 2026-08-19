@@ -80,7 +80,7 @@ app.innerHTML = `
           <label>
             <span>TRAFFIC CARS</span>
             <select id="traffic-count" aria-label="Choose number of traffic cars">
-              ${TRAFFIC_COUNT_OPTIONS.map((count) => `<option value="${count}"${count === 16 ? ' selected' : ''}>${count === 0 ? 'NO TRAFFIC' : `${count} CARS`}</option>`).join('')}
+              ${TRAFFIC_COUNT_OPTIONS.map((count) => `<option value="${count}"${count === 4 ? ' selected' : ''}>${count === 0 ? 'NO TRAFFIC' : `${count} CARS`}</option>`).join('')}
             </select>
           </label>
           <label>
@@ -150,7 +150,7 @@ const keyboard = new KeyboardController();
 let lastSnapshot: GameSnapshot | null = null;
 let soundEnabled = true;
 let selectedDriverCar: CarModelId = DEFAULT_CAR_MODEL_ID;
-let selectedTrafficCount = 16;
+let selectedTrafficCount = 4;
 let selectedCarModelCount = 1;
 
 class EngineSound {
