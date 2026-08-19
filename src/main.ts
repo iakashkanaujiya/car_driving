@@ -3,7 +3,7 @@ import { HandController } from './controls/HandController';
 import { KeyboardController } from './controls/KeyboardController';
 import { DrivingGame } from './game/DrivingGame';
 import type { CarStyle, ControlMode, GameSnapshot } from './game/types';
-import { CAR_MODEL_OPTIONS } from './game/vehicleAssets';
+import { CAR_MODEL_OPTIONS, DEFAULT_CAR_MODEL_ID } from './game/vehicleAssets';
 import type { CarModelId } from './game/vehicleAssets';
 import { cacheRealCarAssets } from './services/carAssetCache';
 import type { CarAssetCacheProgress } from './services/carAssetCache';
@@ -81,7 +81,7 @@ app.innerHTML = `
           <label>
             <span>DRIVER CAR</span>
             <select id="driver-car" aria-label="Choose driver car" disabled>
-              ${CAR_MODEL_OPTIONS.map(({ id, label }) => `<option value="${id}"${id === 'bronco' ? ' selected' : ''}>${label}</option>`).join('')}
+              ${CAR_MODEL_OPTIONS.map(({ id, label }) => `<option value="${id}"${id === DEFAULT_CAR_MODEL_ID ? ' selected' : ''}>${label}</option>`).join('')}
             </select>
           </label>
           <label>
@@ -149,7 +149,7 @@ const keyboard = new KeyboardController();
 let lastSnapshot: GameSnapshot | null = null;
 let soundEnabled = true;
 let selectedCarStyle: CarStyle = 'cartoon';
-let selectedDriverCar: CarModelId = 'bronco';
+let selectedDriverCar: CarModelId = DEFAULT_CAR_MODEL_ID;
 let selectedTrafficCount = 16;
 
 class EngineSound {

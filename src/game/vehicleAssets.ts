@@ -2,27 +2,13 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
-export type CarModelId =
-  | "camaro"
-  | "golf"
-  | "audi-etron"
-  | "maybach"
-  | "audi-r8"
-  | "bmw-i8"
-  | "g-class"
-  | "creata"
-  | "bronco";
+export type CarModelId = "ford-everest-sport" | "ioniq-5";
+
+export const DEFAULT_CAR_MODEL_ID: CarModelId = "ioniq-5";
 
 export const CAR_MODEL_OPTIONS: readonly { id: CarModelId; label: string }[] = [
-  { id: "bronco", label: "Ford Bronco" },
-  { id: "g-class", label: "Mercedes G-Class" },
-  { id: "maybach", label: "Mercedes-Maybach S-Class" },
-  { id: "audi-etron", label: "Audi e-tron GT" },
-  { id: "audi-r8", label: "Audi R8 V10 GT" },
-  { id: "bmw-i8", label: "BMW i8" },
-  { id: "creata", label: "Hyundai Creta" },
-  { id: "camaro", label: "Chevrolet Camaro" },
-  { id: "golf", label: "Volkswagen Golf" },
+  { id: "ford-everest-sport", label: "2023 Ford Everest Sport" },
+  { id: "ioniq-5", label: "Hyundai Ioniq 5" },
 ];
 
 interface CarModelSpec {
@@ -77,70 +63,18 @@ const REAL_CAR_SCALE = 2;
 const CARTOON_CAR_SCALE = 1.55;
 const MODEL_SPECS: readonly CarModelSpec[] = [
   {
-    id: "camaro",
-    path: "models/1970_chevrolet_camaro/scene.gltf",
-    rotationY: Math.PI,
-    displayScale: 2.04,
-    paintMaterials: ["Paint6Mtl"],
-    removePaintTexture: true,
-  },
-  {
-    id: "golf",
-    path: "models/1976_volkswagen_golf/scene.gltf",
-    rotationY: Math.PI,
-    displayScale: 1.66,
-    paintMaterials: ["vM_CarPaint_Max1"],
-  },
-  {
-    id: "audi-etron",
-    path: "models/2018_audi_e-tron_gt_concept/scene.gltf",
-    rotationY: Math.PI,
-    displayScale: 1.95,
-    paintMaterials: ["CarPaint", "CarPaint_2"],
-  },
-  {
-    id: "maybach",
-    path: "models/2021_mercedes-benz_s-class_maybach/scene.gltf",
-    rotationY: Math.PI,
-    displayScale: 2.08,
-    paintMaterials: ["Mphong4SG1", "Mphong6SG1"],
-  },
-  {
-    id: "audi-r8",
-    path: "models/2023_audi_r8_coupe_v10_gt_rwd/scene.gltf",
-    rotationY: Math.PI,
-    displayScale: 1.8,
-    paintMaterials: [
-      "untitledAudi_R8V10GTRewardRecycled_2023Paint_Material1",
-    ],
-  },
-  {
-    id: "bmw-i8",
-    path: "models/bmw_i8/scene.gltf",
-    rotationY: Math.PI,
-    displayScale: 1.82,
-    paintMaterials: ["paint"],
-  },
-  {
-    id: "g-class",
-    path: "models/mercedes_benz_g-class_w263/scene.gltf",
+    id: "ford-everest-sport",
+    path: "models/ford_everest_sport_2023.glb",
     rotationY: Math.PI,
     displayScale: 2.05,
-    paintMaterials: ["Material.001"],
-  },
-  {
-    id: "creata",
-    path: "models/creata/scene.gltf",
-    rotationY: Math.PI,
-    displayScale: 1.88,
     paintMaterials: ["carpaint"],
   },
   {
-    id: "bronco",
-    path: "models/2021_ford_bronco_2-door/scene.gltf",
+    id: "ioniq-5",
+    path: "models/hyundai_ioniq_5_-_lowpoly.glb",
     rotationY: Math.PI,
-    displayScale: 1.92,
-    paintMaterials: ["BRDoors_XSG1", "BRTrunk_XSG1"],
+    displayScale: 1.9,
+    paintMaterials: ["M_Gravity_Gold_Matte"],
   },
 ];
 
@@ -636,14 +570,18 @@ export class VehicleAssets {
     const animatedWheels: AnimatedWheel[] = [];
     instance.traverse((object) => {
       if (object.userData.isWheelPivot !== true) return;
+      const roller = object.children.find(
+        (child) => child.userData.isWheelRoller === true,
+      );
+      if (!roller) return;
       const radius = (object.userData.wheelRadius as number) * car.scale.x;
       animatedWheels.push({
         steeringPivot: object,
-        roller: object,
+        roller,
         radius: Math.max(0.1, radius),
         front: object.userData.frontWheel === true,
         rollAxis: "x",
-        baseRoll: object.rotation.x,
+        baseRoll: roller.rotation.x,
         baseSteering: object.rotation.y,
         rollAngle: 0,
       });
@@ -765,9 +703,13 @@ export class VehicleAssets {
       pivot.position.copy(bounds.getCenter(new THREE.Vector3()));
       pivot.userData.isWheelPivot = true;
       pivot.userData.frontWheel = assembly.front;
+      const roller = new THREE.Group();
+      roller.name = `driving-wheel-roller-${index}`;
+      roller.userData.isWheelRoller = true;
+      pivot.add(roller);
       pivot.updateMatrixWorld(true);
-      for (const part of assembly.parts) pivot.attach(part);
-      this.mergeWheelMeshes(pivot);
+      for (const part of assembly.parts) roller.attach(part);
+      this.mergeWheelMeshes(roller);
       return pivot;
     });
   }
@@ -825,94 +767,54 @@ export class VehicleAssets {
     root: THREE.Group,
     modelId: CarModelId,
   ): WheelAssembly[] {
-    const exact = (names: readonly string[], frontNames: readonly string[]): WheelAssembly[] =>
-      names.flatMap((name) => {
-        const part = root.getObjectByName(name);
-        return part ? [{ parts: [part], front: frontNames.includes(name) }] : [];
-      });
+    const exact = (names: readonly string[]): WheelAssembly[] =>
+      this.groupWheelPartsByPosition(
+        root,
+        names.flatMap((name) => {
+          const part = root.getObjectByName(name);
+          return part ? [part] : [];
+        }),
+      );
 
-    if (modelId === "golf") {
-      return exact(["group1", "group2", "group3", "group4"], ["group1", "group2"]);
+    if (modelId === "ford-everest-sport") {
+      return exact(["WHEEL_RF", "WHEEL_RR", "WHEEL_LF", "WHEEL_LR"]);
     }
-    if (modelId === "audi-etron") {
-      root.updateMatrixWorld(true);
-      const groups = new Map<string, WheelAssembly>();
-      root.traverse((object) => {
-        if (
-          object.children.length === 0 ||
-          /STEERING/i.test(object.name) ||
-          !/(?:WHEEL|TYRE|ROTOR)/i.test(object.name)
-        ) return;
-        const center = new THREE.Box3()
-          .setFromObject(object, true)
-          .getCenter(new THREE.Vector3());
-        const front = center.z < 0;
-        const key = `${center.x < 0 ? "left" : "right"}-${
-          front ? "front" : "rear"
-        }`;
-        const assembly = groups.get(key);
-        if (assembly) assembly.parts.push(object);
-        else groups.set(key, { parts: [object], front });
-      });
-      return [...groups.values()];
-    }
-    if (modelId === "maybach") {
-      return exact(
-        [
-          "MM_Rim_Main_Max",
-          "M_Rim_Main_Max",
-          "M_Rim_Main_Max1",
-          "M_Rim_Main_Max2",
-        ],
-        ["MM_Rim_Main_Max", "M_Rim_Main_Max"],
-      );
-    }
-    if (modelId === "audi-r8") {
-      return exact(
-        [
-          "3DWheel_Front_L",
-          "3DWheel_Front_R",
-          "3DWheel_Rear_L",
-          "3DWheel_Rear_R",
-        ],
-        ["3DWheel_Front_L", "3DWheel_Front_R"],
-      );
-    }
-    if (modelId === "bmw-i8") {
-      return exact(["wheel", "wheel001", "wheel002"], ["wheel", "wheel002"]);
-    }
-    if (modelId === "g-class") {
-      return exact(
-        ["Circle001_8", "Circle002_9", "Circle003_10", "Circle004_11"],
-        ["Circle001_8", "Circle003_10"],
-      );
-    }
-    if (modelId === "creata") {
-      return ["FL", "FR", "RL", "RR"].map((corner) => {
-        const parts: THREE.Object3D[] = [];
-        root.traverse((object) => {
-          if (new RegExp(`^Wheel_A_${corner}_0[1-7]$`).test(object.name)) parts.push(object);
-        });
-        return { parts, front: corner.startsWith("F") };
-      }).filter((assembly) => assembly.parts.length > 0);
-    }
-    if (modelId === "bronco") {
-      const parts: THREE.Object3D[] = [];
-      root.traverse((object) => {
-        if (
-          object.children.length >= 3 &&
-          object.name.includes("Wheel_Stock") &&
-          object.name.includes("LOD0")
-        ) {
-          parts.push(object);
-        }
-      });
-      return parts.map((part) => ({
-        parts: [part],
-        front: /Wheel(?:FR|FL)/.test(part.name),
-      }));
+    if (modelId === "ioniq-5") {
+      return exact([
+        "SM_Wheel_BL_0",
+        "SM_Wheel_BR_1",
+        "SM_Wheel_FL_2",
+        "SM_Wheel_FR_3",
+      ]);
     }
     return [];
+  }
+
+  private groupWheelPartsByPosition(
+    root: THREE.Group,
+    parts: readonly THREE.Object3D[],
+  ): WheelAssembly[] {
+    if (parts.length === 0) return [];
+    root.updateMatrixWorld(true);
+    const modelCenter = new THREE.Box3()
+      .setFromObject(root, true)
+      .getCenter(new THREE.Vector3());
+    const groups = new Map<string, WheelAssembly>();
+
+    for (const part of new Set(parts)) {
+      const bounds = new THREE.Box3().setFromObject(part, true);
+      if (bounds.isEmpty()) continue;
+      const center = bounds.getCenter(new THREE.Vector3());
+      const front = center.z < modelCenter.z;
+      const key = `${center.x < modelCenter.x ? "left" : "right"}-${
+        front ? "front" : "rear"
+      }`;
+      const assembly = groups.get(key);
+      if (assembly) assembly.parts.push(part);
+      else groups.set(key, { parts: [part], front });
+    }
+
+    return [...groups.values()];
   }
 
   private mergeStaticCarMeshes(root: THREE.Group): THREE.Group {

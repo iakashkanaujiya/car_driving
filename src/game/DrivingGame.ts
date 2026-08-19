@@ -16,7 +16,7 @@ import {
   ForestTextureStore,
 } from "./sceneAssets";
 import type { CarStyle, ControlInput, GamePhase, GameSnapshot } from "./types";
-import { VehicleAssets } from "./vehicleAssets";
+import { DEFAULT_CAR_MODEL_ID, VehicleAssets } from "./vehicleAssets";
 import type { CarModelId, LoadedCarModel } from "./vehicleAssets";
 
 interface TrafficCar {
@@ -246,7 +246,7 @@ export class DrivingGame {
 
   async setCarStyle(
     style: CarStyle,
-    driverCar: CarModelId = "bronco",
+    driverCar: CarModelId = DEFAULT_CAR_MODEL_ID,
     trafficCount: number = GAME.trafficCount,
   ): Promise<void> {
     this.carStyle = style;

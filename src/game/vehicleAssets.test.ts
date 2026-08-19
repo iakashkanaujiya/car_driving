@@ -43,4 +43,29 @@ describe('VehicleAssets wheel animation', () => {
 
     expect(wheels.every((wheel) => wheel.roller.rotation.x < 0)).toBe(true);
   });
+
+  it('keeps real-car steering and rolling on separate transforms', () => {
+    const assets = new VehicleAssets();
+    const car = new THREE.Group();
+    const prototype = new THREE.Group();
+    const steeringPivot = new THREE.Group();
+    steeringPivot.userData.isWheelPivot = true;
+    steeringPivot.userData.frontWheel = true;
+    steeringPivot.userData.wheelRadius = 0.5;
+    const roller = new THREE.Group();
+    roller.userData.isWheelRoller = true;
+    roller.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1)));
+    steeringPivot.add(roller);
+    prototype.add(steeringPivot);
+
+    assets.replaceVisual(car, prototype, false, 'ioniq-5');
+    const [wheel] = car.userData.animatedWheels as Array<{
+      steeringPivot: THREE.Object3D;
+      roller: THREE.Object3D;
+    }>;
+
+    expect(wheel.steeringPivot).not.toBe(wheel.roller);
+    expect(wheel.roller.parent).toBe(wheel.steeringPivot);
+  });
+
 });
