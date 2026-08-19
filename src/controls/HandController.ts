@@ -1,7 +1,8 @@
 import { FilesetResolver, HandLandmarker, type HandLandmarkerResult } from '@mediapipe/tasks-vision';
 import { damp, steeringFromHands } from '../game/math';
 import type { ControlInput } from '../game/types';
-import type { HandPoint, HandTrackingResult, HandWorkerInput, HandWorkerOutput } from './handWorkerTypes';
+import { isClosedHand, isThumbUp } from './handGestures';
+import type { HandTrackingResult, HandWorkerInput, HandWorkerOutput } from './handWorkerTypes';
 
 type TrackingStatus = 'idle' | 'loading' | 'ready' | 'calibrating' | 'tracking' | 'lost' | 'error';
 const INFERENCE_INTERVAL_MS = 1000 / 24;
@@ -296,7 +297,8 @@ export class HandController {
       .map((landmarks, index) => ({
         landmarks,
         wrist: landmarks[0],
-        closed: this.isClosedHand(landmarks),
+        closed: isClosedHand(landmarks),
+        thumbUp: isThumbUp(landmarks),
         score: result.handednessScores[index] ?? 0.7,
       }))
       .sort((a, b) => a.wrist.x - b.wrist.x);
@@ -324,25 +326,14 @@ export class HandController {
     }
 
     const raw = -steeringFromHands(hands[0].wrist, hands[1].wrist, this.neutralAngle);
+    const braking = hands.every((hand) => hand.thumbUp);
     this.input = {
       steering: damp(this.input.steering, raw, 13, 1 / 30),
       confidence,
       active: true,
+      braking: braking ? true : undefined,
     };
     if (this.status !== 'tracking') this.setStatus('tracking');
-  }
-
-  private isClosedHand(landmarks: HandPoint[]): boolean {
-    const wrist = landmarks[0];
-    const tips = [8, 12, 16, 20];
-    const mcps = [5, 9, 13, 17];
-    let folded = 0;
-    for (let index = 0; index < tips.length; index += 1) {
-      const tipDistance = Math.hypot(landmarks[tips[index]].x - wrist.x, landmarks[tips[index]].y - wrist.y);
-      const mcpDistance = Math.hypot(landmarks[mcps[index]].x - wrist.x, landmarks[mcps[index]].y - wrist.y);
-      if (tipDistance < mcpDistance * 1.58) folded += 1;
-    }
-    return folded >= 3;
   }
 
   private circularAverage(values: number[]): number {

@@ -59,7 +59,7 @@ app.innerHTML = `
       <div class="modal intro-modal">
         <div class="eyebrow"><span></span> TWO-HAND DRIVING EXPERIENCE</div>
         <h1>YOUR HANDS.<br><em>YOUR ROAD.</em></h1>
-        <p class="lead">Grip an invisible wheel. Turn naturally. Your car handles the throttle and brakes while you own every curve.</p>
+        <p class="lead">Grip an invisible wheel. Turn naturally, and raise both thumbs to brake.</p>
         <div class="wheel-guide" aria-hidden="true">
           <div class="hand hand-left"><span></span><b>LEFT HAND</b></div>
           <div class="virtual-wheel"><span class="wheel-center"></span></div>
@@ -68,7 +68,7 @@ app.innerHTML = `
         <div class="instruction-row">
           <div><b>01</b><span>Allow camera<br>access</span></div>
           <div><b>02</b><span>Hold two closed<br>hands apart</span></div>
-          <div><b>03</b><span>Rotate them<br>to steer</span></div>
+          <div><b>03</b><span>Rotate to steer<br>thumbs up to brake</span></div>
         </div>
         <div id="car-options" class="car-options">
           <label>
@@ -555,7 +555,7 @@ byId<HTMLButtonElement>('camera-start').addEventListener('click', async (event) 
       setTracking('HANDS TRACKED', 'ok');
       cameraHint.textContent = 'STEERING ACTIVE';
       if (game.getPhase() !== 'playing' && !document.getElementById('begin-run')) {
-        showDriveReady('CALIBRATION LOCKED.', 'Turn your hands like a wheel. The car will manage its own speed and brake for traffic.');
+        showDriveReady('CALIBRATION LOCKED.', 'Turn your hands like a wheel. Raise both thumbs to brake; otherwise the car manages its own speed.');
       }
     } else if (status === 'lost') {
       setTracking('HANDS LOST', 'warn');
