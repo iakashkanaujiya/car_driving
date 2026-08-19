@@ -28,9 +28,9 @@ Real-car mode lets you select any of these vehicles as the driver car. Traffic r
 | 2023 Ford Everest Sport (default) | Yes | Yes |
 | Hyundai Ioniq 5 | Yes | Yes |
 
-Cartoon-car mode uses the game's lightweight procedural vehicle instead of downloaded GLB models. Real traffic can be configured for 4, 8, 12, or 16 cars.
+Concept-car mode uses the luxury concept GLB for both the driver and traffic. Real-car mode remains selectable, with traffic configurable for 4, 8, 12, or 16 cars.
 
-On the first visit, a setup popup keeps the game locked while it downloads approximately 18.4 MB of real-car models and embedded textures with live progress. These files are stored in the browser cache and reused on later visits. Interrupted downloads can be retried and resume from files that are already cached.
+On the first visit, a setup popup keeps the game locked while it downloads approximately 23 MB of car models and embedded textures with live progress. These files are stored in the browser cache and reused on later visits. Interrupted downloads can be retried and resume from files that are already cached.
 
 ## Controls
 

@@ -6,6 +6,7 @@ const projectRoot = process.cwd();
 const publicRoot = path.join(projectRoot, 'public');
 const modelsRoot = path.join(publicRoot, 'models');
 const activeModels = new Set([
+  'luxury_concept_car.glb',
   'ford_everest_sport_2023.glb',
   'hyundai_ioniq_5_-_lowpoly.glb',
 ]);
@@ -56,5 +57,5 @@ await writeFile(
 );
 
 console.log(
-  `Generated real-car cache manifest: ${assets.length} files, ${(totalBytes / 1024 / 1024).toFixed(1)} MB.`,
+  `Generated car cache manifest: ${assets.length} files, ${(totalBytes / 1024 / 1024).toFixed(1)} MB.`,
 );

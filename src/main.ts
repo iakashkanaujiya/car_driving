@@ -70,8 +70,8 @@ app.innerHTML = `
         </div>
         <div class="car-style-picker" role="group" aria-label="Choose car style">
           <span>CAR STYLE</span>
-          <button id="car-style-cartoon" class="car-style-option is-active" type="button" aria-pressed="true">
-            <strong>CARTOON CARS</strong><small>CLASSIC MODE</small>
+          <button id="car-style-concept" class="car-style-option is-active" type="button" aria-pressed="true">
+            <strong>CONCEPT CARS</strong><small>LUXURY MODEL</small>
           </button>
           <button id="car-style-real" class="car-style-option" type="button" aria-pressed="false">
             <strong>REAL CARS</strong><small>GLTF MODELS</small>
@@ -106,7 +106,7 @@ app.innerHTML = `
       <div class="modal compact-modal asset-gate-modal">
         <div class="eyebrow"><span></span> FIRST-TIME SETUP</div>
         <h2 id="asset-gate-title">PREPARING<br>YOUR GARAGE.</h2>
-        <p id="asset-gate-message">Keep this page open while the real-car models are saved securely in your browser.</p>
+        <p id="asset-gate-message">Keep this page open while the car models are saved securely in your browser.</p>
         <div id="asset-loader" class="asset-loader" aria-hidden="true">
           <span id="asset-download-percent">0%</span>
         </div>
@@ -148,7 +148,7 @@ let handController: HandController | null = null;
 const keyboard = new KeyboardController();
 let lastSnapshot: GameSnapshot | null = null;
 let soundEnabled = true;
-let selectedCarStyle: CarStyle = 'cartoon';
+let selectedCarStyle: CarStyle = 'concept';
 let selectedDriverCar: CarModelId = DEFAULT_CAR_MODEL_ID;
 let selectedTrafficCount = 16;
 
@@ -334,6 +334,7 @@ async function installRealCarAssets(): Promise<boolean> {
 
   const cached = await cacheRealCarAssets(updateCarAssetProgress);
   if (cached) {
+    await game.setCarStyle('concept');
     gate.dataset.state = 'ready';
     await new Promise<void>((resolve) => window.setTimeout(resolve, 450));
     gate.classList.add('is-hidden');
@@ -387,14 +388,14 @@ function updateCarAssetProgress(progress: CarAssetCacheProgress): void {
     label.textContent = 'CHECKING BROWSER STORAGE';
     detail.textContent = progress.totalFiles > 0
       ? `${progress.checkedFiles} / ${progress.totalFiles} files checked`
-      : 'Looking for previously downloaded real-car assets...';
+      : 'Looking for previously downloaded car assets...';
   } else if (progress.phase === 'downloading') {
-    label.textContent = 'DOWNLOADING REAL-CAR ASSETS';
+    label.textContent = 'DOWNLOADING CAR ASSETS';
     detail.textContent = `${formatBytes(progress.loadedBytes)} / ${formatBytes(progress.totalBytes)} saved · ${progress.completedFiles} / ${progress.totalFiles} files`;
   } else if (progress.phase === 'ready') {
     title.innerHTML = 'GARAGE<br>READY.';
-    messageNode.textContent = 'All real-car assets are stored. Opening the game...';
-    label.textContent = 'REAL-CAR ASSETS READY';
+    messageNode.textContent = 'All car assets are stored. Opening the game...';
+    label.textContent = 'CAR ASSETS READY';
     detail.textContent = `${formatBytes(progress.totalBytes)} saved in browser storage for future visits.`;
   } else {
     title.innerHTML = 'DOWNLOAD<br>INTERRUPTED.';
@@ -417,7 +418,7 @@ byId('asset-download-retry').addEventListener('click', () => {
 
 function selectCarStyle(style: CarStyle): void {
   selectedCarStyle = style;
-  for (const option of ['real', 'cartoon'] as const) {
+  for (const option of ['real', 'concept'] as const) {
     const button = byId<HTMLButtonElement>(`car-style-${option}`);
     const active = option === style;
     button.classList.toggle('is-active', active);
@@ -432,7 +433,7 @@ function selectCarStyle(style: CarStyle): void {
 }
 
 byId('car-style-real').addEventListener('click', () => selectCarStyle('real'));
-byId('car-style-cartoon').addEventListener('click', () => selectCarStyle('cartoon'));
+byId('car-style-concept').addEventListener('click', () => selectCarStyle('concept'));
 byId<HTMLSelectElement>('driver-car').addEventListener('change', (event) => {
   selectedDriverCar = (event.currentTarget as HTMLSelectElement).value as CarModelId;
 });
@@ -444,10 +445,10 @@ async function prepareSelectedCars(button?: HTMLButtonElement): Promise<void> {
   const originalContent = button?.innerHTML;
   if (button) {
     button.disabled = true;
-    button.textContent = selectedCarStyle === 'real' ? 'LOADING REAL CARS…' : 'PREPARING…';
+    button.textContent = selectedCarStyle === 'real' ? 'LOADING REAL CARS…' : 'LOADING CONCEPT CAR…';
   }
   try {
-    if (selectedCarStyle === 'real') await realCarAssetsReady;
+    await realCarAssetsReady;
     await game.setCarStyle(
       selectedCarStyle,
       selectedDriverCar,

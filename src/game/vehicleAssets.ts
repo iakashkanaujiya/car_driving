@@ -3,6 +3,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 export type CarModelId = "ford-everest-sport" | "ioniq-5";
+export type VehicleModelId = CarModelId | "luxury-concept";
 
 export const DEFAULT_CAR_MODEL_ID: CarModelId = "ioniq-5";
 
@@ -12,11 +13,12 @@ export const CAR_MODEL_OPTIONS: readonly { id: CarModelId; label: string }[] = [
 ];
 
 interface CarModelSpec {
-  id: CarModelId;
+  id: VehicleModelId;
   path: string;
   rotationY: number;
   displayScale: number;
   paintMaterials: readonly string[];
+  rimMaterials?: readonly string[];
   removePaintTexture?: boolean;
 }
 
@@ -44,7 +46,7 @@ interface CarLoftStation {
 }
 
 export interface LoadedCarModel {
-  id: CarModelId;
+  id: VehicleModelId;
   trafficPrototype: THREE.Group;
   playerPrototype?: THREE.Group;
 }
@@ -60,8 +62,9 @@ const CAR_COLORS = [
 ];
 const DRIVER_CAR_COLOR = 0xf5f7f4;
 const REAL_CAR_SCALE = 2;
-const CARTOON_CAR_SCALE = 1.55;
-const MODEL_SPECS: readonly CarModelSpec[] = [
+const PROCEDURAL_CAR_SCALE = 1.55;
+const CONCEPT_CAR_SCALE = 1.55;
+const REAL_MODEL_SPECS: readonly CarModelSpec[] = [
   {
     id: "ford-everest-sport",
     path: "models/ford_everest_sport_2023.glb",
@@ -76,6 +79,18 @@ const MODEL_SPECS: readonly CarModelSpec[] = [
     displayScale: 1.9,
     paintMaterials: ["M_Gravity_Gold_Matte"],
   },
+];
+const CONCEPT_MODEL_SPEC: CarModelSpec = {
+  id: "luxury-concept",
+  path: "models/luxury_concept_car.glb",
+  rotationY: Math.PI,
+  displayScale: CONCEPT_CAR_SCALE,
+  paintMaterials: ["Material.003"],
+  rimMaterials: ["Material.001"],
+};
+const MODEL_SPECS: readonly CarModelSpec[] = [
+  ...REAL_MODEL_SPECS,
+  CONCEPT_MODEL_SPEC,
 ];
 
 export class VehicleAssets {
@@ -316,7 +331,7 @@ export class VehicleAssets {
         animatedWheels.push({
           steeringPivot,
           roller,
-          radius: 0.44 * CARTOON_CAR_SCALE,
+          radius: 0.44 * PROCEDURAL_CAR_SCALE,
           front,
           rollAxis: "x",
           baseRoll: roller.rotation.x,
@@ -493,14 +508,14 @@ export class VehicleAssets {
       group.add(brakeGlow);
     }
 
-    group.scale.setScalar(CARTOON_CAR_SCALE);
+    group.scale.setScalar(PROCEDURAL_CAR_SCALE);
     return group;
   }
 
   async loadRealModels(playerModelId: CarModelId): Promise<LoadedCarModel[]> {
     const loader = new GLTFLoader();
     const loadedModels = await Promise.all(
-      MODEL_SPECS.map(async (spec): Promise<LoadedCarModel | null> => {
+      REAL_MODEL_SPECS.map(async (spec): Promise<LoadedCarModel | null> => {
         try {
           const gltf = await loader.loadAsync(
             `${import.meta.env.BASE_URL}${spec.path}`,
@@ -528,11 +543,34 @@ export class VehicleAssets {
     );
   }
 
+  async loadConceptModel(): Promise<LoadedCarModel | null> {
+    const loader = new GLTFLoader();
+    try {
+      const gltf = await loader.loadAsync(
+        `${import.meta.env.BASE_URL}${CONCEPT_MODEL_SPEC.path}`,
+      );
+      const prototype = this.prepareCarModel(
+        gltf.scene,
+        CONCEPT_MODEL_SPEC.rotationY,
+        true,
+        CONCEPT_MODEL_SPEC.id,
+      );
+      return {
+        id: CONCEPT_MODEL_SPEC.id,
+        trafficPrototype: prototype,
+        playerPrototype: prototype,
+      };
+    } catch (error) {
+      console.error("Could not load the luxury concept car model.", error);
+      return null;
+    }
+  }
+
   replaceVisual(
     car: THREE.Group,
     prototype: THREE.Group,
     player: boolean,
-    modelId: CarModelId,
+    modelId: VehicleModelId,
   ): void {
     const oldGeometries = new Set<THREE.BufferGeometry>();
     const oldMaterials = new Set<THREE.Material>();
@@ -622,7 +660,8 @@ export class VehicleAssets {
     if (!wheels) return;
 
     for (const wheel of wheels) {
-      wheel.rollAngle -= distanceMoved / wheel.radius;
+      wheel.rollAngle =
+        (wheel.rollAngle - distanceMoved / wheel.radius) % (Math.PI * 2);
       wheel.roller.rotation[wheel.rollAxis] = wheel.baseRoll + wheel.rollAngle;
       if (wheel.front) {
         wheel.steeringPivot.rotation.y = THREE.MathUtils.damp(
@@ -639,7 +678,7 @@ export class VehicleAssets {
     source: THREE.Group,
     rotationY: number,
     optimize: boolean,
-    modelId: CarModelId,
+    modelId: VehicleModelId,
   ): THREE.Group {
     const content = source.clone(true);
     const orientation = new THREE.Group();
@@ -690,7 +729,7 @@ export class VehicleAssets {
 
   private extractWheelPivots(
     root: THREE.Group,
-    modelId: CarModelId,
+    modelId: VehicleModelId,
   ): THREE.Group[] {
     const assemblies = this.findWheelAssemblies(root, modelId);
     root.updateMatrixWorld(true);
@@ -765,7 +804,7 @@ export class VehicleAssets {
 
   private findWheelAssemblies(
     root: THREE.Group,
-    modelId: CarModelId,
+    modelId: VehicleModelId,
   ): WheelAssembly[] {
     const exact = (names: readonly string[]): WheelAssembly[] =>
       this.groupWheelPartsByPosition(
@@ -785,6 +824,18 @@ export class VehicleAssets {
         "SM_Wheel_BR_1",
         "SM_Wheel_FL_2",
         "SM_Wheel_FR_3",
+      ]);
+    }
+    if (modelId === "luxury-concept") {
+      return exact([
+        "Circle002_1",
+        "Shape_IndexedFaceSet_2",
+        "Circle001_3",
+        "Shape_IndexedFaceSet001_4",
+        "Circle003_5",
+        "Shape_IndexedFaceSet002_6",
+        "Circle004_7",
+        "Shape_IndexedFaceSet003_8",
       ]);
     }
     return [];
@@ -855,31 +906,43 @@ export class VehicleAssets {
 
   private applyCarColor(
     car: THREE.Group,
-    modelId: CarModelId,
+    modelId: VehicleModelId,
     color: number,
     metallicFinish = false,
   ): void {
     const modelSpec = MODEL_SPECS.find((spec) => spec.id === modelId);
     if (!modelSpec) return;
     const paintNames = new Set(modelSpec.paintMaterials);
+    const rimNames = new Set(modelSpec.rimMaterials ?? []);
     const materialClones = new Map<THREE.Material, THREE.Material>();
     const tintMaterial = (source: THREE.Material): THREE.Material => {
-      if (!paintNames.has(source.name)) return source;
+      const isPaint = paintNames.has(source.name);
+      const isRim = rimNames.has(source.name);
+      if (!isPaint && !isRim) return source;
       const existing = materialClones.get(source);
       if (existing) return existing;
       const material = source.clone();
       if (material instanceof THREE.MeshStandardMaterial) {
-        material.color.setHex(color);
+        material.color.setHex(isRim ? 0xffffff : color);
         material.emissive.setHex(0x000000);
         material.emissiveMap = null;
-        if (modelSpec.removePaintTexture) material.map = null;
-        material.metalness = metallicFinish
-          ? 0.78
-          : Math.max(material.metalness, 0.48);
-        material.roughness = metallicFinish
-          ? 0.18
-          : Math.min(material.roughness, 0.32);
-        material.envMapIntensity = metallicFinish ? 1.35 : material.envMapIntensity;
+        if (isRim) {
+          material.map = null;
+          material.metalness = 0.7;
+          material.roughness = 0.2;
+          material.envMapIntensity = 1.4;
+        } else {
+          if (modelSpec.removePaintTexture) material.map = null;
+          material.metalness = metallicFinish
+            ? 0.78
+            : Math.max(material.metalness, 0.48);
+          material.roughness = metallicFinish
+            ? 0.18
+            : Math.min(material.roughness, 0.32);
+          material.envMapIntensity = metallicFinish
+            ? 1.35
+            : material.envMapIntensity;
+        }
         material.needsUpdate = true;
       }
       materialClones.set(source, material);

@@ -69,9 +69,11 @@ export class DrivingGame {
   private overtakes = 0;
   private assistMessage = "READY";
   private hornCooldown = 0;
-  private carStyle: CarStyle = "cartoon";
+  private carStyle: CarStyle = "concept";
   private carModelsPromise?: Promise<LoadedCarModel[]>;
+  private conceptModelPromise?: Promise<LoadedCarModel | null>;
   private realCarsApplied = false;
+  private conceptCarsApplied = false;
   private lastSnapshot = 0;
   private animationFrame = 0;
 
@@ -253,6 +255,8 @@ export class DrivingGame {
     if (style === "real") {
       this.setTrafficCount(trafficCount);
       await this.loadCarModels(driverCar);
+    } else {
+      await this.loadConceptCars();
     }
   }
 
@@ -391,6 +395,29 @@ export class DrivingGame {
     this.realCarsApplied = true;
   }
 
+  private async loadConceptCars(): Promise<void> {
+    if (this.conceptCarsApplied) return;
+    this.conceptModelPromise ??= this.vehicleAssets.loadConceptModel();
+    const model = await this.conceptModelPromise;
+    if (this.carStyle !== "concept" || !model?.playerPrototype) return;
+
+    this.vehicleAssets.replaceVisual(
+      this.player,
+      model.playerPrototype,
+      true,
+      model.id,
+    );
+    this.traffic.forEach((car) => {
+      this.vehicleAssets.replaceVisual(
+        car.mesh,
+        model.trafficPrototype,
+        false,
+        model.id,
+      );
+    });
+    this.conceptCarsApplied = true;
+  }
+
   private spawnTraffic(
     car: TrafficCar,
     ahead?: number,
@@ -424,11 +451,11 @@ export class DrivingGame {
     const collisionLength =
       this.carStyle === "real"
         ? GAME.collisionLength
-        : GAME.cartoonCollisionLength;
+        : GAME.conceptCollisionLength;
     const collisionWidth =
       this.carStyle === "real"
         ? GAME.collisionWidth
-        : GAME.cartoonCollisionWidth;
+        : GAME.conceptCollisionWidth;
     let targetSpeed = curveLimit;
     let leadDistance = Number.POSITIVE_INFINITY;
     let leadIsIncoming = false;
