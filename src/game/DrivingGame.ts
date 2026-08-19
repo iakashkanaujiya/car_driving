@@ -106,7 +106,7 @@ export class DrivingGame {
       "Dirt_Road_Bare_baseColor.png",
       "Dirt_Road_Bare_normal.png",
       "Dirt_Road_Bare_metallicRoughness.png",
-      { normalScale: 0.48, tint: 0x000000 },
+      { normalScale: 0.48, tint: 0xa8a39b },
     );
     const shoulderMaterial = this.textureStore.createMaterial(
       "Ground_Dirt_baseColor.jpeg",
@@ -126,7 +126,7 @@ export class DrivingGame {
       "Broken_Rocks_metallicRoughness.png",
       { normalScale: 0.5, tint: 0x8e8a7e },
     );
-    this.sceneryAssets = new SceneryAssets(this.textureStore, rockMaterial);
+    this.sceneryAssets = new SceneryAssets(rockMaterial);
     const fenceMaterial = new THREE.MeshStandardMaterial({
       color: 0x514431,
       map: this.textureStore.load("Wood_Fence_baseColor.png", true, 3, 1),
@@ -183,7 +183,7 @@ export class DrivingGame {
 
     this.sunVisual = addSceneLighting(this.scene);
     this.setupWorld();
-    this.sceneryAssets.loadTrees(this.scenery);
+    this.sceneryAssets.loadNature(this.scenery);
     this.sceneryAssets.loadMountains(this.mountains);
     this.scene.add(this.player);
     this.resize();
@@ -279,10 +279,9 @@ export class DrivingGame {
     }
 
     for (let index = 0; index < 44; index += 1) {
-      const object =
-        index % 5 === 0
-          ? this.sceneryAssets.createRock()
-          : this.sceneryAssets.createTree();
+      const object = index % 6 === 0
+        ? this.sceneryAssets.createRock()
+        : this.sceneryAssets.createTree();
       object.userData.slot = index;
       object.userData.distance = -45 + index * 12.5;
       object.userData.side = index % 2 === 0 ? -1 : 1;

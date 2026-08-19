@@ -1,22 +1,24 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { clamp } from './math';
-import type { ForestTextureStore } from './sceneAssets';
+
+interface NatureModelOptions {
+  kind: 'pine-tree';
+  path: string;
+  targetHeight: number;
+  castShadow: boolean;
+}
 
 export class SceneryAssets {
-  private mapleTreePrototype?: THREE.Group;
+  private pineTreePrototype?: THREE.Group;
   private greatMountainPrototype?: THREE.Group;
 
-  constructor(
-    private readonly textures: ForestTextureStore,
-    private readonly rockMaterial: THREE.MeshStandardMaterial,
-  ) {}
+  constructor(private readonly rockMaterial: THREE.MeshStandardMaterial) {}
 
   createTree(): THREE.Group {
     const group = new THREE.Group();
-    group.userData.kind = 'maple-tree';
-    if (this.mapleTreePrototype) group.add(this.mapleTreePrototype.clone(true));
+    group.userData.kind = 'pine-tree';
+    if (this.pineTreePrototype) group.add(this.pineTreePrototype.clone(true));
     return group;
   }
 
@@ -36,97 +38,120 @@ export class SceneryAssets {
     return group;
   }
 
-  loadTrees(targets: readonly THREE.Group[]): void {
+  loadNature(targets: readonly THREE.Group[]): void {
+    this.loadNatureModel(targets, {
+      kind: 'pine-tree',
+      path: 'tree/pine_tree.glb',
+      targetHeight: 11,
+      castShadow: true,
+    });
+  }
+
+  private loadNatureModel(
+    targets: readonly THREE.Group[],
+    options: NatureModelOptions,
+  ): void {
     const loader = new GLTFLoader();
     loader.load(
-      `${import.meta.env.BASE_URL}maple_tree/scene.gltf`,
+      `${import.meta.env.BASE_URL}${options.path}`,
       (gltf) => {
         try {
-          const sourceTree = gltf.scene.getObjectByName('instance_0');
-          if (!sourceTree) throw new Error('The maple tree root node was not found.');
-
-          gltf.scene.updateMatrixWorld(true);
-          const buckets = new Map<string, {
-            material: THREE.MeshStandardMaterial;
-            geometries: THREE.BufferGeometry[];
-          }>();
-
-          sourceTree.traverse((object) => {
-            if (!(object instanceof THREE.Mesh)) return;
-            const sourceMaterial = Array.isArray(object.material) ? object.material[0] : object.material;
-            const key = sourceMaterial.name || `material-${sourceMaterial.id}`;
-            let bucket = buckets.get(key);
-
-            if (!bucket) {
-              const material = sourceMaterial.clone() as THREE.MeshStandardMaterial;
-              material.metalness = 0;
-              material.roughness = key.includes('leaf') ? 0.88 : 0.96;
-              material.aoMap = null;
-              material.emissiveMap = null;
-              material.emissive?.set(0x000000);
-              if (key.includes('leaf')) {
-                material.side = THREE.DoubleSide;
-                material.map = material.map ? this.createCleanLeafTexture(material.map) : null;
-                material.alphaMap = null;
-                material.color.set(0x9ab08f);
-                material.alphaTest = 0.38;
-                material.transparent = false;
-                material.depthWrite = true;
-              }
-              bucket = { material, geometries: [] };
-              buckets.set(key, bucket);
-            }
-
-            const transformed = object.geometry.clone();
-            transformed.applyMatrix4(object.matrixWorld);
-            let geometry = transformed;
-            if (transformed.index) {
-              geometry = transformed.toNonIndexed();
-              transformed.dispose();
-            }
-            for (const attribute of Object.keys(geometry.attributes)) {
-              if (!['position', 'normal', 'uv'].includes(attribute)) geometry.deleteAttribute(attribute);
-            }
-            if (!geometry.getAttribute('normal')) geometry.computeVertexNormals();
-            bucket.geometries.push(geometry);
-          });
-
-          const content = new THREE.Group();
-          for (const bucket of buckets.values()) {
-            const merged = mergeGeometries(bucket.geometries, false);
-            bucket.geometries.forEach((geometry) => geometry.dispose());
-            if (!merged) continue;
-            merged.computeBoundingBox();
-            merged.computeBoundingSphere();
-            const mesh = new THREE.Mesh(merged, bucket.material);
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
-            content.add(mesh);
-          }
-
-          if (content.children.length === 0) throw new Error('The maple tree geometry could not be merged.');
-          const bounds = new THREE.Box3().setFromObject(content);
-          const size = bounds.getSize(new THREE.Vector3());
-          const center = bounds.getCenter(new THREE.Vector3());
-          content.position.set(-center.x, -bounds.min.y, -center.z);
-
-          const prototype = new THREE.Group();
-          prototype.scale.setScalar(10 / Math.max(1, size.y));
-          prototype.add(content);
-          this.mapleTreePrototype = prototype;
+          const prototype = this.prepareNatureModel(gltf.scene, options);
+          if (options.kind === 'pine-tree') this.pineTreePrototype = prototype;
 
           for (const object of targets) {
-            if (object.userData.kind !== 'maple-tree') continue;
-            object.clear();
-            object.add(prototype.clone(true));
+            if (object.userData.kind === options.kind) {
+              object.clear();
+              object.add(prototype.clone(true));
+            }
           }
         } catch (error) {
-          console.error('Could not prepare the maple tree model.', error);
+          console.error(`Could not prepare ${options.kind}.`, error);
         }
       },
       undefined,
-      (error) => console.error('Could not load the maple tree model.', error),
+      (error) => console.error(`Could not load ${options.kind}.`, error),
     );
+  }
+
+  private prepareNatureModel(
+    source: THREE.Group,
+    options: NatureModelOptions,
+  ): THREE.Group {
+    source.updateMatrixWorld(true);
+    const materialClones = new Map<THREE.Material, THREE.Material>();
+    const buckets = new Map<
+      string,
+      { material: THREE.Material; geometries: THREE.BufferGeometry[] }
+    >();
+
+    source.traverse((object) => {
+      if (!(object instanceof THREE.Mesh) || Array.isArray(object.material)) return;
+      const sourceMaterial = object.material;
+      const cachedMaterial = materialClones.get(sourceMaterial);
+      let material: THREE.Material;
+      if (cachedMaterial) {
+        material = cachedMaterial;
+      } else {
+        const clonedMaterial = sourceMaterial.clone();
+        if (clonedMaterial instanceof THREE.MeshStandardMaterial) {
+          clonedMaterial.metalness = 0;
+          clonedMaterial.roughness = Math.max(0.82, clonedMaterial.roughness);
+          clonedMaterial.emissiveMap = null;
+          clonedMaterial.emissive.setHex(0x000000);
+          if (clonedMaterial.alphaTest > 0) {
+            clonedMaterial.side = THREE.DoubleSide;
+            clonedMaterial.transparent = false;
+            clonedMaterial.depthWrite = true;
+          }
+        }
+        materialClones.set(sourceMaterial, clonedMaterial);
+        material = clonedMaterial;
+      }
+
+      const geometry = object.geometry.clone();
+      geometry.applyMatrix4(object.matrixWorld);
+      for (const attribute of Object.keys(geometry.attributes)) {
+        if (!['position', 'normal', 'uv', 'uv1'].includes(attribute)) {
+          geometry.deleteAttribute(attribute);
+        }
+      }
+      if (!geometry.getAttribute('normal')) geometry.computeVertexNormals();
+      const signature = Object.keys(geometry.attributes).sort().join(',');
+      const key = `${material.uuid}|${signature}|${geometry.index ? 'indexed' : 'plain'}`;
+      const bucket = buckets.get(key);
+      if (bucket) bucket.geometries.push(geometry);
+      else buckets.set(key, { material, geometries: [geometry] });
+    });
+
+    const content = new THREE.Group();
+    for (const bucket of buckets.values()) {
+      const merged = mergeGeometries(bucket.geometries, false);
+      bucket.geometries.forEach((geometry) => geometry.dispose());
+      if (!merged) continue;
+      merged.computeBoundingBox();
+      merged.computeBoundingSphere();
+      const mesh = new THREE.Mesh(merged, bucket.material);
+      mesh.castShadow = options.castShadow;
+      mesh.receiveShadow = true;
+      content.add(mesh);
+    }
+
+    if (content.children.length === 0) {
+      throw new Error(`${options.kind} contains no usable geometry.`);
+    }
+    const bounds = new THREE.Box3().setFromObject(content);
+    const size = bounds.getSize(new THREE.Vector3());
+    const center = bounds.getCenter(new THREE.Vector3());
+    if (!Number.isFinite(size.y) || size.y <= 0) {
+      throw new Error(`${options.kind} has invalid bounds.`);
+    }
+    content.position.set(-center.x, -bounds.min.y, -center.z);
+
+    const prototype = new THREE.Group();
+    prototype.scale.setScalar(options.targetHeight / size.y);
+    prototype.add(content);
+    return prototype;
   }
 
   loadMountains(targets: readonly THREE.Group[]): void {
@@ -178,48 +203,4 @@ export class SceneryAssets {
     );
   }
 
-  private createCleanLeafTexture(source: THREE.Texture): THREE.CanvasTexture | null {
-    const image = source.image as CanvasImageSource & { width?: number; height?: number };
-    const width = image?.width ?? 0;
-    const height = image?.height ?? 0;
-    if (!width || !height) return null;
-
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext('2d', { willReadFrequently: true });
-    if (!context) return null;
-
-    context.drawImage(image, 0, 0, width, height);
-    const pixels = context.getImageData(0, 0, width, height);
-    for (let index = 0; index < pixels.data.length; index += 4) {
-      const red = pixels.data[index];
-      const green = pixels.data[index + 1];
-      const blue = pixels.data[index + 2];
-      const minimum = Math.min(red, green, blue);
-      const maximum = Math.max(red, green, blue);
-      const neutralBackground = minimum > 150 && maximum - minimum < 46;
-      const alpha = neutralBackground ? clamp((210 - minimum) * 6, 0, 255) : 255;
-      if (alpha < 255) {
-        pixels.data[index] = 38;
-        pixels.data[index + 1] = 66;
-        pixels.data[index + 2] = 28;
-      }
-      pixels.data[index + 3] = alpha;
-    }
-    context.putImageData(pixels, 0, 0);
-
-    const cleanTexture = new THREE.CanvasTexture(canvas);
-    cleanTexture.colorSpace = source.colorSpace;
-    cleanTexture.flipY = source.flipY;
-    cleanTexture.wrapS = source.wrapS;
-    cleanTexture.wrapT = source.wrapT;
-    cleanTexture.magFilter = source.magFilter;
-    cleanTexture.minFilter = source.minFilter;
-    cleanTexture.anisotropy = source.anisotropy;
-    cleanTexture.channel = source.channel;
-    cleanTexture.needsUpdate = true;
-    this.textures.track(cleanTexture);
-    return cleanTexture;
-  }
 }
