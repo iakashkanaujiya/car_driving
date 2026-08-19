@@ -6,7 +6,7 @@ const projectRoot = process.cwd();
 const publicRoot = path.join(projectRoot, 'public');
 const modelsRoot = path.join(publicRoot, 'models');
 const activeModels = new Set([
-  'luxury_concept_car.glb',
+  '2018_audi_e-tron_gt_concept.glb',
   'ford_everest_sport_2023.glb',
   'hyundai_ioniq_5_-_lowpoly.glb',
 ]);

@@ -1,7 +1,11 @@
 {
-  "version": "f1ce3aa86b4f9680",
-  "totalBytes": 24078752,
+  "version": "7207af25acda09c8",
+  "totalBytes": 24674604,
   "assets": [
+    {
+      "path": "models/2018_audi_e-tron_gt_concept.glb",
+      "size": 5329624
+    },
     {
       "path": "models/ford_everest_sport_2023.glb",
       "size": 15607124
@@ -9,10 +13,6 @@
     {
       "path": "models/hyundai_ioniq_5_-_lowpoly.glb",
       "size": 3737856
-    },
-    {
-      "path": "models/luxury_concept_car.glb",
-      "size": 4733772
     }
   ]
 }

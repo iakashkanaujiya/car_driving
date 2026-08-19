@@ -68,12 +68,57 @@ describe('VehicleAssets wheel animation', () => {
     expect(wheel.roller.parent).toBe(wheel.steeringPivot);
   });
 
+  it('builds four rolling wheel assemblies from the Audi wheel materials', () => {
+    const assets = new VehicleAssets();
+    const source = new THREE.Group();
+    source.add(new THREE.Mesh(new THREE.BoxGeometry(4, 1, 8)));
+    const wheelMaterials = [
+      'gtVehicle_Exterior_mm_rotor_009',
+      'gtVehicle_Exterior_mm_wheel_009',
+      'gtVehicle_Exterior_mm_tyre_009',
+    ];
+
+    for (const x of [-2, 2]) {
+      for (const z of [-2.5, 2.5]) {
+        for (const materialName of wheelMaterials) {
+          const material = new THREE.MeshStandardMaterial();
+          material.name = materialName;
+          const part = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.5, 0.5, 0.25),
+            material,
+          );
+          part.position.set(x, 0, z);
+          source.add(part);
+        }
+      }
+    }
+
+    const prepareCarModel = (
+      assets as unknown as {
+        prepareCarModel: (
+          source: THREE.Group,
+          rotationY: number,
+          optimize: boolean,
+          modelId: 'luxury-concept',
+        ) => THREE.Group;
+      }
+    ).prepareCarModel.bind(assets);
+    const prototype = prepareCarModel(source, Math.PI, true, 'luxury-concept');
+    const wheels: THREE.Object3D[] = [];
+    prototype.traverse((object) => {
+      if (object.userData.isWheelPivot === true) wheels.push(object);
+    });
+
+    expect(wheels).toHaveLength(4);
+    expect(wheels.filter((wheel) => wheel.userData.frontWheel)).toHaveLength(2);
+  });
+
   it('brightens and restores the concept car rear lights', () => {
     const assets = new VehicleAssets();
     const car = new THREE.Group();
     const prototype = new THREE.Group();
     const tailMaterial = new THREE.MeshStandardMaterial({ color: 0xe70001 });
-    tailMaterial.name = 'Material.010';
+    tailMaterial.name = 'Emiss';
     const tail = new THREE.Mesh(new THREE.BoxGeometry(1, 0.1, 0.1), tailMaterial);
     tail.name = 'concept-tail';
     prototype.add(tail);
@@ -85,11 +130,12 @@ describe('VehicleAssets wheel animation', () => {
 
     assets.setBrakeLights(car, true);
     expect(material.emissiveIntensity).toBeGreaterThan(restingIntensity);
-    expect(material.emissive.getHex()).toBe(0xff0712);
+    expect(material.emissiveIntensity).toBe(8.5);
+    expect(material.emissive.getHex()).toBe(0xff0000);
 
     assets.setBrakeLights(car, false);
     expect(material.emissiveIntensity).toBeCloseTo(restingIntensity);
-    expect(material.emissive.getHex()).toBe(0x320003);
+    expect(material.emissive.getHex()).toBe(0x400000);
   });
 
   it('uses the Ford red-glass material as a working brake light', () => {

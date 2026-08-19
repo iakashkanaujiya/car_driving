@@ -19,7 +19,9 @@ interface CarModelSpec {
   displayScale: number;
   paintMaterials: readonly string[];
   rimMaterials?: readonly string[];
+  wheelMaterials?: readonly string[];
   tailMaterials?: readonly string[];
+  tailLightProfile?: Omit<ModelBrakeLight, "material">;
   preserveTailColor?: boolean;
   removePaintTexture?: boolean;
 }
@@ -97,12 +99,25 @@ const REAL_MODEL_SPECS: readonly CarModelSpec[] = [
 ];
 const CONCEPT_MODEL_SPEC: CarModelSpec = {
   id: "luxury-concept",
-  path: "models/luxury_concept_car.glb",
+  path: "models/2018_audi_e-tron_gt_concept.glb",
   rotationY: Math.PI,
   displayScale: CONCEPT_CAR_SCALE,
-  paintMaterials: ["Material.003"],
-  rimMaterials: ["Material.001"],
-  tailMaterials: ["Material.010"],
+  paintMaterials: ["CarPaint"],
+  rimMaterials: ["gtVehicle_Exterior_mm_wheel_009"],
+  wheelMaterials: [
+    "gtVehicle_Exterior_mm_rotor_009",
+    "gtVehicle_Exterior_mm_wheel_009",
+    "gtVehicle_Exterior_mm_tyre_009",
+  ],
+  tailMaterials: ["Emiss"],
+  tailLightProfile: {
+    restColor: 0xa80000,
+    restEmissive: 0x400000,
+    restIntensity: 1.2,
+    brakingColor: 0xff0000,
+    brakingEmissive: 0xff0000,
+    brakingIntensity: 8.5,
+  },
 };
 const MODEL_SPECS: readonly CarModelSpec[] = [
   ...REAL_MODEL_SPECS,
@@ -711,6 +726,7 @@ export class VehicleAssets {
     modelId: VehicleModelId,
   ): THREE.Group {
     const content = source.clone(true);
+    this.removeDisabledModelParts(content, modelId);
     const orientation = new THREE.Group();
     orientation.rotation.y = rotationY;
     orientation.add(content);
@@ -845,6 +861,24 @@ export class VehicleAssets {
         }),
       );
 
+    const modelSpec = MODEL_SPECS.find((spec) => spec.id === modelId);
+    const wheelMaterialNames = new Set(modelSpec?.wheelMaterials ?? []);
+    if (wheelMaterialNames.size > 0) {
+      const parts: THREE.Object3D[] = [];
+      root.traverse((object) => {
+        if (!(object instanceof THREE.Mesh)) return;
+        const materials = Array.isArray(object.material)
+          ? object.material
+          : [object.material];
+        if (
+          materials.some((material) => wheelMaterialNames.has(material.name))
+        ) {
+          parts.push(object);
+        }
+      });
+      return this.groupWheelPartsByPosition(root, parts);
+    }
+
     if (modelId === "ford-everest-sport") {
       return exact(["WHEEL_RF", "WHEEL_RR", "WHEEL_LF", "WHEEL_LR"]);
     }
@@ -856,19 +890,27 @@ export class VehicleAssets {
         "SM_Wheel_FR_3",
       ]);
     }
-    if (modelId === "luxury-concept") {
-      return exact([
-        "Circle002_1",
-        "Shape_IndexedFaceSet_2",
-        "Circle001_3",
-        "Shape_IndexedFaceSet001_4",
-        "Circle003_5",
-        "Shape_IndexedFaceSet002_6",
-        "Circle004_7",
-        "Shape_IndexedFaceSet003_8",
-      ]);
-    }
     return [];
+  }
+
+  private removeDisabledModelParts(
+    root: THREE.Group,
+    modelId: VehicleModelId,
+  ): void {
+    if (modelId !== "luxury-concept") return;
+
+    const highBrakeLights: THREE.Object3D[] = [];
+    root.traverse((object) => {
+      if (
+        object instanceof THREE.Mesh &&
+        object.name.includes("LOD_A_BRAKES_mm_lights") &&
+        !object.name.includes("BRAKES_LEFT") &&
+        !object.name.includes("BRAKES_RIGHT")
+      ) {
+        highBrakeLights.push(object);
+      }
+    });
+    highBrakeLights.forEach((light) => light.removeFromParent());
   }
 
   private groupWheelPartsByPosition(
@@ -958,6 +1000,8 @@ export class VehicleAssets {
         material.emissiveMap = null;
         if (isRim) {
           material.map = null;
+          material.metalnessMap = null;
+          material.roughnessMap = null;
           material.metalness = 0.7;
           material.roughness = 0.2;
           material.envMapIntensity = 1.4;
@@ -1011,8 +1055,7 @@ export class VehicleAssets {
 
       const material = source.clone();
       const preserveColor = modelSpec?.preserveTailColor === true;
-      const light: ModelBrakeLight = {
-        material,
+      const defaultProfile: Omit<ModelBrakeLight, "material"> = {
         restColor: preserveColor ? source.color.getHex() : 0x8f1118,
         restEmissive: preserveColor ? source.emissive.getHex() : 0x320003,
         restIntensity: preserveColor ? source.emissiveIntensity : 0.85,
@@ -1021,6 +1064,10 @@ export class VehicleAssets {
           ? source.emissive.getHex()
           : 0xff0712,
         brakingIntensity: preserveColor ? 3.2 : 5.2,
+      };
+      const light: ModelBrakeLight = {
+        material,
+        ...(modelSpec?.tailLightProfile ?? defaultProfile),
       };
       material.color.setHex(light.restColor);
       material.emissive.setHex(light.restEmissive);
