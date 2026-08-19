@@ -1,5 +1,7 @@
 # Driftline
 
+![Driftline game poster](public/images/driftline-poster.png)
+
 A stylized endless-driving game controlled by a two-hand virtual steering wheel. The browser tracks two closed hands locally, converts their angle into steering, and automatically manages acceleration and braking for curves and traffic.
 
 ## Run locally
