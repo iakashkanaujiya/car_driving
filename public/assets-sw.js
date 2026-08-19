@@ -1,42 +1,53 @@
-const CAR_CACHE_PREFIX = 'driftline-real-cars-';
+const ASSET_CACHE_PREFIX = 'driftline-assets-';
+const LEGACY_CACHE_PREFIXES = [
+  'driftline-core-game-',
+  'driftline-real-cars-',
+];
 const DOWNLOAD_CONCURRENCY = 3;
-let currentCarCacheName = null;
+let currentAssetCacheName = null;
 
 self.addEventListener('install', () => self.skipWaiting());
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil((async () => {
+    const cacheNames = await caches.keys();
+    currentAssetCacheName = cacheNames
+      .filter((name) => (
+        name.startsWith(ASSET_CACHE_PREFIX) ||
+        LEGACY_CACHE_PREFIXES.some((prefix) => name.startsWith(prefix))
+      ))
+      .at(-1) ?? null;
+    await self.clients.claim();
+  })());
 });
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (
     event.request.method !== 'GET' ||
-    url.origin !== self.location.origin ||
-    !url.pathname.includes('/models/')
+    url.origin !== self.location.origin
   ) return;
 
   event.respondWith((async () => {
-    if (currentCarCacheName) {
-      const currentCache = await caches.open(currentCarCacheName);
+    if (currentAssetCacheName) {
+      const currentCache = await caches.open(currentAssetCacheName);
       const currentMatch = await currentCache.match(event.request);
       if (currentMatch) return currentMatch;
     }
-    const storedResponse = await caches.match(event.request);
-    return storedResponse ?? fetch(event.request);
+    return fetch(event.request);
   })());
 });
 
 self.addEventListener('message', (event) => {
-  if (event.data?.type !== 'CACHE_CAR_ASSETS') return;
+  if (event.data?.type !== 'CACHE_ASSETS') return;
   const port = event.ports[0];
   if (!port) return;
-  event.waitUntil(cacheCarAssets(event.data, port));
+  event.waitUntil(cacheAssets(event.data, port));
 });
 
-async function cacheCarAssets(message, port) {
-  const cacheName = `${CAR_CACHE_PREFIX}${message.version}`;
-  currentCarCacheName = cacheName;
+async function cacheAssets(message, port) {
+  const cacheName = `${ASSET_CACHE_PREFIX}${message.version}`;
+  currentAssetCacheName = cacheName;
   const cache = await caches.open(cacheName);
   const assets = message.assets;
   const totalBytes = message.totalBytes;
@@ -121,7 +132,13 @@ async function cacheCarAssets(message, port) {
     const cacheNames = await caches.keys();
     await Promise.all(
       cacheNames
-        .filter((name) => name.startsWith(CAR_CACHE_PREFIX) && name !== cacheName)
+        .filter((name) => (
+          name !== cacheName &&
+          (
+            name.startsWith(ASSET_CACHE_PREFIX) ||
+            LEGACY_CACHE_PREFIXES.some((prefix) => name.startsWith(prefix))
+          )
+        ))
         .map((name) => caches.delete(name)),
     );
 

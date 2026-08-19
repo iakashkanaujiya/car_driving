@@ -6,8 +6,8 @@ import { DrivingGame } from './game/DrivingGame';
 import type { ControlMode, GameSnapshot } from './game/types';
 import { CAR_MODEL_OPTIONS, CAR_MODEL_VARIETY_OPTIONS, DEFAULT_CAR_MODEL_ID } from './game/vehicleAssets';
 import type { CarModelId } from './game/vehicleAssets';
-import { cacheRealCarAssets } from './services/carAssetCache';
-import type { CarAssetCacheProgress } from './services/carAssetCache';
+import { cacheAssets } from './services/assetCache';
+import type { AssetCacheProgress } from './services/assetCache';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) throw new Error('App root is missing');
@@ -101,15 +101,15 @@ app.innerHTML = `
 
     <section id="asset-gate" class="asset-gate" role="dialog" aria-modal="true" aria-labelledby="asset-gate-title">
       <div class="modal compact-modal asset-gate-modal">
-        <div class="eyebrow"><span></span> FIRST-TIME SETUP</div>
-        <h2 id="asset-gate-title">PREPARING<br>YOUR GARAGE.</h2>
-        <p id="asset-gate-message">Keep this page open while the car models are saved securely in your browser.</p>
+        <div class="eyebrow"><span></span> GAME STARTUP</div>
+        <h2 id="asset-gate-title">GAME IS<br>LOADING.</h2>
+        <p id="asset-gate-message">Downloading and preparing the required game files. Future visits will load from browser storage.</p>
         <div id="asset-loader" class="asset-loader" aria-hidden="true">
           <span id="asset-download-percent">0%</span>
         </div>
         <div id="asset-download" class="asset-download" data-state="checking" role="status" aria-live="polite">
           <div class="asset-download-head">
-            <span id="asset-download-label">CHECKING CAR ASSETS</span>
+            <span id="asset-download-label">CHECKING ASSETS</span>
           </div>
           <div class="asset-download-track"><i id="asset-download-fill"></i></div>
           <small id="asset-download-detail">Checking browser storage...</small>
@@ -310,29 +310,38 @@ const getControl = () => {
   return { ...keyboardInput, active: true };
 };
 
-const game = new DrivingGame(viewport, getControl, (snapshot) => {
-  lastSnapshot = snapshot;
-  byId('speed').textContent = Math.round(snapshot.speedKph).toString().padStart(3, '0');
-  byId('speed-fill').style.width = `${Math.min(100, snapshot.speedKph / 1.62)}%`;
-  byId('distance').innerHTML = `${(snapshot.distance / 1000).toFixed(2)} <small>KM</small>`;
-  byId('overtakes').textContent = snapshot.overtakes.toString();
-  byId('score').textContent = snapshot.score.toString().padStart(6, '0');
-  byId('assist').querySelector('span')!.textContent = snapshot.assistMessage;
-  const steering = getControl().steering;
-  byId('steer-indicator').style.left = `${50 + steering * 46}%`;
-  engineSound.update(snapshot.speedKph);
-}, () => showCrash(), () => engineSound.hornThreeTimes());
-const sceneAssetsReady = game.whenReady().then(
-  () => true,
-  (error) => {
-    console.error('Could not load all scene assets.', error);
-    return false;
+const createDrivingGame = (): DrivingGame => new DrivingGame(
+  viewport,
+  getControl,
+  (snapshot) => {
+    lastSnapshot = snapshot;
+    byId('speed').textContent = Math.round(snapshot.speedKph).toString().padStart(3, '0');
+    byId('speed-fill').style.width = `${Math.min(100, snapshot.speedKph / 1.62)}%`;
+    byId('distance').innerHTML = `${(snapshot.distance / 1000).toFixed(2)} <small>KM</small>`;
+    byId('overtakes').textContent = snapshot.overtakes.toString();
+    byId('score').textContent = snapshot.score.toString().padStart(6, '0');
+    byId('assist').querySelector('span')!.textContent = snapshot.assistMessage;
+    const steering = getControl().steering;
+    byId('steer-indicator').style.left = `${50 + steering * 46}%`;
+    engineSound.update(snapshot.speedKph);
   },
+  () => showCrash(),
+  () => engineSound.hornThreeTimes(),
 );
 
-let realCarAssetsReady = installRealCarAssets();
+let game!: DrivingGame;
+let sceneAssetsReady: Promise<boolean> = Promise.resolve(false);
+let latestAssetProgress: AssetCacheProgress = {
+  phase: 'checking',
+  loadedBytes: 0,
+  totalBytes: 0,
+  completedFiles: 0,
+  checkedFiles: 0,
+  totalFiles: 0,
+};
+let assetsReady = installAssets();
 
-async function installRealCarAssets(): Promise<boolean> {
+async function installAssets(): Promise<boolean> {
   const gate = byId<HTMLElement>('asset-gate');
   const retryButton = byId<HTMLButtonElement>('asset-download-retry');
   setGameLocked(true);
@@ -340,8 +349,40 @@ async function installRealCarAssets(): Promise<boolean> {
   gate.dataset.state = 'loading';
   retryButton.classList.add('is-hidden');
 
-  const cached = await cacheRealCarAssets(updateCarAssetProgress);
+  const cached = await cacheAssets(updateAssetProgress);
   if (cached) {
+    updateAssetProgress({
+      ...latestAssetProgress,
+      phase: 'preparing',
+      loadedBytes: latestAssetProgress.totalBytes,
+      completedFiles: latestAssetProgress.totalFiles,
+    });
+    if (!game) {
+      game = createDrivingGame();
+      sceneAssetsReady = game.whenReady().then(
+        () => true,
+        (error) => {
+          console.error('Could not prepare all scene assets.', error);
+          return false;
+        },
+      );
+    }
+    if (!(await sceneAssetsReady)) {
+      updateAssetProgress({
+        ...latestAssetProgress,
+        phase: 'error',
+        message: 'One or more cached scene assets could not be prepared.',
+      });
+      gate.dataset.state = 'error';
+      retryButton.classList.remove('is-hidden');
+      return false;
+    }
+    updateAssetProgress({
+      ...latestAssetProgress,
+      phase: 'ready',
+      loadedBytes: latestAssetProgress.totalBytes,
+      completedFiles: latestAssetProgress.totalFiles,
+    });
     gate.dataset.state = 'ready';
     await new Promise<void>((resolve) => window.setTimeout(resolve, 450));
     gate.classList.add('is-hidden');
@@ -363,7 +404,8 @@ function setGameLocked(locked: boolean): void {
   }
 }
 
-function updateCarAssetProgress(progress: CarAssetCacheProgress): void {
+function updateAssetProgress(progress: AssetCacheProgress): void {
+  latestAssetProgress = progress;
   const gate = document.getElementById('asset-gate');
   const title = document.getElementById('asset-gate-title');
   const messageNode = document.getElementById('asset-gate-message');
@@ -382,7 +424,7 @@ function updateCarAssetProgress(progress: CarAssetCacheProgress): void {
     ? progress.loadedBytes / progress.totalBytes
     : 0;
   const ratio = progress.phase === 'checking' ? checkingRatio : downloadRatio;
-  const percent = progress.phase === 'ready'
+  const percent = progress.phase === 'ready' || progress.phase === 'preparing'
     ? 100
     : Math.max(0, Math.min(99, Math.round(ratio * 100)));
 
@@ -395,19 +437,24 @@ function updateCarAssetProgress(progress: CarAssetCacheProgress): void {
     label.textContent = 'CHECKING BROWSER STORAGE';
     detail.textContent = progress.totalFiles > 0
       ? `${progress.checkedFiles} / ${progress.totalFiles} files checked`
-      : 'Looking for previously downloaded car assets...';
+      : 'Looking for previously downloaded assets...';
   } else if (progress.phase === 'downloading') {
-    label.textContent = 'DOWNLOADING CAR ASSETS';
+    label.textContent = 'DOWNLOADING ASSETS';
     detail.textContent = `${formatBytes(progress.loadedBytes)} / ${formatBytes(progress.totalBytes)} saved · ${progress.completedFiles} / ${progress.totalFiles} files`;
+  } else if (progress.phase === 'preparing') {
+    title.innerHTML = 'GAME IS<br>LOADING.';
+    messageNode.textContent = 'All files are cached. Preparing textures and scenery for the game...';
+    label.textContent = 'PREPARING GAME';
+    detail.textContent = 'Decoding cached textures, trees, and mountain assets...';
   } else if (progress.phase === 'ready') {
-    title.innerHTML = 'GARAGE<br>READY.';
-    messageNode.textContent = 'All car assets are stored. Opening the game...';
-    label.textContent = 'CAR ASSETS READY';
+    title.innerHTML = 'GAME<br>READY.';
+    messageNode.textContent = 'All required assets are stored and prepared.';
+    label.textContent = 'ASSETS READY';
     detail.textContent = `${formatBytes(progress.totalBytes)} saved in browser storage for future visits.`;
   } else {
-    title.innerHTML = 'DOWNLOAD<br>INTERRUPTED.';
+    title.innerHTML = 'GAME LOAD<br>INTERRUPTED.';
     messageNode.textContent = 'The game stays locked until every required asset is safely downloaded.';
-    label.textContent = 'ASSET DOWNLOAD FAILED';
+    label.textContent = 'ASSET LOAD FAILED';
     percentNode.textContent = '!';
     loader.style.setProperty('--download-progress', '360deg');
     detail.textContent = progress.message ?? 'Check your connection and available browser storage, then retry.';
@@ -420,7 +467,7 @@ function formatBytes(bytes: number): string {
 }
 
 byId('asset-download-retry').addEventListener('click', () => {
-  realCarAssetsReady = installRealCarAssets();
+  assetsReady = installAssets();
 });
 
 byId<HTMLSelectElement>('driver-car').addEventListener('change', (event) => {
@@ -440,12 +487,12 @@ async function prepareSelectedCars(button?: HTMLButtonElement): Promise<boolean>
     button.textContent = 'LOADING GAME...';
   }
   try {
-    const [carAssetsAvailable, sceneAvailable] = await Promise.all([
-      realCarAssetsReady,
+    const [assetsAvailable, sceneAvailable] = await Promise.all([
+      assetsReady,
       sceneAssetsReady,
     ]);
-    if (!carAssetsAvailable || !sceneAvailable) {
-      throw new Error('Required game assets are unavailable.');
+    if (!assetsAvailable || !sceneAvailable) {
+      throw new Error('Required assets are unavailable.');
     }
     await game.setCars(
       selectedDriverCar,
@@ -591,6 +638,7 @@ async function useKeyboard(): Promise<void> {
 byId('keyboard-start').addEventListener('click', useKeyboard);
 
 pauseButton.addEventListener('click', () => {
+  if (!game) return;
   if (game.getPhase() === 'playing') {
     game.pause();
     engineSound.setPlaying(false);
@@ -660,5 +708,5 @@ window.addEventListener('beforeunload', () => {
   handController?.stop();
   keyboard.dispose();
   engineSound.stop();
-  game.dispose();
+  game?.dispose();
 });

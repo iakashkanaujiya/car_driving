@@ -1,12 +1,13 @@
-export type CarAssetCachePhase =
+export type AssetCachePhase =
   | 'checking'
   | 'downloading'
+  | 'preparing'
   | 'ready'
   | 'unsupported'
   | 'error';
 
-export interface CarAssetCacheProgress {
-  phase: CarAssetCachePhase;
+export interface AssetCacheProgress {
+  phase: AssetCachePhase;
   loadedBytes: number;
   totalBytes: number;
   completedFiles: number;
@@ -16,13 +17,13 @@ export interface CarAssetCacheProgress {
   message?: string;
 }
 
-interface CarAssetManifest {
+interface AssetManifest {
   version: string;
   totalBytes: number;
   assets: Array<{ path: string; size: number }>;
 }
 
-interface WorkerProgressMessage extends CarAssetCacheProgress {
+interface WorkerProgressMessage extends AssetCacheProgress {
   type: 'progress';
 }
 
@@ -32,9 +33,9 @@ type WorkerMessage =
   | { type: 'error'; message: string };
 
 const emptyProgress = (
-  phase: CarAssetCachePhase,
+  phase: AssetCachePhase,
   message?: string,
-): CarAssetCacheProgress => ({
+): AssetCacheProgress => ({
   phase,
   loadedBytes: 0,
   totalBytes: 0,
@@ -44,8 +45,8 @@ const emptyProgress = (
   message,
 });
 
-export async function cacheRealCarAssets(
-  onProgress: (progress: CarAssetCacheProgress) => void,
+export async function cacheAssets(
+  onProgress: (progress: AssetCacheProgress) => void,
 ): Promise<boolean> {
   if (!('serviceWorker' in navigator) || !('caches' in window)) {
     onProgress(emptyProgress('unsupported', 'Browser storage is unavailable.'));
@@ -56,28 +57,26 @@ export async function cacheRealCarAssets(
     onProgress(emptyProgress('checking'));
     const baseUrl = new URL(import.meta.env.BASE_URL, window.location.href);
     const manifestResponse = await fetch(
-      new URL('car-assets-manifest.json', baseUrl),
+      new URL('assets-manifest.json', baseUrl),
       { cache: 'no-cache' },
     );
     if (!manifestResponse.ok) {
       throw new Error(`Asset manifest returned HTTP ${manifestResponse.status}.`);
     }
-    const manifest = await manifestResponse.json() as CarAssetManifest;
+    const manifest = await manifestResponse.json() as AssetManifest;
     if (!manifest.version || !manifest.assets.length || manifest.totalBytes <= 0) {
-      throw new Error('The real-car asset manifest is invalid.');
+      throw new Error('The asset manifest is invalid.');
     }
 
     void navigator.storage?.persist?.().catch(() => false);
-    await navigator.serviceWorker.register(
-      new URL('car-assets-sw.js', baseUrl),
+    const registration = await navigator.serviceWorker.register(
+      new URL('assets-sw.js', baseUrl),
       {
         scope: baseUrl.pathname,
         updateViaCache: 'none',
       },
     );
-    const registration = await navigator.serviceWorker.ready;
-    const worker = registration.active;
-    if (!worker) throw new Error('The asset storage worker did not activate.');
+    const worker = await waitForActiveWorker(registration);
 
     const assets = manifest.assets.map((asset) => ({
       ...asset,
@@ -102,7 +101,7 @@ export async function cacheRealCarAssets(
       };
       worker.postMessage(
         {
-          type: 'CACHE_CAR_ASSETS',
+          type: 'CACHE_ASSETS',
           version: manifest.version,
           totalBytes: manifest.totalBytes,
           assets,
@@ -117,7 +116,7 @@ export async function cacheRealCarAssets(
     return cached;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.warn('Real-car browser cache unavailable; using network loading.', error);
+    console.warn('Asset browser cache unavailable.', error);
     onProgress(emptyProgress('error', message));
     return false;
   }
@@ -131,4 +130,29 @@ async function waitForController(): Promise<void> {
       resolve();
     }, { once: true });
   });
+}
+
+async function waitForActiveWorker(
+  registration: ServiceWorkerRegistration,
+): Promise<ServiceWorker> {
+  const worker = registration.installing ?? registration.waiting ?? registration.active;
+  if (!worker) throw new Error('The asset storage worker did not install.');
+  if (worker.state === 'activated') return worker;
+
+  await new Promise<void>((resolve, reject) => {
+    const timeout = window.setTimeout(
+      () => reject(new Error('The asset storage worker activation timed out.')),
+      20_000,
+    );
+    worker.addEventListener('statechange', () => {
+      if (worker.state === 'activated') {
+        window.clearTimeout(timeout);
+        resolve();
+      } else if (worker.state === 'redundant') {
+        window.clearTimeout(timeout);
+        reject(new Error('The asset storage worker became redundant.'));
+      }
+    });
+  });
+  return registration.active ?? worker;
 }

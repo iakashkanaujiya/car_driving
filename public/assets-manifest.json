@@ -1,0 +1,66 @@
+{
+  "version": "45a3d4e014dd7f4f",
+  "totalBytes": 60955492,
+  "assets": [
+    {
+      "path": "great_mountain/landscape_mountain_optimized.glb",
+      "size": 9398084
+    },
+    {
+      "path": "models/2017_ford_f-150_raptor.glb",
+      "size": 7509664
+    },
+    {
+      "path": "models/2018_audi_e-tron_gt_concept.glb",
+      "size": 5329624
+    },
+    {
+      "path": "models/ford_everest_sport_2023.glb",
+      "size": 15607124
+    },
+    {
+      "path": "models/hyundai_ioniq_5_-_lowpoly.glb",
+      "size": 3737856
+    },
+    {
+      "path": "roads/textures/Grass02_baseColor.jpeg",
+      "size": 232651
+    },
+    {
+      "path": "roads/textures/Grass02_metallicRoughness.png",
+      "size": 367723
+    },
+    {
+      "path": "roads/textures/Grass02_normal.png",
+      "size": 2819287
+    },
+    {
+      "path": "roads/textures/RoadLines_baseColor.jpeg",
+      "size": 813035
+    },
+    {
+      "path": "roads/textures/RoadLines_metallicRoughness.png",
+      "size": 966878
+    },
+    {
+      "path": "roads/textures/RoadLines_normal.png",
+      "size": 10236295
+    },
+    {
+      "path": "roads/textures/Sidewalk01_baseColor.jpeg",
+      "size": 233280
+    },
+    {
+      "path": "roads/textures/Sidewalk01_metallicRoughness.png",
+      "size": 282171
+    },
+    {
+      "path": "roads/textures/Sidewalk01_normal.png",
+      "size": 1797896
+    },
+    {
+      "path": "tree/pine_tree_1.glb",
+      "size": 1623924
+    }
+  ]
+}
