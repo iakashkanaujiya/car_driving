@@ -25,12 +25,13 @@ Real-car mode lets you select any of these vehicles as the driver car. Traffic r
 
 | Vehicle | Driver car | Traffic car |
 | --- | :---: | :---: |
-| 2023 Ford Everest Sport (default) | Yes | Yes |
+| 2017 Ford F-150 Raptor (default) | Yes | Yes |
+| 2023 Ford Everest Sport | Yes | Yes |
 | Hyundai Ioniq 5 | Yes | Yes |
 
 Concept-car mode uses the 2018 Audi e-tron GT Concept for both the driver and traffic. Both car modes support 0, 4, 8, 12, or 16 traffic cars.
 
-On the first visit, a setup popup keeps the game locked while it downloads approximately 24 MB of car models and embedded textures with live progress. These files are stored in the browser cache and reused on later visits. Interrupted downloads can be retried and resume from files that are already cached.
+On the first visit, a setup popup keeps the game locked while it downloads approximately 31 MB of car models and embedded textures with live progress. These files are stored in the browser cache and reused on later visits. Interrupted downloads can be retried and resume from files that are already cached.
 
 ## Controls
 
@@ -51,6 +52,7 @@ The MediaPipe runtime and hand model are copied into `public/mediapipe` during `
 
 ## 3D asset credits
 
+- [2017 Ford F-150 Raptor](https://sketchfab.com/3d-models/2017-ford-f-150-raptor-2be278ef4dc94d9fa00fae8b33da8273) by [Ddiaz Design](https://sketchfab.com/ddiaz-design), licensed under [CC BY-NC-SA 4.0](http://creativecommons.org/licenses/by-nc-sa/4.0/).
 - [2023 Ford Everest Sport](https://sketchfab.com/3d-models/ford-everest-sport-2023-c37bec0353a94f90a3acbe09ceb3aecf) by [Asadawut.Kaewma](https://sketchfab.com/Asadawut.Kaewma), licensed under [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/).
 - [Hyundai Ioniq 5](https://sketchfab.com/3d-models/hyundai-ioniq-5-lowpoly-675e78311e8440d88714bd212cb7a8fb) by [andikapratamaw](https://sketchfab.com/andikapratamaw), licensed under [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/).
 - [2018 Audi e-tron GT Concept](https://sketchfab.com/3d-models/2018-audi-e-tron-gt-concept-e35726151c9e4a169c005d54509715fa) by [Ddiaz Design](https://sketchfab.com/ddiaz-design), licensed under [CC BY-NC-SA 4.0](http://creativecommons.org/licenses/by-nc-sa/4.0/).

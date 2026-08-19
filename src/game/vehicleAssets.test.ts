@@ -113,6 +113,50 @@ describe('VehicleAssets wheel animation', () => {
     expect(wheels.filter((wheel) => wheel.userData.frontWheel)).toHaveLength(2);
   });
 
+  it('uses all four normalized Raptor wheel groups', () => {
+    const assets = new VehicleAssets();
+    const source = new THREE.Group();
+    source.add(new THREE.Mesh(new THREE.BoxGeometry(4, 1, 8)));
+    for (const [name, x, z] of [
+      ['WHEEL_LF', 2, 2.5],
+      ['WHEEL_RF', -2, 2.5],
+      ['WHEEL_LR', 2, -2.5],
+      ['WHEEL_RR', -2, -2.5],
+    ] as const) {
+      const wheel = new THREE.Group();
+      wheel.name = name;
+      wheel.position.set(x, 0, z);
+      wheel.add(
+        new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.25)),
+      );
+      source.add(wheel);
+    }
+
+    const prepareCarModel = (
+      assets as unknown as {
+        prepareCarModel: (
+          source: THREE.Group,
+          rotationY: number,
+          optimize: boolean,
+          modelId: 'ford-f150-raptor',
+        ) => THREE.Group;
+      }
+    ).prepareCarModel.bind(assets);
+    const prototype = prepareCarModel(
+      source,
+      Math.PI,
+      true,
+      'ford-f150-raptor',
+    );
+    const wheels: THREE.Object3D[] = [];
+    prototype.traverse((object) => {
+      if (object.userData.isWheelPivot === true) wheels.push(object);
+    });
+
+    expect(wheels).toHaveLength(4);
+    expect(wheels.filter((wheel) => wheel.userData.frontWheel)).toHaveLength(2);
+  });
+
   it('brightens and restores the concept car rear lights', () => {
     const assets = new VehicleAssets();
     const car = new THREE.Group();

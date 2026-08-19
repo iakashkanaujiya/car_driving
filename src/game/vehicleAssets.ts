@@ -2,12 +2,16 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
-export type CarModelId = "ford-everest-sport" | "ioniq-5";
+export type CarModelId =
+  | "ford-f150-raptor"
+  | "ford-everest-sport"
+  | "ioniq-5";
 export type VehicleModelId = CarModelId | "luxury-concept";
 
-export const DEFAULT_CAR_MODEL_ID: CarModelId = "ioniq-5";
+export const DEFAULT_CAR_MODEL_ID: CarModelId = "ford-f150-raptor";
 
 export const CAR_MODEL_OPTIONS: readonly { id: CarModelId; label: string }[] = [
+  { id: "ford-f150-raptor", label: "2017 Ford F-150 Raptor" },
   { id: "ford-everest-sport", label: "2023 Ford Everest Sport" },
   { id: "ioniq-5", label: "Hyundai Ioniq 5" },
 ];
@@ -79,6 +83,14 @@ const REAL_CAR_SCALE = 2;
 const PROCEDURAL_CAR_SCALE = 1.55;
 const CONCEPT_CAR_SCALE = 2;
 const REAL_MODEL_SPECS: readonly CarModelSpec[] = [
+  {
+    id: "ford-f150-raptor",
+    path: "models/2017_ford_f-150_raptor.glb",
+    rotationY: Math.PI,
+    displayScale: 2.1,
+    paintMaterials: ["RaptorM_CarPaint_Max1"],
+    tailMaterials: ["RaptorM_LightGlass_Red_Low1"],
+  },
   {
     id: "ford-everest-sport",
     path: "models/ford_everest_sport_2023.glb",
@@ -879,7 +891,10 @@ export class VehicleAssets {
       return this.groupWheelPartsByPosition(root, parts);
     }
 
-    if (modelId === "ford-everest-sport") {
+    if (
+      modelId === "ford-f150-raptor" ||
+      modelId === "ford-everest-sport"
+    ) {
       return exact(["WHEEL_RF", "WHEEL_RR", "WHEEL_LF", "WHEEL_LR"]);
     }
     if (modelId === "ioniq-5") {
