@@ -4,7 +4,7 @@ import { KeyboardController } from './controls/KeyboardController';
 import { TRAFFIC_COUNT_OPTIONS } from './game/config';
 import { DrivingGame } from './game/DrivingGame';
 import type { ControlMode, GameSnapshot } from './game/types';
-import { CAR_MODEL_OPTIONS, DEFAULT_CAR_MODEL_ID } from './game/vehicleAssets';
+import { CAR_MODEL_OPTIONS, CAR_MODEL_VARIETY_OPTIONS, DEFAULT_CAR_MODEL_ID } from './game/vehicleAssets';
 import type { CarModelId } from './game/vehicleAssets';
 import { cacheRealCarAssets } from './services/carAssetCache';
 import type { CarAssetCacheProgress } from './services/carAssetCache';
@@ -83,8 +83,14 @@ app.innerHTML = `
               ${TRAFFIC_COUNT_OPTIONS.map((count) => `<option value="${count}"${count === 16 ? ' selected' : ''}>${count === 0 ? 'NO TRAFFIC' : `${count} CARS`}</option>`).join('')}
             </select>
           </label>
+          <label>
+            <span>CAR VARIETY</span>
+            <select id="car-model-count" aria-label="Choose number of different car models">
+              ${CAR_MODEL_VARIETY_OPTIONS.map((count) => `<option value="${count}"${count === 1 ? ' selected' : ''}>${count} ${count === 1 ? 'MODEL' : 'MODELS'}</option>`).join('')}
+            </select>
+          </label>
         </div>
-        <p class="traffic-performance-note"><i>!</i> Selecting more traffic cars may reduce frame rates on lower-powered devices.</p>
+        <p class="traffic-performance-note"><i>!</i> More traffic cars or model variety may reduce frame rates on lower-powered devices.</p>
         <div class="modal-actions">
           <button id="camera-start" class="primary-button"><span>START WITH HANDS</span><i>→</i></button>
           <button id="keyboard-start" class="secondary-button">USE KEYBOARD INSTEAD <small>WASD / ARROWS</small></button>
@@ -145,6 +151,7 @@ let lastSnapshot: GameSnapshot | null = null;
 let soundEnabled = true;
 let selectedDriverCar: CarModelId = DEFAULT_CAR_MODEL_ID;
 let selectedTrafficCount = 16;
+let selectedCarModelCount = 1;
 
 class EngineSound {
   private context: AudioContext | null = null;
@@ -415,6 +422,9 @@ byId<HTMLSelectElement>('driver-car').addEventListener('change', (event) => {
 byId<HTMLSelectElement>('traffic-count').addEventListener('change', (event) => {
   selectedTrafficCount = Number((event.currentTarget as HTMLSelectElement).value);
 });
+byId<HTMLSelectElement>('car-model-count').addEventListener('change', (event) => {
+  selectedCarModelCount = Number((event.currentTarget as HTMLSelectElement).value);
+});
 
 async function prepareSelectedCars(button?: HTMLButtonElement): Promise<void> {
   const originalContent = button?.innerHTML;
@@ -424,7 +434,11 @@ async function prepareSelectedCars(button?: HTMLButtonElement): Promise<void> {
   }
   try {
     await realCarAssetsReady;
-    await game.setCars(selectedDriverCar, selectedTrafficCount);
+    await game.setCars(
+      selectedDriverCar,
+      selectedTrafficCount,
+      selectedCarModelCount,
+    );
   } finally {
     if (button && originalContent !== undefined) {
       button.innerHTML = originalContent;

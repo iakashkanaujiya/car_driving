@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { CAR_MODEL_OPTIONS, VehicleAssets } from './vehicleAssets';
+import {
+  CAR_MODEL_OPTIONS,
+  CAR_MODEL_VARIETY_OPTIONS,
+  selectCarModelIds,
+  VehicleAssets,
+} from './vehicleAssets';
 
 describe('Vehicle model roster', () => {
   it('offers every GLB car in the unified selector', () => {
@@ -9,6 +14,20 @@ describe('Vehicle model roster', () => {
       'ford-everest-sport',
       'ioniq-5',
       'luxury-concept',
+    ]);
+    expect(CAR_MODEL_VARIETY_OPTIONS).toEqual([1, 2, 3, 4]);
+  });
+
+  it('loads the driver model first and limits model variety', () => {
+    expect(selectCarModelIds('ioniq-5', 1)).toEqual(['ioniq-5']);
+    expect(selectCarModelIds('luxury-concept', 3)).toEqual([
+      'luxury-concept',
+      'ford-f150-raptor',
+      'ford-everest-sport',
+    ]);
+    expect(selectCarModelIds('ford-f150-raptor', 99)).toHaveLength(4);
+    expect(selectCarModelIds('ford-f150-raptor', Number.NaN)).toEqual([
+      'ford-f150-raptor',
     ]);
   });
 });

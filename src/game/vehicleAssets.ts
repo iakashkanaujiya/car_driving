@@ -17,6 +17,26 @@ export const CAR_MODEL_OPTIONS: readonly { id: CarModelId; label: string }[] = [
   { id: "ioniq-5", label: "Hyundai Ioniq 5" },
   { id: "luxury-concept", label: "2018 Audi e-tron GT Concept" },
 ];
+export const CAR_MODEL_VARIETY_OPTIONS = [1, 2, 3, 4] as const;
+
+export function selectCarModelIds(
+  playerModelId: CarModelId,
+  requestedCount: number,
+): CarModelId[] {
+  const modelIds = CAR_MODEL_OPTIONS.map(({ id }) => id);
+  const start = Math.max(0, modelIds.indexOf(playerModelId));
+  const normalizedCount = Number.isFinite(requestedCount)
+    ? Math.round(requestedCount)
+    : 1;
+  const count = Math.max(
+    1,
+    Math.min(modelIds.length, normalizedCount),
+  );
+  return Array.from(
+    { length: count },
+    (_, offset) => modelIds[(start + offset) % modelIds.length],
+  );
+}
 
 interface CarModelSpec {
   id: VehicleModelId;
@@ -135,10 +155,19 @@ export class VehicleAssets {
     return CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)];
   }
 
-  async loadCarModels(playerModelId: CarModelId): Promise<LoadedCarModel[]> {
+  async loadCarModels(
+    playerModelId: CarModelId,
+    modelCount = 1,
+  ): Promise<LoadedCarModel[]> {
     const loader = new GLTFLoader();
+    const selectedIds = selectCarModelIds(playerModelId, modelCount);
+    const selectedSpecs = selectedIds.map((id) => {
+      const spec = CAR_MODEL_SPECS.find((candidate) => candidate.id === id);
+      if (!spec) throw new Error(`Missing specification for car model: ${id}`);
+      return spec;
+    });
     const loadedModels = await Promise.all(
-      CAR_MODEL_SPECS.map(async (spec): Promise<LoadedCarModel | null> => {
+      selectedSpecs.map(async (spec): Promise<LoadedCarModel | null> => {
         try {
           const gltf = await loader.loadAsync(
             `${import.meta.env.BASE_URL}${spec.path}`,

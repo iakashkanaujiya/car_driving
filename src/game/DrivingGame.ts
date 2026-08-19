@@ -270,10 +270,14 @@ export class DrivingGame {
   async setCars(
     driverCar: CarModelId = DEFAULT_CAR_MODEL_ID,
     trafficCount: number = GAME.trafficCount,
+    modelCount = 1,
   ): Promise<void> {
     this.driverCar = driverCar;
     this.setTrafficCount(trafficCount);
-    await this.loadCarModels(driverCar);
+    await this.loadCarModels(
+      driverCar,
+      this.traffic.length === 0 ? 1 : modelCount,
+    );
   }
 
   dispose(): void {
@@ -365,9 +369,15 @@ export class DrivingGame {
     }
   }
 
-  private async loadCarModels(driverCar: CarModelId): Promise<void> {
+  private async loadCarModels(
+    driverCar: CarModelId,
+    modelCount: number,
+  ): Promise<void> {
     if (this.carModelsApplied) return;
-    this.carModelsPromise ??= this.vehicleAssets.loadCarModels(driverCar);
+    this.carModelsPromise ??= this.vehicleAssets.loadCarModels(
+      driverCar,
+      modelCount,
+    );
     const available = await this.carModelsPromise;
     if (available.length === 0) return;
 
