@@ -446,6 +446,7 @@ export class DrivingGame {
     car.speedChangeTimer = 2.5 + Math.random() * 6;
     car.counted = false;
     car.horned = false;
+    this.vehicleAssets.setBrakeLights(car.mesh, false);
   }
 
   private updateSimulation(dt: number): void {
@@ -607,6 +608,10 @@ export class DrivingGame {
           );
         }
       }
+      this.vehicleAssets.setBrakeLights(
+        car.mesh,
+        trafficTargetSpeed < car.speed - 0.35,
+      );
       car.speed = damp(car.speed, trafficTargetSpeed, 1.25, dt);
       car.distance += car.speed * car.direction * dt;
       const gap = car.distance - this.distance;

@@ -20,6 +20,7 @@ interface CarModelSpec {
   paintMaterials: readonly string[];
   rimMaterials?: readonly string[];
   tailMaterials?: readonly string[];
+  preserveTailColor?: boolean;
   removePaintTexture?: boolean;
 }
 
@@ -51,6 +52,9 @@ interface ModelBrakeLight {
   restColor: number;
   restEmissive: number;
   restIntensity: number;
+  brakingColor: number;
+  brakingEmissive: number;
+  brakingIntensity: number;
 }
 
 export interface LoadedCarModel {
@@ -77,8 +81,9 @@ const REAL_MODEL_SPECS: readonly CarModelSpec[] = [
     id: "ford-everest-sport",
     path: "models/ford_everest_sport_2023.glb",
     rotationY: Math.PI,
-    displayScale: 2.05,
+    displayScale: 2.2,
     paintMaterials: ["carpaint"],
+    tailMaterials: ["redglass"],
   },
   {
     id: "ioniq-5",
@@ -86,6 +91,8 @@ const REAL_MODEL_SPECS: readonly CarModelSpec[] = [
     rotationY: Math.PI,
     displayScale: 1.9,
     paintMaterials: ["M_Gravity_Gold_Matte"],
+    tailMaterials: ["M_Emission"],
+    preserveTailColor: true,
   },
 ];
 const CONCEPT_MODEL_SPEC: CarModelSpec = {
@@ -603,8 +610,6 @@ export class VehicleAssets {
       player,
     );
     const modelBrakeLights = this.prepareModelBrakeLights(instance, modelId);
-    instance.updateMatrixWorld(true);
-    const modelBounds = new THREE.Box3().setFromObject(instance, true);
     car.add(instance);
     const modelSpec = MODEL_SPECS.find((spec) => spec.id === modelId);
     car.scale.setScalar(modelSpec?.displayScale ?? REAL_CAR_SCALE);
@@ -640,7 +645,6 @@ export class VehicleAssets {
       .filter((wheel) => wheel.front)
       .map((wheel) => wheel.steeringPivot);
 
-    if (player) this.addHighMountedBrakeLight(car, modelBounds);
   }
 
   setBrakeLights(car: THREE.Group, braking: boolean): void {
@@ -648,11 +652,15 @@ export class VehicleAssets {
       | ModelBrakeLight[]
       | undefined;
     for (const light of modelBrakeLights ?? []) {
-      light.material.color.setHex(braking ? 0xff2732 : light.restColor);
-      light.material.emissive.setHex(
-        braking ? 0xff0712 : light.restEmissive,
+      light.material.color.setHex(
+        braking ? light.brakingColor : light.restColor,
       );
-      light.material.emissiveIntensity = braking ? 5.2 : light.restIntensity;
+      light.material.emissive.setHex(
+        braking ? light.brakingEmissive : light.restEmissive,
+      );
+      light.material.emissiveIntensity = braking
+        ? light.brakingIntensity
+        : light.restIntensity;
     }
 
     const material = car.userData.tailMaterial as
@@ -1002,11 +1010,17 @@ export class VehicleAssets {
       if (existing) return existing.material;
 
       const material = source.clone();
+      const preserveColor = modelSpec?.preserveTailColor === true;
       const light: ModelBrakeLight = {
         material,
-        restColor: 0x8f1118,
-        restEmissive: 0x320003,
-        restIntensity: 0.85,
+        restColor: preserveColor ? source.color.getHex() : 0x8f1118,
+        restEmissive: preserveColor ? source.emissive.getHex() : 0x320003,
+        restIntensity: preserveColor ? source.emissiveIntensity : 0.85,
+        brakingColor: preserveColor ? source.color.getHex() : 0xff2732,
+        brakingEmissive: preserveColor
+          ? source.emissive.getHex()
+          : 0xff0712,
+        brakingIntensity: preserveColor ? 3.2 : 5.2,
       };
       material.color.setHex(light.restColor);
       material.emissive.setHex(light.restEmissive);
@@ -1025,27 +1039,6 @@ export class VehicleAssets {
     return [...materialClones.values()];
   }
 
-  private addHighMountedBrakeLight(car: THREE.Group, bounds: THREE.Box3): void {
-    const size = bounds.getSize(new THREE.Vector3());
-    const material = new THREE.MeshStandardMaterial({
-      color: 0x260205,
-      emissive: 0x000000,
-      emissiveIntensity: 0,
-      roughness: 0.24,
-    });
-    const light = new THREE.Mesh(
-      new THREE.BoxGeometry(Math.max(0.5, size.x * 0.34), 0.055, 0.045),
-      material,
-    );
-    light.position.set(
-      0,
-      bounds.min.y + size.y * 0.82,
-      bounds.max.z - size.z * 0.12,
-    );
-    car.userData.tailMaterial = material;
-    car.userData.highBrakeOnly = true;
-    car.add(light);
-  }
 
   private createCarLoftGeometry(
     stations: readonly CarLoftStation[],
