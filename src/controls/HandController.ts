@@ -448,7 +448,7 @@ export class HandController {
 
       context.save();
       context.setLineDash([10, 7]);
-      context.lineWidth = 3;
+      context.lineWidth = 2;
       context.strokeStyle = 'rgba(236, 255, 118, 0.82)';
       context.beginPath();
       context.moveTo(leftX, leftY);
@@ -477,14 +477,14 @@ export class HandController {
         const endY = hand[b].y * height;
 
         context.strokeStyle = 'rgba(3, 10, 14, 0.78)';
-        context.lineWidth = 7;
+        context.lineWidth = 4;
         context.beginPath();
         context.moveTo(startX, startY);
         context.lineTo(endX, endY);
         context.stroke();
 
         context.strokeStyle = HAND_POINT_COLORS[b] ?? HAND_POINT_COLORS[0];
-        context.lineWidth = 3.5;
+        context.lineWidth = 2;
         context.beginPath();
         context.moveTo(startX, startY);
         context.lineTo(endX, endY);
@@ -493,13 +493,15 @@ export class HandController {
 
       for (let index = 0; index < hand.length; index += 1) {
         const point = hand[index];
-        const radius = index === 0 ? 7 : FINGERTIP_INDICES.has(index) ? 6 : 4.5;
+        // Keep landmarks subtle so the camera feed remains readable, while
+        // retaining slightly larger wrist and fingertip anchors.
+        const radius = index === 0 ? 3.5 : FINGERTIP_INDICES.has(index) ? 3 : 2;
         const x = point.x * width;
         const y = point.y * height;
 
         context.fillStyle = 'rgba(3, 10, 14, 0.9)';
         context.beginPath();
-        context.arc(x, y, radius + 2, 0, Math.PI * 2);
+        context.arc(x, y, radius + 1, 0, Math.PI * 2);
         context.fill();
 
         context.fillStyle = HAND_POINT_COLORS[index] ?? HAND_POINT_COLORS[0];
