@@ -63,7 +63,7 @@ const CAR_COLORS = [
 const DRIVER_CAR_COLOR = 0xf5f7f4;
 const REAL_CAR_SCALE = 2;
 const PROCEDURAL_CAR_SCALE = 1.55;
-const CONCEPT_CAR_SCALE = 1.55;
+const CONCEPT_CAR_SCALE = 2;
 const REAL_MODEL_SPECS: readonly CarModelSpec[] = [
   {
     id: "ford-everest-sport",

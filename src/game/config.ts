@@ -14,8 +14,8 @@ export const GAME = {
   lookBehind: 55,
   collisionLength: 9.2,
   collisionWidth: 3.9,
-  conceptCollisionLength: 7.7,
-  conceptCollisionWidth: 3.45,
+  conceptCollisionLength: 9.9,
+  conceptCollisionWidth: 4.45,
 } as const;
 
 export const laneOffsets = [-GAME.laneWidth / 2, GAME.laneWidth / 2] as const;
