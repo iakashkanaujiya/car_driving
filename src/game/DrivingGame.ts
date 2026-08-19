@@ -794,12 +794,12 @@ export class DrivingGame {
     );
     const desiredCamera = this.player.position
       .clone()
-      .addScaledVector(forward, -11.5)
-      .add(new THREE.Vector3(0, 6.1, 0));
+      .addScaledVector(forward, -10)
+      .add(new THREE.Vector3(0, 5.5, 0));
     this.camera.position.lerp(desiredCamera, 1 - Math.exp(-5 * dt));
     const target = this.player.position
       .clone()
-      .addScaledVector(forward, 16)
+      .addScaledVector(forward, 14)
       .add(new THREE.Vector3(0, 1.2, 0));
     this.camera.lookAt(target);
   }
