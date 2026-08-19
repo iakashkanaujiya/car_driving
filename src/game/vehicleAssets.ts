@@ -9,7 +9,7 @@ export type CarModelId =
   | "luxury-concept";
 export type VehicleModelId = CarModelId;
 
-export const DEFAULT_CAR_MODEL_ID: CarModelId = "ford-f150-raptor";
+export const DEFAULT_CAR_MODEL_ID: CarModelId = "luxury-concept";
 
 export const CAR_MODEL_OPTIONS: readonly { id: CarModelId; label: string }[] = [
   { id: "ford-f150-raptor", label: "2017 Ford F-150 Raptor" },
