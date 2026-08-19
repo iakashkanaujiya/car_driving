@@ -9,6 +9,7 @@
     "dev": "vite",
     "prebuild": "node scripts/generate-asset-manifest.mjs",
     "build": "tsc && vite build",
+    "optimize:everest": "node scripts/optimize-everest.mjs",
     "preview": "vite preview",
     "test": "vitest run"
   },
@@ -17,8 +18,12 @@
     "three": "^0.179.1"
   },
   "devDependencies": {
+    "@gltf-transform/core": "^4.4.2",
+    "@gltf-transform/extensions": "^4.4.2",
+    "@gltf-transform/functions": "^4.4.2",
     "@types/three": "^0.179.0",
     "@vitejs/plugin-basic-ssl": "^2.3.0",
+    "meshoptimizer": "^1.2.0",
     "typescript": "^5.9.2",
     "vite": "^7.1.2",
     "vitest": "^3.2.4"

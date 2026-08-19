@@ -70,6 +70,16 @@ npm test
 npm run build
 ```
 
+The runtime Everest model is generated from the preserved source asset with:
+
+```bash
+npm run optimize:everest
+```
+
+The optimizer preserves wheel-node and material bindings used by the game,
+verifies the written GLB, and accepts optional `--ratio` and `--error` values.
+For example: `npm run optimize:everest -- --ratio=0.3 --error=0.002`.
+
 The MediaPipe runtime and hand model are copied into `public/mediapipe` during `npm install`, so camera processing happens on the device without uploading video.
 
 ## License
