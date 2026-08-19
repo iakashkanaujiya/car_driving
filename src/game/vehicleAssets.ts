@@ -71,7 +71,6 @@ const CAR_COLORS = [
 const DRIVER_CAR_COLOR = 0xf5f7f4;
 const REAL_CAR_SCALE = 2;
 const CONCEPT_CAR_SCALE = 2;
-const TRAFFIC_LOW_DETAIL_DISTANCE = 70;
 const BASE_MODEL_SPECS: readonly CarModelSpec[] = [
   {
     id: "ford-f150-raptor",
@@ -200,15 +199,7 @@ export class VehicleAssets {
       player,
     );
     const modelBrakeLights = this.prepareModelBrakeLights(instance, modelId);
-    if (player) {
-      car.add(instance);
-    } else {
-      const lod = new THREE.LOD();
-      lod.name = 'traffic-visual-lod';
-      lod.addLevel(instance, 0);
-      lod.addLevel(this.createTrafficProxy(color), TRAFFIC_LOW_DETAIL_DISTANCE);
-      car.add(lod);
-    }
+    car.add(instance);
     const modelSpec = CAR_MODEL_SPECS.find((spec) => spec.id === modelId);
     car.scale.setScalar(modelSpec?.displayScale ?? REAL_CAR_SCALE);
     car.userData.modelId = modelId;
@@ -313,31 +304,6 @@ export class VehicleAssets {
     const meshes = car.userData.shadowMeshes as THREE.Mesh[] | undefined;
     for (const mesh of meshes ?? []) mesh.castShadow = enabled;
     car.userData.castsShadow = enabled;
-  }
-
-  private createTrafficProxy(color: number): THREE.Group {
-    const proxy = new THREE.Group();
-    proxy.name = 'traffic-low-detail';
-    const paint = new THREE.MeshStandardMaterial({
-      color,
-      roughness: 0.42,
-      metalness: 0.35,
-    });
-    const glass = new THREE.MeshStandardMaterial({
-      color: 0x26323a,
-      roughness: 0.3,
-      metalness: 0.1,
-    });
-    const body = new THREE.Mesh(new THREE.BoxGeometry(2.05, 0.72, 4.6), paint);
-    body.position.y = 0.72;
-    body.castShadow = true;
-    body.receiveShadow = true;
-    const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.72, 0.62, 2.35), glass);
-    cabin.position.set(0, 1.36, 0.15);
-    cabin.castShadow = true;
-    cabin.receiveShadow = true;
-    proxy.add(body, cabin);
-    return proxy;
   }
 
   private prepareCarModel(

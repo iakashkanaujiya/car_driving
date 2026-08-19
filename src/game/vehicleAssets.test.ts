@@ -33,21 +33,6 @@ describe('Vehicle model roster', () => {
 });
 
 describe('VehicleAssets wheel animation', () => {
-  it('adds a low-detail level for traffic but not for the player', () => {
-    const assets = new VehicleAssets();
-    const prototype = new THREE.Group();
-    prototype.add(new THREE.Mesh(new THREE.BoxGeometry(2, 1, 4)));
-    const traffic = new THREE.Group();
-    const player = new THREE.Group();
-
-    assets.replaceVisual(traffic, prototype, false, 'ioniq-5');
-    assets.replaceVisual(player, prototype, true, 'ioniq-5');
-
-    expect(traffic.getObjectByName('traffic-visual-lod')).toBeInstanceOf(THREE.LOD);
-    expect(traffic.getObjectByName('traffic-low-detail')).toBeDefined();
-    expect(player.getObjectByName('traffic-visual-lod')).toBeUndefined();
-  });
-
   it('changes cached shadow meshes only when the range state changes', () => {
     const assets = new VehicleAssets();
     const prototype = new THREE.Group();
