@@ -38,7 +38,9 @@ On the first visit, a setup popup keeps the game locked while it downloads appro
 
 ## Controls
 
-- **Hand mode:** hold two closed hands apart, keep them level during calibration, then rotate them like a steering wheel.
+![Driftline hand-control guide](public/images/hand-controls.svg)
+
+- **Hand mode:** hold two closed hands apart, keep them level during calibration, rotate them like a steering wheel, and raise both thumbs to brake.
 - **Keyboard mode:** use `W` or up arrow to accelerate, `S` or down arrow to brake, and `A` / `D` or left / right arrows to steer. Braking stops at zero; there is no reverse gear.
 - **Pause:** use the Pause button or press `Escape`.
 
