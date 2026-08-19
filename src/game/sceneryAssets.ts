@@ -9,6 +9,8 @@ interface NatureModelOptions {
   castShadow: boolean;
 }
 
+export const PINE_TREE_MODEL_PATH = 'tree/pine_tree_1.glb';
+
 export class SceneryAssets {
   private pineTreePrototype?: THREE.Group;
   private greatMountainPrototype?: THREE.Group;
@@ -41,7 +43,7 @@ export class SceneryAssets {
   loadNature(targets: readonly THREE.Group[]): void {
     this.loadNatureModel(targets, {
       kind: 'pine-tree',
-      path: 'tree/pine_tree.glb',
+      path: PINE_TREE_MODEL_PATH,
       targetHeight: 11,
       castShadow: true,
     });
@@ -99,11 +101,6 @@ export class SceneryAssets {
           clonedMaterial.roughness = Math.max(0.82, clonedMaterial.roughness);
           clonedMaterial.emissiveMap = null;
           clonedMaterial.emissive.setHex(0x000000);
-          if (clonedMaterial.alphaTest > 0) {
-            clonedMaterial.side = THREE.DoubleSide;
-            clonedMaterial.transparent = false;
-            clonedMaterial.depthWrite = true;
-          }
         }
         materialClones.set(sourceMaterial, clonedMaterial);
         material = clonedMaterial;
