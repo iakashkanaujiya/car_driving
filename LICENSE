@@ -1,0 +1,67 @@
+Driftline Non-Commercial License 1.0
+
+Copyright (c) 2026 Akash Kanaujiya. All rights reserved.
+
+1. Permission
+
+Permission is granted to view, use, copy, modify, and redistribute the
+original Driftline source code and documentation solely for non-commercial
+purposes, subject to the conditions in this license.
+
+2. Non-commercial use only
+
+The software, modified versions, and derivative works may not be used for any
+commercial purpose or financial gain without prior written permission from
+the copyright holder.
+
+Prohibited commercial use includes, but is not limited to:
+
+- selling or licensing the software or a derivative work;
+- charging for access to, distribution of, or services based on the software;
+- using the software in a product, service, or activity that generates
+  revenue, subscription income, advertising income, or other compensation;
+- using the software primarily for the benefit of a for-profit organization;
+- removing this restriction through sublicensing or relicensing.
+
+3. Redistribution and modifications
+
+Redistributions and derivative works must:
+
+- include this license and the original copyright notice;
+- clearly state that the software has been modified, when applicable;
+- remain limited to non-commercial use under these same terms;
+- preserve all third-party attribution and license notices.
+
+4. Commercial licensing
+
+Commercial use requires a separate written license from the copyright holder.
+Permission may be requested from the project owner through the repository's
+published contact channels.
+
+5. Third-party materials
+
+This license applies only to the original Driftline source code and
+documentation. Third-party 3D models, textures, images, fonts, libraries, and
+other bundled materials remain subject to their respective licenses and
+attribution requirements. See the 3D asset credits in README.md and license
+metadata embedded in the model files.
+
+6. No trademark rights
+
+This license does not grant permission to use the Driftline name, branding,
+or logos to imply endorsement or affiliation.
+
+7. Disclaimer of warranty
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING
+FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OF THE SOFTWARE.
+
+8. Termination
+
+Any violation of these terms automatically terminates the permissions granted
+by this license. Upon termination, all use and distribution of the software
+must stop, except as required to preserve existing attribution and license
+notices.
