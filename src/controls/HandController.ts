@@ -5,7 +5,8 @@ import { isClosedHand, isThumbUp } from './handGestures';
 import type { HandTrackingResult, HandWorkerInput, HandWorkerOutput } from './handWorkerTypes';
 
 type TrackingStatus = 'idle' | 'loading' | 'ready' | 'calibrating' | 'tracking' | 'lost' | 'error';
-const INFERENCE_INTERVAL_MS = 1000 / 24;
+const INFERENCE_INTERVAL_MS = 1000 / 20;
+const PREVIEW_INTERVAL_MS = 1000 / 12;
 const HAND_POINT_COLORS = [
   '#ecff76',
   '#ffb866', '#ffb866', '#ffb866', '#ffb866',
@@ -33,6 +34,9 @@ export class HandController {
   private status: TrackingStatus = 'idle';
   private lastSeen = 0;
   private previewVisible = true;
+  private lastPreviewTime = 0;
+  private previewContext: CanvasRenderingContext2D | null = null;
+  private paused = false;
   private stopped = false;
 
   constructor(
@@ -46,7 +50,7 @@ export class HandController {
     this.setStatus('loading');
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 480 }, height: { ideal: 360 }, facingMode: 'user' },
+        video: { width: { ideal: 320 }, height: { ideal: 240 }, facingMode: 'user' },
         audio: false,
       });
       this.video.srcObject = this.stream;
@@ -190,8 +194,23 @@ export class HandController {
     this.landmarker = null;
   }
 
+  setPaused(paused: boolean): void {
+    if (this.paused === paused || this.stopped) return;
+    this.paused = paused;
+    if (paused) {
+      cancelAnimationFrame(this.raf);
+      if (this.videoFrameCallback) {
+        this.video.cancelVideoFrameCallback(this.videoFrameCallback);
+        this.videoFrameCallback = 0;
+      }
+    } else {
+      this.lastVideoTime = -1;
+      this.scheduleNextFrame();
+    }
+  }
+
   private scheduleNextFrame(): void {
-    if (this.stopped) return;
+    if (this.stopped || this.paused) return;
     if (typeof this.video.requestVideoFrameCallback === 'function') {
       this.videoFrameCallback = this.video.requestVideoFrameCallback(this.processVideoFrame);
     } else {
@@ -212,6 +231,7 @@ export class HandController {
   private processFrame(now: DOMHighResTimeStamp): void {
     if (
       this.stopped ||
+      this.paused ||
       this.video.readyState < 2 ||
       this.video.currentTime === this.lastVideoTime ||
       now - this.lastInferenceTime < INFERENCE_INTERVAL_MS
@@ -343,11 +363,21 @@ export class HandController {
   }
 
   private drawPreview(result: HandTrackingResult): void {
-    const width = this.video.videoWidth || 480;
-    const height = this.video.videoHeight || 360;
+    const shell = this.canvas.closest('.camera-shell');
+    const now = performance.now();
+    if (
+      !this.previewVisible ||
+      shell?.classList.contains('is-hidden') ||
+      now - this.lastPreviewTime < PREVIEW_INTERVAL_MS
+    ) return;
+    this.lastPreviewTime = now;
+
+    const width = this.video.videoWidth || 320;
+    const height = this.video.videoHeight || 240;
     if (this.canvas.width !== width) this.canvas.width = width;
     if (this.canvas.height !== height) this.canvas.height = height;
-    const context = this.canvas.getContext('2d');
+    this.previewContext ??= this.canvas.getContext('2d');
+    const context = this.previewContext;
     if (!context) return;
     context.clearRect(0, 0, width, height);
     context.save();

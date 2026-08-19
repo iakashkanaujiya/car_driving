@@ -1,5 +1,5 @@
 import { EngineSound } from '../audio/EngineSound';
-import { HandController } from '../controls/HandController';
+import type { HandController } from '../controls/HandController';
 import { KeyboardController } from '../controls/KeyboardController';
 import { DrivingGame } from '../game/DrivingGame';
 import type { ControlInput, ControlMode, GameSnapshot } from '../game/types';
@@ -88,6 +88,9 @@ export class DrivingApplication {
     }, options);
     this.fullscreenButton.addEventListener('click', () => void this.toggleFullscreen(), options);
     document.addEventListener('fullscreenchange', () => this.onFullscreenChange(), options);
+    document.addEventListener('visibilitychange', () => {
+      this.handController?.setPaused(document.hidden);
+    }, options);
     window.addEventListener('keydown', (event) => this.onGlobalKeyDown(event), options);
     window.addEventListener('beforeunload', () => this.dispose(), { once: true });
   }
@@ -186,6 +189,9 @@ export class DrivingApplication {
     this.cameraHint.textContent = 'LOADING TRACKER';
 
     this.handController?.stop();
+    // MediaPipe is a large optional dependency; keyboard players never need to
+    // download or parse it, so load the controller only after hand mode wins.
+    const { HandController } = await import('../controls/HandController');
     this.handController = new HandController(
       this.video,
       this.cameraCanvas,
