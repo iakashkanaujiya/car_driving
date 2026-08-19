@@ -9,6 +9,11 @@ import {
   roadHeading,
 } from "./math";
 import { createRoadStrip, updateRoadStrip } from "./roadSurface";
+import {
+  AdaptiveQuality,
+  chooseInitialQuality,
+} from "./rendering/AdaptiveQuality";
+import type { RenderQualitySettings } from "./rendering/AdaptiveQuality";
 import { SceneryAssets } from "./sceneryAssets";
 import { createSpeedPlan, scanTraffic } from "./simulation/drivingAssist";
 import {
@@ -53,6 +58,7 @@ export class DrivingGame {
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(58, 1, 0.1, 800);
   private readonly renderer: THREE.WebGLRenderer;
+  private readonly adaptiveQuality: AdaptiveQuality;
   private readonly clock = new THREE.Clock();
   private readonly vehicleAssets = new VehicleAssets();
   private readonly player = new THREE.Group();
@@ -106,11 +112,17 @@ export class DrivingGame {
     this.scene.background = new THREE.Color(0x9bb8bd);
     this.scene.fog = new THREE.FogExp2(0x9bb8bd, 0.0048);
 
+    const deviceMemory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+    this.adaptiveQuality = new AdaptiveQuality(
+      chooseInitialQuality(navigator.hardwareConcurrency || 2, deviceMemory),
+    );
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
       powerPreference: "high-performance",
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+    this.renderer.setPixelRatio(
+      Math.min(window.devicePixelRatio, this.adaptiveQuality.settings.pixelRatioCap),
+    );
     this.renderer.setSize(container.clientWidth, container.clientHeight, false);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -240,7 +252,10 @@ export class DrivingGame {
 
     this.roadsideFences = new RoadsideFenceSystem(this.scene);
 
-    this.lighting = addSceneLighting(this.scene);
+    this.lighting = addSceneLighting(
+      this.scene,
+      this.adaptiveQuality.settings.shadowMapSize,
+    );
     this.setupWorld();
     const natureReady = this.sceneryAssets.loadNature(this.scenery);
     const mountainsReady = this.sceneryAssets.loadMountains(this.mountains);
@@ -786,13 +801,18 @@ export class DrivingGame {
 
   private animate = (): void => {
     this.animationFrame = requestAnimationFrame(this.animate);
-    const dt = Math.min(this.clock.getDelta(), 0.05);
+    const frameSeconds = this.clock.getDelta();
+    const dt = Math.min(frameSeconds, 0.05);
     const now = performance.now();
     const playing = this.phase === "playing";
     if (!playing && now - this.lastIdleRender < IDLE_RENDER_INTERVAL_MS) return;
     if (playing) this.updateSimulation(dt);
     this.updateWorld(dt);
     this.renderer.render(this.scene, this.camera);
+    if (playing) {
+      const settings = this.adaptiveQuality.recordFrame(frameSeconds);
+      if (settings) this.applyRenderQuality(settings);
+    }
     if (!playing) this.lastIdleRender = now;
 
     if (now - this.lastSnapshot > 80) {
@@ -815,4 +835,15 @@ export class DrivingGame {
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height, false);
   };
+
+  private applyRenderQuality(settings: RenderQualitySettings): void {
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, settings.pixelRatioCap));
+    this.renderer.setSize(this.container.clientWidth, this.container.clientHeight, false);
+    const shadow = this.lighting.sun.shadow;
+    if (shadow.mapSize.x !== settings.shadowMapSize) {
+      shadow.mapSize.set(settings.shadowMapSize, settings.shadowMapSize);
+      shadow.map?.dispose();
+      shadow.map = null;
+    }
+  }
 }

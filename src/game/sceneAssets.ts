@@ -163,13 +163,13 @@ export function createSnowPatchTexture(seed: number): THREE.CanvasTexture {
   return texture;
 }
 
-export function addSceneLighting(scene: THREE.Scene): SceneLighting {
+export function addSceneLighting(scene: THREE.Scene, shadowMapSize = 1024): SceneLighting {
   const hemisphere = new THREE.HemisphereLight(0xdaf7ff, 0x31442c, 1.55);
   scene.add(hemisphere);
 
   const sun = new THREE.DirectionalLight(0xfff1ce, 3.2);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.mapSize.set(shadowMapSize, shadowMapSize);
   sun.shadow.camera.left = -38;
   sun.shadow.camera.right = 38;
   sun.shadow.camera.top = 48;
