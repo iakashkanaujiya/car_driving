@@ -1,6 +1,6 @@
 {
-  "version": "d58175931147b1a9",
-  "totalBytes": 28771224,
+  "version": "eae39fa4e6215bbd",
+  "totalBytes": 20818002,
   "assets": [
     {
       "path": "great_mountain/landscape_mountain_optimized.glb",
@@ -20,15 +20,15 @@
     },
     {
       "path": "roads/textures/RoadLines_baseColor.jpeg",
-      "size": 813035
+      "size": 243570
     },
     {
       "path": "roads/textures/RoadLines_metallicRoughness.png",
-      "size": 966878
+      "size": 1061532
     },
     {
       "path": "roads/textures/RoadLines_normal.png",
-      "size": 10236295
+      "size": 2757884
     },
     {
       "path": "roads/textures/Sidewalk01_baseColor.jpeg",
