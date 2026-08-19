@@ -1,0 +1,19 @@
+node_modules/
+dist/
+.vite/
+
+# Generated and third-party runtime files.
+public/assets-manifest.json
+public/mediapipe/
+
+# Binary game assets.
+public/**/*.glb
+public/**/*.wasm
+public/**/*.task
+public/**/*.png
+public/**/*.jpg
+public/**/*.jpeg
+public/**/*.webp
+
+# Plain-text legal file is not source code.
+LICENSE

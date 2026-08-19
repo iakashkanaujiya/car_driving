@@ -1,16 +1,16 @@
-import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { selectCarModelIds } from "./vehicleCatalog";
-import type { CarModelId } from "./vehicleCatalog";
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { selectCarModelIds } from './vehicleCatalog';
+import type { CarModelId } from './vehicleCatalog';
 
 export {
   CAR_MODEL_OPTIONS,
   CAR_MODEL_VARIETY_OPTIONS,
   DEFAULT_CAR_MODEL_ID,
   selectCarModelIds,
-} from "./vehicleCatalog";
-export type { CarModelId } from "./vehicleCatalog";
+} from './vehicleCatalog';
+export type { CarModelId } from './vehicleCatalog';
 export type VehicleModelId = CarModelId;
 
 interface CarModelSpec {
@@ -22,7 +22,7 @@ interface CarModelSpec {
   rimMaterials?: readonly string[];
   wheelMaterials?: readonly string[];
   tailMaterials?: readonly string[];
-  tailLightProfile?: Omit<ModelBrakeLight, "material">;
+  tailLightProfile?: Omit<ModelBrakeLight, 'material'>;
   preserveTailColor?: boolean;
   removePaintTexture?: boolean;
 }
@@ -32,7 +32,7 @@ interface AnimatedWheel {
   roller: THREE.Object3D;
   radius: number;
   front: boolean;
-  rollAxis: "x" | "y";
+  rollAxis: 'x' | 'y';
   baseRoll: number;
   baseSteering: number;
   rollAngle: number;
@@ -73,44 +73,44 @@ const REAL_CAR_SCALE = 2;
 const CONCEPT_CAR_SCALE = 2;
 const BASE_MODEL_SPECS: readonly CarModelSpec[] = [
   {
-    id: "ford-f150-raptor",
-    path: "models/2017_ford_f-150_raptor.glb",
+    id: 'ford-f150-raptor',
+    path: 'models/2017_ford_f-150_raptor.glb',
     rotationY: Math.PI,
     displayScale: 2.1,
-    paintMaterials: ["RaptorM_CarPaint_Max1"],
-    tailMaterials: ["RaptorM_LightGlass_Red_Low1"],
+    paintMaterials: ['RaptorM_CarPaint_Max1'],
+    tailMaterials: ['RaptorM_LightGlass_Red_Low1'],
   },
   {
-    id: "ford-everest-sport",
-    path: "models/ford_everest_sport_2023.glb",
+    id: 'ford-everest-sport',
+    path: 'models/ford_everest_sport_2023.glb',
     rotationY: Math.PI,
     displayScale: 2.2,
-    paintMaterials: ["carpaint"],
-    tailMaterials: ["redglass"],
+    paintMaterials: ['carpaint'],
+    tailMaterials: ['redglass'],
   },
   {
-    id: "ioniq-5",
-    path: "models/hyundai_ioniq_5_-_lowpoly.glb",
+    id: 'ioniq-5',
+    path: 'models/hyundai_ioniq_5_-_lowpoly.glb',
     rotationY: Math.PI,
     displayScale: 1.9,
-    paintMaterials: ["M_Gravity_Gold_Matte"],
-    tailMaterials: ["M_Emission"],
+    paintMaterials: ['M_Gravity_Gold_Matte'],
+    tailMaterials: ['M_Emission'],
     preserveTailColor: true,
   },
 ];
 const AUDI_ETRON_MODEL_SPEC: CarModelSpec = {
-  id: "luxury-concept",
-  path: "models/2018_audi_e-tron_gt_concept.glb",
+  id: 'luxury-concept',
+  path: 'models/2018_audi_e-tron_gt_concept.glb',
   rotationY: Math.PI,
   displayScale: CONCEPT_CAR_SCALE,
-  paintMaterials: ["CarPaint"],
-  rimMaterials: ["gtVehicle_Exterior_mm_wheel_009"],
+  paintMaterials: ['CarPaint'],
+  rimMaterials: ['gtVehicle_Exterior_mm_wheel_009'],
   wheelMaterials: [
-    "gtVehicle_Exterior_mm_rotor_009",
-    "gtVehicle_Exterior_mm_wheel_009",
-    "gtVehicle_Exterior_mm_tyre_009",
+    'gtVehicle_Exterior_mm_rotor_009',
+    'gtVehicle_Exterior_mm_wheel_009',
+    'gtVehicle_Exterior_mm_tyre_009',
   ],
-  tailMaterials: ["Emiss"],
+  tailMaterials: ['Emiss'],
   tailLightProfile: {
     restColor: 0xa80000,
     restEmissive: 0x400000,
@@ -120,20 +120,14 @@ const AUDI_ETRON_MODEL_SPEC: CarModelSpec = {
     brakingIntensity: 8.5,
   },
 };
-const CAR_MODEL_SPECS: readonly CarModelSpec[] = [
-  ...BASE_MODEL_SPECS,
-  AUDI_ETRON_MODEL_SPEC,
-];
+const CAR_MODEL_SPECS: readonly CarModelSpec[] = [...BASE_MODEL_SPECS, AUDI_ETRON_MODEL_SPEC];
 
 export class VehicleAssets {
   randomColor(): number {
     return CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)];
   }
 
-  async loadCarModels(
-    playerModelId: CarModelId,
-    modelCount = 1,
-  ): Promise<LoadedCarModel[]> {
+  async loadCarModels(playerModelId: CarModelId, modelCount = 1): Promise<LoadedCarModel[]> {
     const loader = new GLTFLoader();
     const selectedIds = selectCarModelIds(playerModelId, modelCount);
     const selectedSpecs = selectedIds.map((id) => {
@@ -144,20 +138,12 @@ export class VehicleAssets {
     const loadedModels = await Promise.all(
       selectedSpecs.map(async (spec): Promise<LoadedCarModel | null> => {
         try {
-          const gltf = await loader.loadAsync(
-            `${import.meta.env.BASE_URL}${spec.path}`,
-          );
-          const trafficPrototype = this.prepareCarModel(
-            gltf.scene,
-            spec.rotationY,
-            true,
-            spec.id,
-          );
+          const gltf = await loader.loadAsync(`${import.meta.env.BASE_URL}${spec.path}`);
+          const trafficPrototype = this.prepareCarModel(gltf.scene, spec.rotationY, true, spec.id);
           return {
             id: spec.id,
             trafficPrototype,
-            playerPrototype:
-              spec.id === playerModelId ? trafficPrototype : undefined,
+            playerPrototype: spec.id === playerModelId ? trafficPrototype : undefined,
           };
         } catch (error) {
           console.error(`Could not load the ${spec.id} car model.`, error);
@@ -165,9 +151,7 @@ export class VehicleAssets {
         }
       }),
     );
-    return loadedModels.filter(
-      (model): model is LoadedCarModel => model !== null,
-    );
+    return loadedModels.filter((model): model is LoadedCarModel => model !== null);
   }
 
   replaceVisual(
@@ -181,9 +165,7 @@ export class VehicleAssets {
     car.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
       oldGeometries.add(object.geometry);
-      const materials = Array.isArray(object.material)
-        ? object.material
-        : [object.material];
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
       materials.forEach((material) => oldMaterials.add(material));
     });
     car.clear();
@@ -192,12 +174,7 @@ export class VehicleAssets {
 
     const instance = prototype.clone(true);
     const color = player ? DRIVER_CAR_COLOR : this.randomColor();
-    this.applyCarColor(
-      instance,
-      modelId,
-      color,
-      player,
-    );
+    this.applyCarColor(instance, modelId, color, player);
     const modelBrakeLights = this.prepareModelBrakeLights(instance, modelId);
     car.add(instance);
     const modelSpec = CAR_MODEL_SPECS.find((spec) => spec.id === modelId);
@@ -219,9 +196,7 @@ export class VehicleAssets {
     const animatedWheels: AnimatedWheel[] = [];
     instance.traverse((object) => {
       if (object.userData.isWheelPivot !== true) return;
-      const roller = object.children.find(
-        (child) => child.userData.isWheelRoller === true,
-      );
+      const roller = object.children.find((child) => child.userData.isWheelRoller === true);
       if (!roller) return;
       const radius = (object.userData.wheelRadius as number) * car.scale.x;
       animatedWheels.push({
@@ -229,7 +204,7 @@ export class VehicleAssets {
         roller,
         radius: Math.max(0.1, radius),
         front: object.userData.frontWheel === true,
-        rollAxis: "x",
+        rollAxis: 'x',
         baseRoll: roller.rotation.x,
         baseSteering: object.rotation.y,
         rollAngle: 0,
@@ -239,36 +214,21 @@ export class VehicleAssets {
     car.userData.frontWheels = animatedWheels
       .filter((wheel) => wheel.front)
       .map((wheel) => wheel.steeringPivot);
-
   }
 
   setBrakeLights(car: THREE.Group, braking: boolean): void {
-    const modelBrakeLights = car.userData.modelBrakeLights as
-      | ModelBrakeLight[]
-      | undefined;
+    const modelBrakeLights = car.userData.modelBrakeLights as ModelBrakeLight[] | undefined;
     for (const light of modelBrakeLights ?? []) {
-      light.material.color.setHex(
-        braking ? light.brakingColor : light.restColor,
-      );
-      light.material.emissive.setHex(
-        braking ? light.brakingEmissive : light.restEmissive,
-      );
-      light.material.emissiveIntensity = braking
-        ? light.brakingIntensity
-        : light.restIntensity;
+      light.material.color.setHex(braking ? light.brakingColor : light.restColor);
+      light.material.emissive.setHex(braking ? light.brakingEmissive : light.restEmissive);
+      light.material.emissiveIntensity = braking ? light.brakingIntensity : light.restIntensity;
     }
 
-    const material = car.userData.tailMaterial as
-      | THREE.MeshStandardMaterial
-      | undefined;
+    const material = car.userData.tailMaterial as THREE.MeshStandardMaterial | undefined;
     if (material) {
       const highBrakeOnly = car.userData.highBrakeOnly === true;
-      material.color.setHex(
-        braking ? 0xff1d29 : highBrakeOnly ? 0x260205 : 0x681015,
-      );
-      material.emissive.setHex(
-        braking ? 0xff0712 : highBrakeOnly ? 0x000000 : 0x240003,
-      );
+      material.color.setHex(braking ? 0xff1d29 : highBrakeOnly ? 0x260205 : 0x681015);
+      material.emissive.setHex(braking ? 0xff0712 : highBrakeOnly ? 0x000000 : 0x240003);
       material.emissiveIntensity = braking ? 4.5 : highBrakeOnly ? 0 : 0.7;
     }
     const glow = car.userData.brakeGlow as THREE.PointLight | undefined;
@@ -285,8 +245,7 @@ export class VehicleAssets {
     if (!wheels) return;
 
     for (const wheel of wheels) {
-      wheel.rollAngle =
-        (wheel.rollAngle - distanceMoved / wheel.radius) % (Math.PI * 2);
+      wheel.rollAngle = (wheel.rollAngle - distanceMoved / wheel.radius) % (Math.PI * 2);
       wheel.roller.rotation[wheel.rollAxis] = wheel.baseRoll + wheel.rollAngle;
       if (wheel.front) {
         wheel.steeringPivot.rotation.y = THREE.MathUtils.damp(
@@ -321,9 +280,7 @@ export class VehicleAssets {
 
     const wheelPivots = this.extractWheelPivots(orientation, modelId);
 
-    const modelRoot = optimize
-      ? this.mergeStaticCarMeshes(orientation)
-      : orientation;
+    const modelRoot = optimize ? this.mergeStaticCarMeshes(orientation) : orientation;
     for (const pivot of wheelPivots) {
       if (optimize) modelRoot.add(pivot);
       else orientation.attach(pivot);
@@ -336,7 +293,7 @@ export class VehicleAssets {
     const size = bounds.getSize(new THREE.Vector3());
     const horizontalLength = Math.max(size.x, size.z);
     if (!Number.isFinite(horizontalLength) || horizontalLength <= 0) {
-      throw new Error("The car model has invalid bounds.");
+      throw new Error('The car model has invalid bounds.');
     }
 
     modelRoot.scale.setScalar(4.6 / horizontalLength);
@@ -352,18 +309,13 @@ export class VehicleAssets {
     });
     prototype.updateMatrixWorld(true);
     for (const pivot of wheelPivots) {
-      const wheelSize = new THREE.Box3()
-        .setFromObject(pivot, true)
-        .getSize(new THREE.Vector3());
+      const wheelSize = new THREE.Box3().setFromObject(pivot, true).getSize(new THREE.Vector3());
       pivot.userData.wheelRadius = Math.max(0.1, wheelSize.y * 0.5);
     }
     return prototype;
   }
 
-  private extractWheelPivots(
-    root: THREE.Group,
-    modelId: VehicleModelId,
-  ): THREE.Group[] {
+  private extractWheelPivots(root: THREE.Group, modelId: VehicleModelId): THREE.Group[] {
     const assemblies = this.findWheelAssemblies(root, modelId);
     root.updateMatrixWorld(true);
 
@@ -395,16 +347,13 @@ export class VehicleAssets {
     >();
 
     pivot.traverse((object) => {
-      if (!(object instanceof THREE.Mesh) || Array.isArray(object.material))
-        return;
+      if (!(object instanceof THREE.Mesh) || Array.isArray(object.material)) return;
       const geometry = object.geometry.clone();
       geometry.applyMatrix4(object.matrixWorld);
       geometry.applyMatrix4(inversePivot);
-      const attributeSignature = Object.keys(geometry.attributes)
-        .sort()
-        .join(",");
+      const attributeSignature = Object.keys(geometry.attributes).sort().join(',');
       const key = `${object.material.uuid}|${attributeSignature}|${
-        geometry.index ? "indexed" : "plain"
+        geometry.index ? 'indexed' : 'plain'
       }`;
       const bucket = buckets.get(key);
       if (bucket) bucket.geometries.push(geometry);
@@ -435,10 +384,7 @@ export class VehicleAssets {
     for (const mesh of optimizedMeshes) pivot.add(mesh);
   }
 
-  private findWheelAssemblies(
-    root: THREE.Group,
-    modelId: VehicleModelId,
-  ): WheelAssembly[] {
+  private findWheelAssemblies(root: THREE.Group, modelId: VehicleModelId): WheelAssembly[] {
     const exact = (names: readonly string[]): WheelAssembly[] =>
       this.groupWheelPartsByPosition(
         root,
@@ -454,48 +400,33 @@ export class VehicleAssets {
       const parts: THREE.Object3D[] = [];
       root.traverse((object) => {
         if (!(object instanceof THREE.Mesh)) return;
-        const materials = Array.isArray(object.material)
-          ? object.material
-          : [object.material];
-        if (
-          materials.some((material) => wheelMaterialNames.has(material.name))
-        ) {
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        if (materials.some((material) => wheelMaterialNames.has(material.name))) {
           parts.push(object);
         }
       });
       return this.groupWheelPartsByPosition(root, parts);
     }
 
-    if (
-      modelId === "ford-f150-raptor" ||
-      modelId === "ford-everest-sport"
-    ) {
-      return exact(["WHEEL_RF", "WHEEL_RR", "WHEEL_LF", "WHEEL_LR"]);
+    if (modelId === 'ford-f150-raptor' || modelId === 'ford-everest-sport') {
+      return exact(['WHEEL_RF', 'WHEEL_RR', 'WHEEL_LF', 'WHEEL_LR']);
     }
-    if (modelId === "ioniq-5") {
-      return exact([
-        "SM_Wheel_BL_0",
-        "SM_Wheel_BR_1",
-        "SM_Wheel_FL_2",
-        "SM_Wheel_FR_3",
-      ]);
+    if (modelId === 'ioniq-5') {
+      return exact(['SM_Wheel_BL_0', 'SM_Wheel_BR_1', 'SM_Wheel_FL_2', 'SM_Wheel_FR_3']);
     }
     return [];
   }
 
-  private removeDisabledModelParts(
-    root: THREE.Group,
-    modelId: VehicleModelId,
-  ): void {
-    if (modelId !== "luxury-concept") return;
+  private removeDisabledModelParts(root: THREE.Group, modelId: VehicleModelId): void {
+    if (modelId !== 'luxury-concept') return;
 
     const highBrakeLights: THREE.Object3D[] = [];
     root.traverse((object) => {
       if (
         object instanceof THREE.Mesh &&
-        object.name.includes("LOD_A_BRAKES_mm_lights") &&
-        !object.name.includes("BRAKES_LEFT") &&
-        !object.name.includes("BRAKES_RIGHT")
+        object.name.includes('LOD_A_BRAKES_mm_lights') &&
+        !object.name.includes('BRAKES_LEFT') &&
+        !object.name.includes('BRAKES_RIGHT')
       ) {
         highBrakeLights.push(object);
       }
@@ -509,9 +440,7 @@ export class VehicleAssets {
   ): WheelAssembly[] {
     if (parts.length === 0) return [];
     root.updateMatrixWorld(true);
-    const modelCenter = new THREE.Box3()
-      .setFromObject(root, true)
-      .getCenter(new THREE.Vector3());
+    const modelCenter = new THREE.Box3().setFromObject(root, true).getCenter(new THREE.Vector3());
     const groups = new Map<string, WheelAssembly>();
 
     for (const part of new Set(parts)) {
@@ -519,9 +448,7 @@ export class VehicleAssets {
       if (bounds.isEmpty()) continue;
       const center = bounds.getCenter(new THREE.Vector3());
       const front = center.z < modelCenter.z;
-      const key = `${center.x < modelCenter.x ? "left" : "right"}-${
-        front ? "front" : "rear"
-      }`;
+      const key = `${center.x < modelCenter.x ? 'left' : 'right'}-${front ? 'front' : 'rear'}`;
       const assembly = groups.get(key);
       if (assembly) assembly.parts.push(part);
       else groups.set(key, { parts: [part], front });
@@ -536,14 +463,11 @@ export class VehicleAssets {
       { material: THREE.Material; geometries: THREE.BufferGeometry[] }
     >();
     root.traverse((object) => {
-      if (!(object instanceof THREE.Mesh) || Array.isArray(object.material))
-        return;
+      if (!(object instanceof THREE.Mesh) || Array.isArray(object.material)) return;
       const geometry = object.geometry.clone();
       geometry.applyMatrix4(object.matrixWorld);
-      const attributeSignature = Object.keys(geometry.attributes)
-        .sort()
-        .join(",");
-      const key = `${object.material.uuid}|${attributeSignature}|${geometry.index ? "indexed" : "plain"}`;
+      const attributeSignature = Object.keys(geometry.attributes).sort().join(',');
+      const key = `${object.material.uuid}|${attributeSignature}|${geometry.index ? 'indexed' : 'plain'}`;
       let bucket = buckets.get(key);
       if (!bucket) {
         bucket = { material: object.material, geometries: [] };
@@ -562,7 +486,7 @@ export class VehicleAssets {
       mergedRoot.add(new THREE.Mesh(merged, bucket.material));
     }
     if (mergedRoot.children.length === 0)
-      throw new Error("The car geometry could not be optimized.");
+      throw new Error('The car geometry could not be optimized.');
     return mergedRoot;
   }
 
@@ -597,15 +521,9 @@ export class VehicleAssets {
           material.envMapIntensity = 1.4;
         } else {
           if (modelSpec.removePaintTexture) material.map = null;
-          material.metalness = metallicFinish
-            ? 0.78
-            : Math.max(material.metalness, 0.48);
-          material.roughness = metallicFinish
-            ? 0.18
-            : Math.min(material.roughness, 0.32);
-          material.envMapIntensity = metallicFinish
-            ? 1.35
-            : material.envMapIntensity;
+          material.metalness = metallicFinish ? 0.78 : Math.max(material.metalness, 0.48);
+          material.roughness = metallicFinish ? 0.18 : Math.min(material.roughness, 0.32);
+          material.envMapIntensity = metallicFinish ? 1.35 : material.envMapIntensity;
         }
         material.needsUpdate = true;
       }
@@ -621,23 +539,14 @@ export class VehicleAssets {
     });
   }
 
-  private prepareModelBrakeLights(
-    car: THREE.Group,
-    modelId: VehicleModelId,
-  ): ModelBrakeLight[] {
+  private prepareModelBrakeLights(car: THREE.Group, modelId: VehicleModelId): ModelBrakeLight[] {
     const modelSpec = CAR_MODEL_SPECS.find((spec) => spec.id === modelId);
     const tailNames = new Set(modelSpec?.tailMaterials ?? []);
     if (tailNames.size === 0) return [];
 
-    const materialClones = new Map<
-      THREE.MeshStandardMaterial,
-      ModelBrakeLight
-    >();
+    const materialClones = new Map<THREE.MeshStandardMaterial, ModelBrakeLight>();
     const prepareMaterial = (source: THREE.Material): THREE.Material => {
-      if (
-        !(source instanceof THREE.MeshStandardMaterial) ||
-        !tailNames.has(source.name)
-      ) {
+      if (!(source instanceof THREE.MeshStandardMaterial) || !tailNames.has(source.name)) {
         return source;
       }
       const existing = materialClones.get(source);
@@ -645,14 +554,12 @@ export class VehicleAssets {
 
       const material = source.clone();
       const preserveColor = modelSpec?.preserveTailColor === true;
-      const defaultProfile: Omit<ModelBrakeLight, "material"> = {
+      const defaultProfile: Omit<ModelBrakeLight, 'material'> = {
         restColor: preserveColor ? source.color.getHex() : 0x8f1118,
         restEmissive: preserveColor ? source.emissive.getHex() : 0x320003,
         restIntensity: preserveColor ? source.emissiveIntensity : 0.85,
         brakingColor: preserveColor ? source.color.getHex() : 0xff2732,
-        brakingEmissive: preserveColor
-          ? source.emissive.getHex()
-          : 0xff0712,
+        brakingEmissive: preserveColor ? source.emissive.getHex() : 0xff0712,
         brakingIntensity: preserveColor ? 3.2 : 5.2,
       };
       const light: ModelBrakeLight = {
@@ -675,6 +582,4 @@ export class VehicleAssets {
     });
     return [...materialClones.values()];
   }
-
-
 }

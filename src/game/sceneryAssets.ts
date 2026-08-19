@@ -54,9 +54,7 @@ export class SceneryAssets {
     options: NatureModelOptions,
   ): Promise<void> {
     const loader = new GLTFLoader();
-    const gltf = await loader.loadAsync(
-      `${import.meta.env.BASE_URL}${options.path}`,
-    );
+    const gltf = await loader.loadAsync(`${import.meta.env.BASE_URL}${options.path}`);
     const prototype = this.prepareNatureModel(gltf.scene, options);
     if (options.kind === 'pine-tree') this.pineTreePrototype = prototype;
 
@@ -68,10 +66,7 @@ export class SceneryAssets {
     }
   }
 
-  private prepareNatureModel(
-    source: THREE.Group,
-    options: NatureModelOptions,
-  ): THREE.Group {
+  private prepareNatureModel(source: THREE.Group, options: NatureModelOptions): THREE.Group {
     source.updateMatrixWorld(true);
     const materialClones = new Map<THREE.Material, THREE.Material>();
     const buckets = new Map<
@@ -176,5 +171,4 @@ export class SceneryAssets {
       mountain.add(prototype.clone(true));
     }
   }
-
 }

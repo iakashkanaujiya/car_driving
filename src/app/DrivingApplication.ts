@@ -62,35 +62,65 @@ export class DrivingApplication {
 
   private bindUiEvents(): void {
     const options = { signal: this.events.signal };
-    this.assetGate.retryButton.addEventListener('click', () => {
-      this.assetsReady = this.installAssets();
-    }, options);
-    byId<HTMLSelectElement>('driver-car').addEventListener('change', (event) => {
-      this.driverCar = (event.currentTarget as HTMLSelectElement).value as CarModelId;
-    }, options);
-    byId<HTMLSelectElement>('traffic-count').addEventListener('change', (event) => {
-      this.trafficCount = Number((event.currentTarget as HTMLSelectElement).value);
-    }, options);
-    byId<HTMLSelectElement>('car-model-count').addEventListener('change', (event) => {
-      this.modelCount = Number((event.currentTarget as HTMLSelectElement).value);
-    }, options);
-    byId<HTMLButtonElement>('camera-start').addEventListener('click', (event) => {
-      void this.useHandControls(event.currentTarget as HTMLButtonElement);
-    }, options);
+    this.assetGate.retryButton.addEventListener(
+      'click',
+      () => {
+        this.assetsReady = this.installAssets();
+      },
+      options,
+    );
+    byId<HTMLSelectElement>('driver-car').addEventListener(
+      'change',
+      (event) => {
+        this.driverCar = (event.currentTarget as HTMLSelectElement).value as CarModelId;
+      },
+      options,
+    );
+    byId<HTMLSelectElement>('traffic-count').addEventListener(
+      'change',
+      (event) => {
+        this.trafficCount = Number((event.currentTarget as HTMLSelectElement).value);
+      },
+      options,
+    );
+    byId<HTMLSelectElement>('car-model-count').addEventListener(
+      'change',
+      (event) => {
+        this.modelCount = Number((event.currentTarget as HTMLSelectElement).value);
+      },
+      options,
+    );
+    byId<HTMLButtonElement>('camera-start').addEventListener(
+      'click',
+      (event) => {
+        void this.useHandControls(event.currentTarget as HTMLButtonElement);
+      },
+      options,
+    );
     byId('keyboard-start').addEventListener('click', () => void this.useKeyboard(), options);
     this.pauseButton.addEventListener('click', () => this.togglePause(), options);
     byId('hide-camera').addEventListener('click', () => this.setCameraVisible(false), options);
     byId('show-camera').addEventListener('click', () => this.setCameraVisible(true), options);
-    byId<HTMLButtonElement>('mute-button').addEventListener('click', (event) => {
-      this.soundEnabled = !this.soundEnabled;
-      this.audio.setEnabled(this.soundEnabled);
-      (event.currentTarget as HTMLButtonElement).textContent = this.soundEnabled ? 'SOUND ON' : 'SOUND OFF';
-    }, options);
+    byId<HTMLButtonElement>('mute-button').addEventListener(
+      'click',
+      (event) => {
+        this.soundEnabled = !this.soundEnabled;
+        this.audio.setEnabled(this.soundEnabled);
+        (event.currentTarget as HTMLButtonElement).textContent = this.soundEnabled
+          ? 'SOUND ON'
+          : 'SOUND OFF';
+      },
+      options,
+    );
     this.fullscreenButton.addEventListener('click', () => void this.toggleFullscreen(), options);
     document.addEventListener('fullscreenchange', () => this.onFullscreenChange(), options);
-    document.addEventListener('visibilitychange', () => {
-      this.handController?.setPaused(document.hidden);
-    }, options);
+    document.addEventListener(
+      'visibilitychange',
+      () => {
+        this.handController?.setPaused(document.hidden);
+      },
+      options,
+    );
     window.addEventListener('keydown', (event) => this.onGlobalKeyDown(event), options);
     window.addEventListener('beforeunload', () => this.dispose(), { once: true });
   }
@@ -155,8 +185,12 @@ export class DrivingApplication {
       button.textContent = 'LOADING GAME...';
     }
     try {
-      const [assetsAvailable, sceneAvailable] = await Promise.all([this.assetsReady, this.sceneReady]);
-      if (!assetsAvailable || !sceneAvailable || !this.game) throw new Error('Required assets are unavailable.');
+      const [assetsAvailable, sceneAvailable] = await Promise.all([
+        this.assetsReady,
+        this.sceneReady,
+      ]);
+      if (!assetsAvailable || !sceneAvailable || !this.game)
+        throw new Error('Required assets are unavailable.');
       await this.game.setCars(this.driverCar, this.trafficCount, this.modelCount);
       return true;
     } catch (error) {
@@ -185,7 +219,9 @@ export class DrivingApplication {
         <div class="calibration-ring"><span id="calibration-percent">0%</span></div>
         <button id="cancel-camera" class="secondary-button">USE KEYBOARD INSTEAD</button>
       </div>`;
-    byId('cancel-camera').addEventListener('click', () => void this.useKeyboard(), { signal: this.events.signal });
+    byId('cancel-camera').addEventListener('click', () => void this.useKeyboard(), {
+      signal: this.events.signal,
+    });
     this.setTracking('LOADING HAND MODEL', 'warn');
     this.cameraHint.textContent = 'LOADING TRACKER';
 
@@ -208,7 +244,9 @@ export class DrivingApplication {
   private onHandStatus(status: string, progress: number): void {
     const percent = Math.min(100, Math.round(progress * 100));
     document.getElementById('calibration-percent')?.replaceChildren(`${percent}%`);
-    document.querySelector<HTMLElement>('.calibration-ring')?.style.setProperty('--progress', `${percent * 3.6}deg`);
+    document
+      .querySelector<HTMLElement>('.calibration-ring')
+      ?.style.setProperty('--progress', `${percent * 3.6}deg`);
 
     if (status === 'calibrating') {
       this.setTracking('HOLD BOTH FISTS', 'warn');
@@ -218,7 +256,10 @@ export class DrivingApplication {
       this.setTracking('HANDS TRACKED', 'ok');
       this.cameraHint.textContent = 'STEERING ACTIVE';
       if (this.game?.getPhase() !== 'playing' && !document.getElementById('begin-run')) {
-        this.showDriveReady('CALIBRATION LOCKED.', 'Turn your hands like a wheel. Raise both thumbs to brake; otherwise the car manages its own speed.');
+        this.showDriveReady(
+          'CALIBRATION LOCKED.',
+          'Turn your hands like a wheel. Raise both thumbs to brake; otherwise the car manages its own speed.',
+        );
       }
     } else if (status === 'lost') {
       this.setTracking('HANDS LOST', 'warn');
@@ -259,7 +300,9 @@ export class DrivingApplication {
         <h2>${title}</h2><p>${message}</p>
         <button id="begin-run" class="primary-button"><span>START THE RUN</span><i>→</i></button>
       </div>`;
-    byId('begin-run').addEventListener('click', () => this.beginRun(), { signal: this.events.signal });
+    byId('begin-run').addEventListener('click', () => this.beginRun(), {
+      signal: this.events.signal,
+    });
   }
 
   private beginRun(): void {
@@ -287,7 +330,9 @@ export class DrivingApplication {
         </div>
         <button id="restart-run" class="primary-button"><span>DRIVE AGAIN</span><i>↻</i></button>
       </div>`;
-    byId('restart-run').addEventListener('click', () => this.beginRun(), { signal: this.events.signal });
+    byId('restart-run').addEventListener('click', () => this.beginRun(), {
+      signal: this.events.signal,
+    });
   }
 
   private togglePause(): void {
@@ -303,7 +348,9 @@ export class DrivingApplication {
           <h2>TAKE A BREATH.</h2><p>The road is waiting exactly where you left it.</p>
           <button id="resume-run" class="primary-button"><span>RESUME DRIVE</span><i>→</i></button>
         </div>`;
-      byId('resume-run').addEventListener('click', () => this.resumeRun(), { signal: this.events.signal });
+      byId('resume-run').addEventListener('click', () => this.resumeRun(), {
+        signal: this.events.signal,
+      });
     } else if (this.game.getPhase() === 'paused') {
       this.resumeRun();
     }
@@ -325,7 +372,9 @@ export class DrivingApplication {
         <p>The game will not start until every required texture and model has loaded. Check your connection and try again.</p>
         <button id="reload-game" class="secondary-button">RELOAD GAME</button>
       </div>`;
-    byId('reload-game').addEventListener('click', () => window.location.reload(), { signal: this.events.signal });
+    byId('reload-game').addEventListener('click', () => window.location.reload(), {
+      signal: this.events.signal,
+    });
   }
 
   private setTracking(text: string, state: TrackingState = 'off'): void {
@@ -346,7 +395,10 @@ export class DrivingApplication {
   private onFullscreenChange(): void {
     const active = document.fullscreenElement !== null;
     this.fullscreenButton.textContent = active ? 'EXIT FULL SCREEN' : 'FULL SCREEN';
-    this.fullscreenButton.setAttribute('aria-label', active ? 'Exit full screen' : 'Enter full screen');
+    this.fullscreenButton.setAttribute(
+      'aria-label',
+      active ? 'Exit full screen' : 'Enter full screen',
+    );
     this.fullscreenButton.setAttribute('aria-pressed', active.toString());
     requestAnimationFrame(() => requestAnimationFrame(() => this.game?.refreshViewport()));
   }

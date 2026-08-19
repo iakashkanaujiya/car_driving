@@ -1,4 +1,5 @@
-export type GamePhase = 'loading' | 'permission' | 'calibrating' | 'ready' | 'playing' | 'paused' | 'crashed';
+export type GamePhase =
+  'loading' | 'permission' | 'calibrating' | 'ready' | 'playing' | 'paused' | 'crashed';
 export type ControlMode = 'hands' | 'keyboard';
 
 export interface ControlInput {

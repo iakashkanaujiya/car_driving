@@ -64,13 +64,7 @@ export class SurfaceTextureStore {
     const repeatX = options.repeatX ?? 1;
     const repeatY = options.repeatY ?? 1;
     const textureRoot = options.textureRoot ?? 'roads/textures';
-    const surfaceMap = this.load(
-      metallicRoughness,
-      false,
-      repeatX,
-      repeatY,
-      textureRoot,
-    );
+    const surfaceMap = this.load(metallicRoughness, false, repeatX, repeatY, textureRoot);
     return new THREE.MeshStandardMaterial({
       color: options.tint ?? 0xffffff,
       map: this.load(baseColor, true, repeatX, repeatY, textureRoot),
@@ -146,12 +140,7 @@ export function createSnowPatchTexture(seed: number): THREE.CanvasTexture {
         gradient.addColorStop(0.58, `rgba(238, 244, 246, ${opacity * 0.72})`);
         gradient.addColorStop(1, 'rgba(232, 240, 243, 0)');
         context.fillStyle = gradient;
-        context.fillRect(
-          patchX - radius,
-          patchY - radius,
-          radius * 2,
-          radius * 2,
-        );
+        context.fillRect(patchX - radius, patchY - radius, radius * 2, radius * 2);
       }
     }
   }
@@ -199,29 +188,30 @@ export function addSceneLighting(scene: THREE.Scene, shadowMapSize = 1024): Scen
   const sunTexture = new THREE.CanvasTexture(sunCanvas);
   sunTexture.colorSpace = THREE.SRGBColorSpace;
   const sunVisual = new THREE.Group();
-  const sunSprite = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: sunTexture,
-    transparent: true,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    fog: false,
-  }));
+  const sunSprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: sunTexture,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      fog: false,
+    }),
+  );
   sunSprite.scale.set(72, 72, 1);
   sunVisual.add(sunSprite);
-  sunVisual.add(new THREE.Mesh(
-    new THREE.SphereGeometry(7.5, 18, 12),
-    new THREE.MeshBasicMaterial({ color: 0xfff1a3, fog: false, depthTest: false }),
-  ));
+  sunVisual.add(
+    new THREE.Mesh(
+      new THREE.SphereGeometry(7.5, 18, 12),
+      new THREE.MeshBasicMaterial({ color: 0xfff1a3, fog: false, depthTest: false }),
+    ),
+  );
   scene.add(sunVisual);
   const lighting = { sun, target, visual: sunVisual };
   updateSceneShadow(lighting, new THREE.Vector3());
   return lighting;
 }
 
-export function updateSceneShadow(
-  lighting: SceneLighting,
-  center: THREE.Vector3,
-): void {
+export function updateSceneShadow(lighting: SceneLighting, center: THREE.Vector3): void {
   lighting.target.position.copy(center);
   lighting.sun.position.copy(center).add(SUN_SHADOW_OFFSET);
 }

@@ -26,9 +26,7 @@ describe('Vehicle model roster', () => {
       'ford-everest-sport',
     ]);
     expect(selectCarModelIds('ford-f150-raptor', 99)).toHaveLength(4);
-    expect(selectCarModelIds('ford-f150-raptor', Number.NaN)).toEqual([
-      'ford-f150-raptor',
-    ]);
+    expect(selectCarModelIds('ford-f150-raptor', Number.NaN)).toEqual(['ford-f150-raptor']);
   });
 });
 
@@ -55,16 +53,18 @@ describe('VehicleAssets wheel animation', () => {
     const roller = new THREE.Group();
     steeringPivot.add(roller);
     car.add(steeringPivot);
-    car.userData.animatedWheels = [{
-      steeringPivot,
-      roller,
-      radius: 0.5,
-      front: true,
-      rollAxis: 'y',
-      baseRoll: 0,
-      baseSteering: 0,
-      rollAngle: 0,
-    }];
+    car.userData.animatedWheels = [
+      {
+        steeringPivot,
+        roller,
+        radius: 0.5,
+        front: true,
+        rollAxis: 'y',
+        baseRoll: 0,
+        baseSteering: 0,
+        rollAngle: 0,
+      },
+    ];
 
     new VehicleAssets().updateWheelAnimation(car, Math.PI * 0.5, 0.5, 1 / 60);
 
@@ -111,10 +111,7 @@ describe('VehicleAssets wheel animation', () => {
         for (const materialName of wheelMaterials) {
           const material = new THREE.MeshStandardMaterial();
           material.name = materialName;
-          const part = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.5, 0.5, 0.25),
-            material,
-          );
+          const part = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.25), material);
           part.position.set(x, 0, z);
           source.add(part);
         }
@@ -154,9 +151,7 @@ describe('VehicleAssets wheel animation', () => {
       const wheel = new THREE.Group();
       wheel.name = name;
       wheel.position.set(x, 0, z);
-      wheel.add(
-        new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.25)),
-      );
+      wheel.add(new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.25)));
       source.add(wheel);
     }
 
@@ -170,12 +165,7 @@ describe('VehicleAssets wheel animation', () => {
         ) => THREE.Group;
       }
     ).prepareCarModel.bind(assets);
-    const prototype = prepareCarModel(
-      source,
-      Math.PI,
-      true,
-      'ford-f150-raptor',
-    );
+    const prototype = prepareCarModel(source, Math.PI, true, 'ford-f150-raptor');
     const wheels: THREE.Object3D[] = [];
     prototype.traverse((object) => {
       if (object.userData.isWheelPivot === true) wheels.push(object);
@@ -238,17 +228,13 @@ describe('VehicleAssets wheel animation', () => {
       emissiveIntensity: 1,
     });
     emission.name = 'M_Emission';
-    const emissionMesh = new THREE.Mesh(
-      new THREE.BoxGeometry(2, 1, 4),
-      emission,
-    );
+    const emissionMesh = new THREE.Mesh(new THREE.BoxGeometry(2, 1, 4), emission);
     emissionMesh.name = 'ioniq-emission';
     prototype.add(emissionMesh);
 
     assets.replaceVisual(car, prototype, false, 'ioniq-5');
     const preparedEmission = car.getObjectByName('ioniq-emission') as THREE.Mesh;
-    const preparedMaterial =
-      preparedEmission.material as THREE.MeshStandardMaterial;
+    const preparedMaterial = preparedEmission.material as THREE.MeshStandardMaterial;
     assets.setBrakeLights(car, true);
 
     expect(preparedMaterial.emissive.getHex()).toBe(0xffffff);
@@ -258,5 +244,4 @@ describe('VehicleAssets wheel animation', () => {
     expect(emission.emissive.getHex()).toBe(0xffffff);
     expect(emission.emissiveIntensity).toBe(1);
   });
-
 });

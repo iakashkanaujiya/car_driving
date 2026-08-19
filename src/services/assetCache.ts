@@ -1,10 +1,5 @@
 export type AssetCachePhase =
-  | 'checking'
-  | 'downloading'
-  | 'preparing'
-  | 'ready'
-  | 'unsupported'
-  | 'error';
+  'checking' | 'downloading' | 'preparing' | 'ready' | 'unsupported' | 'error';
 
 export interface AssetCacheProgress {
   phase: AssetCachePhase;
@@ -27,15 +22,9 @@ interface WorkerProgressMessage extends AssetCacheProgress {
   type: 'progress';
 }
 
-type WorkerMessage =
-  | WorkerProgressMessage
-  | { type: 'ready' }
-  | { type: 'error'; message: string };
+type WorkerMessage = WorkerProgressMessage | { type: 'ready' } | { type: 'error'; message: string };
 
-const emptyProgress = (
-  phase: AssetCachePhase,
-  message?: string,
-): AssetCacheProgress => ({
+const emptyProgress = (phase: AssetCachePhase, message?: string): AssetCacheProgress => ({
   phase,
   loadedBytes: 0,
   totalBytes: 0,
@@ -56,26 +45,22 @@ export async function cacheAssets(
   try {
     onProgress(emptyProgress('checking'));
     const baseUrl = new URL(import.meta.env.BASE_URL, window.location.href);
-    const manifestResponse = await fetch(
-      new URL('assets-manifest.json', baseUrl),
-      { cache: 'no-cache' },
-    );
+    const manifestResponse = await fetch(new URL('assets-manifest.json', baseUrl), {
+      cache: 'no-cache',
+    });
     if (!manifestResponse.ok) {
       throw new Error(`Asset manifest returned HTTP ${manifestResponse.status}.`);
     }
-    const manifest = await manifestResponse.json() as AssetManifest;
+    const manifest = (await manifestResponse.json()) as AssetManifest;
     if (!manifest.version || !manifest.assets.length || manifest.totalBytes <= 0) {
       throw new Error('The asset manifest is invalid.');
     }
 
     void navigator.storage?.persist?.().catch(() => false);
-    const registration = await navigator.serviceWorker.register(
-      new URL('assets-sw.js', baseUrl),
-      {
-        scope: baseUrl.pathname,
-        updateViaCache: 'none',
-      },
-    );
+    const registration = await navigator.serviceWorker.register(new URL('assets-sw.js', baseUrl), {
+      scope: baseUrl.pathname,
+      updateViaCache: 'none',
+    });
     const worker = await waitForActiveWorker(registration);
 
     const assets = manifest.assets.map((asset) => ({
@@ -125,10 +110,14 @@ export async function cacheAssets(
 async function waitForController(): Promise<void> {
   await new Promise<void>((resolve) => {
     const timeout = window.setTimeout(resolve, 3_000);
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      window.clearTimeout(timeout);
-      resolve();
-    }, { once: true });
+    navigator.serviceWorker.addEventListener(
+      'controllerchange',
+      () => {
+        window.clearTimeout(timeout);
+        resolve();
+      },
+      { once: true },
+    );
   });
 }
 

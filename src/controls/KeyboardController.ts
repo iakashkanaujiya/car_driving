@@ -6,7 +6,9 @@ export class KeyboardController {
   private accelerating = false;
   private braking = false;
 
-  constructor(private readonly eventTarget: Pick<Window, 'addEventListener' | 'removeEventListener'> = window) {
+  constructor(
+    private readonly eventTarget: Pick<Window, 'addEventListener' | 'removeEventListener'> = window,
+  ) {
     this.eventTarget.addEventListener('keydown', this.onKeyDown);
     this.eventTarget.addEventListener('keyup', this.onKeyUp);
     this.eventTarget.addEventListener('blur', this.reset);

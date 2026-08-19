@@ -11,12 +11,16 @@ let landmarker: HandLandmarker | null = null;
 
 const send = (message: HandWorkerOutput): void => workerScope.postMessage(message);
 
-const serializeResult = (result: ReturnType<HandLandmarker['detectForVideo']>): HandTrackingResult => ({
-  landmarks: result.landmarks.map((hand) => hand.map((point) => ({
-    x: point.x,
-    y: point.y,
-    z: point.z,
-  }))),
+const serializeResult = (
+  result: ReturnType<HandLandmarker['detectForVideo']>,
+): HandTrackingResult => ({
+  landmarks: result.landmarks.map((hand) =>
+    hand.map((point) => ({
+      x: point.x,
+      y: point.y,
+      z: point.z,
+    })),
+  ),
   handednessScores: result.handedness.map((categories) => categories[0]?.score ?? 0.7),
 });
 

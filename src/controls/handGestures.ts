@@ -1,7 +1,6 @@
 import type { HandPoint } from './handWorkerTypes';
 
-const pointDistance = (a: HandPoint, b: HandPoint): number =>
-  Math.hypot(a.x - b.x, a.y - b.y);
+const pointDistance = (a: HandPoint, b: HandPoint): number => Math.hypot(a.x - b.x, a.y - b.y);
 
 export function isClosedHand(landmarks: HandPoint[]): boolean {
   if (landmarks.length < 21) return false;

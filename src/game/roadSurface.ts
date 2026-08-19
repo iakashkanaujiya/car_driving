@@ -41,7 +41,11 @@ export function createRoadStrip(
   return geometry;
 }
 
-export function updateRoadStrip(geometry: THREE.BufferGeometry, start: number, length: number): void {
+export function updateRoadStrip(
+  geometry: THREE.BufferGeometry,
+  start: number,
+  length: number,
+): void {
   const position = geometry.getAttribute('position') as THREE.BufferAttribute;
   const uv = geometry.getAttribute('uv') as THREE.BufferAttribute;
   const segments = position.count / 2 - 1;
@@ -57,8 +61,18 @@ export function updateRoadStrip(geometry: THREE.BufferGeometry, start: number, l
     const sideX = Math.cos(heading);
     const sideZ = -Math.sin(heading);
     const vertex = index * 2;
-    position.setXYZ(vertex, center + sideX * (centerOffset - halfWidth), 0, -distance + sideZ * (centerOffset - halfWidth));
-    position.setXYZ(vertex + 1, center + sideX * (centerOffset + halfWidth), 0, -distance + sideZ * (centerOffset + halfWidth));
+    position.setXYZ(
+      vertex,
+      center + sideX * (centerOffset - halfWidth),
+      0,
+      -distance + sideZ * (centerOffset - halfWidth),
+    );
+    position.setXYZ(
+      vertex + 1,
+      center + sideX * (centerOffset + halfWidth),
+      0,
+      -distance + sideZ * (centerOffset + halfWidth),
+    );
     uv.setXY(vertex, 0, distance / uvMeters);
     uv.setXY(vertex + 1, uvWidth, distance / uvMeters);
   }

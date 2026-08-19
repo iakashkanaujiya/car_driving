@@ -34,11 +34,7 @@ export class EngineSound {
 
   update(speedKph: number): void {
     if (!this.context || !this.oscillator || !this.gain) return;
-    this.oscillator.frequency.setTargetAtTime(
-      48 + speedKph * 1.1,
-      this.context.currentTime,
-      0.08,
-    );
+    this.oscillator.frequency.setTargetAtTime(48 + speedKph * 1.1, this.context.currentTime, 0.08);
     const volume = this.enabled && speedKph > 1 ? 0.018 + speedKph / 9000 : 0;
     this.gain.gain.setTargetAtTime(volume, this.context.currentTime, 0.12);
   }
@@ -77,7 +73,14 @@ export class EngineSound {
     const leadNotes = [220, 246.94, 293.66, 329.63, 293.66, 246.94, 196, 220];
     this.playNote(bassNotes[this.beat % bassNotes.length], now, 0.22, 'sawtooth', 0.18, 420);
     if (this.beat % 2 === 0) {
-      this.playNote(leadNotes[(this.beat / 2) % leadNotes.length], now + 0.02, 0.18, 'triangle', 0.11, 1400);
+      this.playNote(
+        leadNotes[(this.beat / 2) % leadNotes.length],
+        now + 0.02,
+        0.18,
+        'triangle',
+        0.11,
+        1400,
+      );
     }
     if (this.beat % 4 === 0) this.playKick(now);
     if (this.beat % 4 === 2) this.playNoise(now, 0.045);

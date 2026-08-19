@@ -1,52 +1,48 @@
 const ASSET_CACHE_PREFIX = 'driftline-assets-';
-const LEGACY_CACHE_PREFIXES = [
-  'driftline-core-game-',
-  'driftline-real-cars-',
-];
+const LEGACY_CACHE_PREFIXES = ['driftline-core-game-', 'driftline-real-cars-'];
 const DOWNLOAD_CONCURRENCY = 3;
 let currentAssetCacheName = null;
 
 self.addEventListener('install', () => self.skipWaiting());
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil((async () => {
-    const cacheNames = await caches.keys();
-    currentAssetCacheName = cacheNames
-      .filter((name) => (
-        name.startsWith(ASSET_CACHE_PREFIX) ||
-        LEGACY_CACHE_PREFIXES.some((prefix) => name.startsWith(prefix))
-      ))
-      .at(-1) ?? null;
-    await self.clients.claim();
-  })());
+  event.waitUntil(
+    (async () => {
+      const cacheNames = await caches.keys();
+      currentAssetCacheName =
+        cacheNames
+          .filter(
+            (name) =>
+              name.startsWith(ASSET_CACHE_PREFIX) ||
+              LEGACY_CACHE_PREFIXES.some((prefix) => name.startsWith(prefix)),
+          )
+          .at(-1) ?? null;
+      await self.clients.claim();
+    })(),
+  );
 });
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-  if (
-    event.request.method !== 'GET' ||
-    url.origin !== self.location.origin
-  ) return;
+  if (event.request.method !== 'GET' || url.origin !== self.location.origin) return;
 
-  event.respondWith((async () => {
-    let currentCache = null;
-    if (currentAssetCacheName) {
-      currentCache = await caches.open(currentAssetCacheName);
-      const currentMatch = await currentCache.match(event.request);
-      if (currentMatch) return currentMatch;
-    }
-    const response = await fetch(event.request);
-    // Vehicle packs are optional at startup. Persist each selected model on
-    // first use so later runs retain the original offline-friendly behavior.
-    if (
-      currentCache &&
-      response.ok &&
-      url.pathname.includes('/models/')
-    ) {
-      await currentCache.put(event.request, response.clone());
-    }
-    return response;
-  })());
+  event.respondWith(
+    (async () => {
+      let currentCache = null;
+      if (currentAssetCacheName) {
+        currentCache = await caches.open(currentAssetCacheName);
+        const currentMatch = await currentCache.match(event.request);
+        if (currentMatch) return currentMatch;
+      }
+      const response = await fetch(event.request);
+      // Vehicle packs are optional at startup. Persist each selected model on
+      // first use so later runs retain the original offline-friendly behavior.
+      if (currentCache && response.ok && url.pathname.includes('/models/')) {
+        await currentCache.put(event.request, response.clone());
+      }
+      return response;
+    })(),
+  );
 });
 
 self.addEventListener('message', (event) => {
@@ -134,22 +130,18 @@ async function cacheAssets(message, port) {
     };
 
     await Promise.all(
-      Array.from(
-        { length: Math.min(DOWNLOAD_CONCURRENCY, pending.length) },
-        () => downloadNext(),
-      ),
+      Array.from({ length: Math.min(DOWNLOAD_CONCURRENCY, pending.length) }, () => downloadNext()),
     );
 
     const cacheNames = await caches.keys();
     await Promise.all(
       cacheNames
-        .filter((name) => (
-          name !== cacheName &&
-          (
-            name.startsWith(ASSET_CACHE_PREFIX) ||
-            LEGACY_CACHE_PREFIXES.some((prefix) => name.startsWith(prefix))
-          )
-        ))
+        .filter(
+          (name) =>
+            name !== cacheName &&
+            (name.startsWith(ASSET_CACHE_PREFIX) ||
+              LEGACY_CACHE_PREFIXES.some((prefix) => name.startsWith(prefix))),
+        )
         .map((name) => caches.delete(name)),
     );
 

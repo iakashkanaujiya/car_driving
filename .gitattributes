@@ -1,0 +1,9 @@
+* text=auto eol=lf
+
+*.glb binary
+*.jpeg binary
+*.jpg binary
+*.png binary
+*.task binary
+*.wasm binary
+*.webp binary

@@ -29,12 +29,12 @@ https://<your-github-username>.github.io/car_driving/
 
 Choose any of these vehicles directly on the start screen. Traffic reuses the same model collection with randomized realistic paint colors.
 
-| Vehicle | Driver car | Traffic car |
-| --- | :---: | :---: |
-| 2017 Ford F-150 Raptor (default) | Yes | Yes |
-| 2023 Ford Everest Sport | Yes | Yes |
-| Hyundai Ioniq 5 | Yes | Yes |
-| 2018 Audi e-tron GT Concept | Yes | Yes |
+| Vehicle                          | Driver car | Traffic car |
+| -------------------------------- | :--------: | :---------: |
+| 2017 Ford F-150 Raptor (default) |    Yes     |     Yes     |
+| 2023 Ford Everest Sport          |    Yes     |     Yes     |
+| Hyundai Ioniq 5                  |    Yes     |     Yes     |
+| 2018 Audi e-tron GT Concept      |    Yes     |     Yes     |
 
 You can select 0, 4, 8, 12, or 16 traffic cars and choose how many different models appear. Car variety defaults to 1, which reuses the selected driver model for traffic and reduces model parsing and memory use. Higher traffic counts or model variety may reduce frame rates on lower-powered devices.
 

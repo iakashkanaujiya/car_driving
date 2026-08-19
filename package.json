@@ -9,6 +9,8 @@
     "dev": "vite",
     "prebuild": "node scripts/generate-asset-manifest.mjs",
     "build": "tsc && vite build",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "preview": "vite preview",
     "test": "vitest run"
   },
@@ -19,6 +21,7 @@
   "devDependencies": {
     "@types/three": "^0.179.0",
     "@vitejs/plugin-basic-ssl": "^2.3.0",
+    "prettier": "^3.9.6",
     "typescript": "^5.9.2",
     "vite": "^7.1.2",
     "vitest": "^3.2.4"

@@ -48,11 +48,13 @@ export class AssetGate {
   update(progress: AssetCacheProgress): void {
     this.progress = progress;
     const checkedRatio = progress.totalFiles > 0 ? progress.checkedFiles / progress.totalFiles : 0;
-    const downloadedRatio = progress.totalBytes > 0 ? progress.loadedBytes / progress.totalBytes : 0;
+    const downloadedRatio =
+      progress.totalBytes > 0 ? progress.loadedBytes / progress.totalBytes : 0;
     const ratio = progress.phase === 'checking' ? checkedRatio : downloadedRatio;
-    const percentage = progress.phase === 'ready' || progress.phase === 'preparing'
-      ? 100
-      : Math.max(0, Math.min(99, Math.round(ratio * 100)));
+    const percentage =
+      progress.phase === 'ready' || progress.phase === 'preparing'
+        ? 100
+        : Math.max(0, Math.min(99, Math.round(ratio * 100)));
 
     this.panel.dataset.state = progress.phase;
     this.loader.style.setProperty('--download-progress', `${percentage * 3.6}deg`);
@@ -62,9 +64,10 @@ export class AssetGate {
     switch (progress.phase) {
       case 'checking':
         this.label.textContent = 'CHECKING BROWSER STORAGE';
-        this.detail.textContent = progress.totalFiles > 0
-          ? `${progress.checkedFiles} / ${progress.totalFiles} files checked`
-          : 'Looking for previously downloaded assets...';
+        this.detail.textContent =
+          progress.totalFiles > 0
+            ? `${progress.checkedFiles} / ${progress.totalFiles} files checked`
+            : 'Looking for previously downloaded assets...';
         break;
       case 'downloading':
         this.label.textContent = 'DOWNLOADING ASSETS';
@@ -88,8 +91,8 @@ export class AssetGate {
         this.label.textContent = 'ASSET LOAD FAILED';
         this.percent.textContent = '!';
         this.loader.style.setProperty('--download-progress', '360deg');
-        this.detail.textContent = progress.message
-          ?? 'Check your connection and available browser storage, then retry.';
+        this.detail.textContent =
+          progress.message ?? 'Check your connection and available browser storage, then retry.';
     }
   }
 

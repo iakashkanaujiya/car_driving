@@ -8,14 +8,17 @@ import {
 /** Builds the static application shell. Dynamic overlays remain in the app controller. */
 export function createGameTemplate(): string {
   const loadingPosterPath = `${import.meta.env.BASE_URL}images/driftline-poster-loading.webp`;
-  const carOptions = CAR_MODEL_OPTIONS.map(({ id, label }) =>
-    `<option value="${id}"${id === DEFAULT_CAR_MODEL_ID ? ' selected' : ''}>${label}</option>`,
+  const carOptions = CAR_MODEL_OPTIONS.map(
+    ({ id, label }) =>
+      `<option value="${id}"${id === DEFAULT_CAR_MODEL_ID ? ' selected' : ''}>${label}</option>`,
   ).join('');
-  const trafficOptions = TRAFFIC_COUNT_OPTIONS.map((count) =>
-    `<option value="${count}"${count === 4 ? ' selected' : ''}>${count === 0 ? 'NO TRAFFIC' : `${count} CARS`}</option>`,
+  const trafficOptions = TRAFFIC_COUNT_OPTIONS.map(
+    (count) =>
+      `<option value="${count}"${count === 4 ? ' selected' : ''}>${count === 0 ? 'NO TRAFFIC' : `${count} CARS`}</option>`,
   ).join('');
-  const varietyOptions = CAR_MODEL_VARIETY_OPTIONS.map((count) =>
-    `<option value="${count}"${count === 1 ? ' selected' : ''}>${count} ${count === 1 ? 'MODEL' : 'MODELS'}</option>`,
+  const varietyOptions = CAR_MODEL_VARIETY_OPTIONS.map(
+    (count) =>
+      `<option value="${count}"${count === 1 ? ' selected' : ''}>${count} ${count === 1 ? 'MODEL' : 'MODELS'}</option>`,
   ).join('');
 
   return `

@@ -1,4 +1,8 @@
-import { FilesetResolver, HandLandmarker, type HandLandmarkerResult } from '@mediapipe/tasks-vision';
+import {
+  FilesetResolver,
+  HandLandmarker,
+  type HandLandmarkerResult,
+} from '@mediapipe/tasks-vision';
 import { damp, steeringFromHands } from '../game/math';
 import type { ControlInput } from '../game/types';
 import { isClosedHand, isThumbUp } from './handGestures';
@@ -9,11 +13,26 @@ const INFERENCE_INTERVAL_MS = 1000 / 20;
 const PREVIEW_INTERVAL_MS = 1000 / 12;
 const HAND_POINT_COLORS = [
   '#ecff76',
-  '#ffb866', '#ffb866', '#ffb866', '#ffb866',
-  '#55e8ff', '#55e8ff', '#55e8ff', '#55e8ff',
-  '#72ffad', '#72ffad', '#72ffad', '#72ffad',
-  '#d98cff', '#d98cff', '#d98cff', '#d98cff',
-  '#ff7f9f', '#ff7f9f', '#ff7f9f', '#ff7f9f',
+  '#ffb866',
+  '#ffb866',
+  '#ffb866',
+  '#ffb866',
+  '#55e8ff',
+  '#55e8ff',
+  '#55e8ff',
+  '#55e8ff',
+  '#72ffad',
+  '#72ffad',
+  '#72ffad',
+  '#72ffad',
+  '#d98cff',
+  '#d98cff',
+  '#d98cff',
+  '#d98cff',
+  '#ff7f9f',
+  '#ff7f9f',
+  '#ff7f9f',
+  '#ff7f9f',
 ] as const;
 const FINGERTIP_INDICES = new Set([4, 8, 12, 16, 20]);
 
@@ -57,8 +76,12 @@ export class HandController {
       await this.video.play();
       if (this.stopped) return;
 
-      const wasmRoot = new URL(`${import.meta.env.BASE_URL}mediapipe/wasm`, window.location.href).href;
-      const localModel = new URL(`${import.meta.env.BASE_URL}mediapipe/hand_landmarker.task`, window.location.href).href;
+      const wasmRoot = new URL(`${import.meta.env.BASE_URL}mediapipe/wasm`, window.location.href)
+        .href;
+      const localModel = new URL(
+        `${import.meta.env.BASE_URL}mediapipe/hand_landmarker.task`,
+        window.location.href,
+      ).href;
       try {
         await this.startWorker(wasmRoot, localModel);
       } catch (workerError) {
@@ -89,10 +112,15 @@ export class HandController {
       throw new Error('Required worker camera APIs are unavailable.');
     }
 
-    const worker = new Worker(new URL('./handTracking.worker.ts', import.meta.url), { type: 'module' });
+    const worker = new Worker(new URL('./handTracking.worker.ts', import.meta.url), {
+      type: 'module',
+    });
     this.worker = worker;
     await new Promise<void>((resolve, reject) => {
-      const timeout = window.setTimeout(() => reject(new Error('Hand tracking worker initialization timed out.')), 20_000);
+      const timeout = window.setTimeout(
+        () => reject(new Error('Hand tracking worker initialization timed out.')),
+        20_000,
+      );
       this.cancelWorkerInitialization = (): void => {
         window.clearTimeout(timeout);
         reject(new Error('Hand tracking worker initialization was cancelled.'));
@@ -112,21 +140,28 @@ export class HandController {
       };
       const message: HandWorkerInput = { type: 'init', wasmRoot, modelAssetPath };
       worker.postMessage(message);
-    }).catch((error) => {
-      worker.terminate();
-      if (this.worker === worker) this.worker = null;
-      throw error;
-    }).finally(() => {
-      this.cancelWorkerInitialization = null;
-    });
+    })
+      .catch((error) => {
+        worker.terminate();
+        if (this.worker === worker) this.worker = null;
+        throw error;
+      })
+      .finally(() => {
+        this.cancelWorkerInitialization = null;
+      });
 
     worker.onmessage = this.handleWorkerMessage;
     worker.onerror = (event): void => {
-      void this.activateMainThreadFallback(new Error(event.message || 'Hand tracking worker stopped.'));
+      void this.activateMainThreadFallback(
+        new Error(event.message || 'Hand tracking worker stopped.'),
+      );
     };
   }
 
-  private async initializeMainThreadLandmarker(wasmRoot: string, localModel: string): Promise<void> {
+  private async initializeMainThreadLandmarker(
+    wasmRoot: string,
+    localModel: string,
+  ): Promise<void> {
     const vision = await FilesetResolver.forVisionTasks(wasmRoot);
     try {
       this.landmarker = await this.createLandmarker(vision, localModel, 'GPU');
@@ -165,7 +200,8 @@ export class HandController {
   }
 
   getInput(): ControlInput {
-    if (performance.now() - this.lastSeen > 420) return { steering: 0, confidence: 0, active: false };
+    if (performance.now() - this.lastSeen > 420)
+      return { steering: 0, confidence: 0, active: false };
     return { ...this.input };
   }
 
@@ -235,25 +271,28 @@ export class HandController {
       this.video.readyState < 2 ||
       this.video.currentTime === this.lastVideoTime ||
       now - this.lastInferenceTime < INFERENCE_INTERVAL_MS
-    ) return;
+    )
+      return;
     this.lastVideoTime = this.video.currentTime;
     this.lastInferenceTime = now;
 
     if (this.worker) {
       if (this.frameInFlight) return;
       this.frameInFlight = true;
-      void createImageBitmap(this.video).then((frame) => {
-        if (this.stopped || !this.worker) {
-          frame.close();
+      void createImageBitmap(this.video)
+        .then((frame) => {
+          if (this.stopped || !this.worker) {
+            frame.close();
+            this.frameInFlight = false;
+            return;
+          }
+          const message: HandWorkerInput = { type: 'frame', frame, timestamp: now };
+          this.worker.postMessage(message, [frame]);
+        })
+        .catch((error) => {
           this.frameInFlight = false;
-          return;
-        }
-        const message: HandWorkerInput = { type: 'frame', frame, timestamp: now };
-        this.worker.postMessage(message, [frame]);
-      }).catch((error) => {
-        this.frameInFlight = false;
-        void this.activateMainThreadFallback(error);
-      });
+          void this.activateMainThreadFallback(error);
+        });
       return;
     }
 
@@ -283,8 +322,12 @@ export class HandController {
     this.worker = null;
     this.frameInFlight = false;
     try {
-      const wasmRoot = new URL(`${import.meta.env.BASE_URL}mediapipe/wasm`, window.location.href).href;
-      const localModel = new URL(`${import.meta.env.BASE_URL}mediapipe/hand_landmarker.task`, window.location.href).href;
+      const wasmRoot = new URL(`${import.meta.env.BASE_URL}mediapipe/wasm`, window.location.href)
+        .href;
+      const localModel = new URL(
+        `${import.meta.env.BASE_URL}mediapipe/hand_landmarker.task`,
+        window.location.href,
+      ).href;
       await this.initializeMainThreadLandmarker(wasmRoot, localModel);
     } catch (error) {
       console.warn('Main-thread hand tracking fallback failed.', error);
@@ -297,14 +340,16 @@ export class HandController {
 
   private serializeResult(result: HandLandmarkerResult): HandTrackingResult {
     return {
-      landmarks: result.landmarks.map((hand) => hand.map((point) => ({
-        x: point.x,
-        y: point.y,
-        z: point.z,
-      }))),
+      landmarks: result.landmarks.map((hand) =>
+        hand.map((point) => ({
+          x: point.x,
+          y: point.y,
+          z: point.z,
+        })),
+      ),
       handednessScores: result.handedness.map((categories) => categories[0]?.score ?? 0.7),
     };
-  };
+  }
 
   private consumeResult(result: HandTrackingResult): void {
     if (result.landmarks.length !== 2) {
@@ -323,14 +368,20 @@ export class HandController {
       }))
       .sort((a, b) => a.wrist.x - b.wrist.x);
 
-    const separation = Math.hypot(hands[1].wrist.x - hands[0].wrist.x, hands[1].wrist.y - hands[0].wrist.y);
+    const separation = Math.hypot(
+      hands[1].wrist.x - hands[0].wrist.x,
+      hands[1].wrist.y - hands[0].wrist.y,
+    );
     if (!hands.every((hand) => hand.closed) || separation < 0.14) {
       this.input.active = false;
       if (this.status === 'tracking') this.setStatus('lost');
       return;
     }
 
-    const angle = Math.atan2(hands[1].wrist.y - hands[0].wrist.y, hands[1].wrist.x - hands[0].wrist.x);
+    const angle = Math.atan2(
+      hands[1].wrist.y - hands[0].wrist.y,
+      hands[1].wrist.x - hands[0].wrist.x,
+    );
     const confidence = Math.min(hands[0].score, hands[1].score);
     this.lastSeen = performance.now();
 
@@ -369,7 +420,8 @@ export class HandController {
       !this.previewVisible ||
       shell?.classList.contains('is-hidden') ||
       now - this.lastPreviewTime < PREVIEW_INTERVAL_MS
-    ) return;
+    )
+      return;
     this.lastPreviewTime = now;
 
     const width = this.video.videoWidth || 320;

@@ -69,13 +69,21 @@ export function createSpeedPlan(
   if (manualControl && control.active) {
     if (control.braking || !control.accelerating) targetSpeed = 0;
     acceleration = safetyBraking
-      ? isEmergency(leadDistance, leadIsIncoming) ? GAME.emergencyBrake : GAME.serviceBrake
-      : control.braking ? GAME.serviceBrake
-        : control.accelerating ? GAME.acceleration : GAME.coastDeceleration;
+      ? isEmergency(leadDistance, leadIsIncoming)
+        ? GAME.emergencyBrake
+        : GAME.serviceBrake
+      : control.braking
+        ? GAME.serviceBrake
+        : control.accelerating
+          ? GAME.acceleration
+          : GAME.coastDeceleration;
   } else {
-    acceleration = targetSpeed > currentSpeed
-      ? GAME.acceleration
-      : isEmergency(leadDistance, leadIsIncoming) ? GAME.emergencyBrake : GAME.serviceBrake;
+    acceleration =
+      targetSpeed > currentSpeed
+        ? GAME.acceleration
+        : isEmergency(leadDistance, leadIsIncoming)
+          ? GAME.emergencyBrake
+          : GAME.serviceBrake;
   }
 
   return {

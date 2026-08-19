@@ -3,10 +3,7 @@ import { isClosedHand, isThumbUp } from './handGestures';
 import type { HandPoint } from './handWorkerTypes';
 
 function createFist(thumb: 'up' | 'folded' | 'sideways'): HandPoint[] {
-  const points = Array.from(
-    { length: 21 },
-    (): HandPoint => ({ x: 0.5, y: 0.68, z: 0 }),
-  );
+  const points = Array.from({ length: 21 }, (): HandPoint => ({ x: 0.5, y: 0.68, z: 0 }));
   points[0] = { x: 0.5, y: 0.8, z: 0 };
   points[5] = { x: 0.42, y: 0.62, z: 0 };
   points[9] = { x: 0.48, y: 0.58, z: 0 };

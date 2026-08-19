@@ -1,7 +1,11 @@
-export const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
-export const lerp = (from: number, to: number, amount: number): number => from + (to - from) * amount;
-export const damp = (from: number, to: number, lambda: number, dt: number): number => lerp(from, to, 1 - Math.exp(-lambda * dt));
-export const inverseLerp = (from: number, to: number, value: number): number => clamp((value - from) / (to - from), 0, 1);
+export const clamp = (value: number, min: number, max: number): number =>
+  Math.max(min, Math.min(max, value));
+export const lerp = (from: number, to: number, amount: number): number =>
+  from + (to - from) * amount;
+export const damp = (from: number, to: number, lambda: number, dt: number): number =>
+  lerp(from, to, 1 - Math.exp(-lambda * dt));
+export const inverseLerp = (from: number, to: number, value: number): number =>
+  clamp((value - from) / (to - from), 0, 1);
 
 export function roadCenter(distance: number): number {
   return (
@@ -38,7 +42,8 @@ export function steeringFromHands(
 
 export function curveSpeedLimit(distance: number, maxSpeed: number, minSpeed: number): number {
   let peak = 0;
-  for (let ahead = 22; ahead <= 105; ahead += 12) peak = Math.max(peak, roadCurvature(distance + ahead));
+  for (let ahead = 22; ahead <= 105; ahead += 12)
+    peak = Math.max(peak, roadCurvature(distance + ahead));
   return lerp(maxSpeed, minSpeed, inverseLerp(0.002, 0.012, peak));
 }
 
