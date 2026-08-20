@@ -1,4 +1,5 @@
 export type QualityLevel = 'low' | 'medium' | 'high';
+export type GraphicsQualityMode = 'auto' | QualityLevel;
 
 export interface RenderQualitySettings {
   level: QualityLevel;
@@ -40,6 +41,13 @@ export class AdaptiveQuality {
 
   get settings(): RenderQualitySettings {
     return QUALITY_LEVELS[this.levelIndex];
+  }
+
+  setLevel(level: QualityLevel): RenderQualitySettings {
+    this.levelIndex = QUALITY_LEVELS.findIndex((settings) => settings.level === level);
+    this.samples.length = 0;
+    this.healthyWindows = 0;
+    return this.settings;
   }
 
   recordFrame(frameSeconds: number): RenderQualitySettings | null {

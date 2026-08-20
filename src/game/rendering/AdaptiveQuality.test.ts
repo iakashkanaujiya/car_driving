@@ -27,4 +27,16 @@ describe('adaptive render quality', () => {
     expect(recordWindow(quality, 0.016)).toBeNull();
     expect(recordWindow(quality, 0.016)?.level).toBe('medium');
   });
+
+  it('supports a fixed quality selection and clears adaptive history', () => {
+    const quality = new AdaptiveQuality('high');
+    for (let index = 0; index < 100; index += 1) quality.recordFrame(0.03);
+
+    expect(quality.setLevel('low')).toMatchObject({
+      level: 'low',
+      pixelRatioCap: 1,
+      shadowMapSize: 512,
+    });
+    expect(recordWindow(quality, 0.016)).toBeNull();
+  });
 });

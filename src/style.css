@@ -165,6 +165,152 @@ button {
   color: var(--acid);
   background: rgba(8, 12, 17, 0.86);
 }
+.graphics-button-label-compact {
+  display: none;
+}
+
+.graphics-settings {
+  position: absolute;
+  z-index: 30;
+  inset: 0;
+  display: grid;
+  place-items: start end;
+  padding: 72px 24px 24px;
+  transition:
+    opacity 0.2s ease,
+    visibility 0.2s ease;
+}
+.graphics-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: rgba(4, 7, 10, 0.46);
+  backdrop-filter: blur(3px);
+  cursor: default;
+}
+.graphics-settings-card {
+  position: relative;
+  width: min(370px, 100%);
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-top: 2px solid var(--acid);
+  background: linear-gradient(145deg, rgba(10, 15, 20, 0.98), rgba(8, 13, 17, 0.94));
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.48);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%);
+}
+.graphics-settings-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.graphics-settings-heading small {
+  display: block;
+  color: var(--mint);
+  font:
+    500 8px 'DM Mono',
+    monospace;
+  letter-spacing: 0.14em;
+}
+.graphics-settings-heading h2 {
+  margin: 3px 0 0;
+  font-size: 30px;
+  line-height: 1;
+  font-style: italic;
+  letter-spacing: -0.02em;
+}
+.graphics-settings-heading button {
+  height: 29px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.62);
+  font:
+    500 8px 'DM Mono',
+    monospace;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+.graphics-settings-heading button:hover,
+.graphics-settings-heading button:focus-visible {
+  border-color: var(--acid);
+  color: var(--acid);
+}
+.graphics-setting-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px;
+  align-items: center;
+  gap: 14px;
+  padding: 17px 0 12px;
+}
+.graphics-setting-row span,
+.graphics-setting-row strong,
+.graphics-setting-row small {
+  display: block;
+}
+.graphics-setting-row strong {
+  font:
+    600 10px 'DM Mono',
+    monospace;
+  letter-spacing: 0.08em;
+}
+.graphics-setting-row small {
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.44);
+  font:
+    400 8px 'DM Mono',
+    monospace;
+}
+.graphics-setting-row select {
+  width: 100%;
+  height: 34px;
+  padding: 0 9px;
+  border: 1px solid rgba(233, 255, 66, 0.46);
+  border-radius: 0;
+  background: #10171d;
+  color: #fff;
+  font:
+    600 9px 'DM Mono',
+    monospace;
+  cursor: pointer;
+}
+.graphics-setting-row select:focus {
+  outline: 1px solid var(--acid);
+  outline-offset: 2px;
+}
+.graphics-quality-description {
+  min-height: 34px;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.66);
+  font:
+    400 9px/1.55 'DM Mono',
+    monospace;
+}
+.graphics-settings-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px -20px -20px;
+  padding: 11px 20px;
+  border-top: 1px solid var(--line);
+  color: rgba(255, 255, 255, 0.42);
+  font:
+    400 7px 'DM Mono',
+    monospace;
+  letter-spacing: 0.04em;
+}
+.graphics-settings-note i {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--mint);
+  box-shadow: 0 0 8px var(--mint);
+}
 
 .overlay {
   position: absolute;
@@ -1169,6 +1315,19 @@ h2 {
   .icon-button {
     padding: 0 9px;
   }
+  .graphics-button-label {
+    display: none;
+  }
+  .graphics-button-label-compact {
+    display: inline;
+  }
+  .graphics-settings {
+    place-items: end stretch;
+    padding: 15px;
+  }
+  .graphics-settings-card {
+    width: 100%;
+  }
   .modal {
     padding: 28px 22px;
   }
@@ -1330,6 +1489,15 @@ h2 {
     padding: 7px 8px;
   }
   .asset-gate .asset-download small {
+    display: none;
+  }
+}
+
+@media (max-width: 380px) {
+  .topbar {
+    padding-inline: 12px;
+  }
+  .brand > span:last-child {
     display: none;
   }
 }

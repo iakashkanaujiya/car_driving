@@ -5,7 +5,7 @@ import { GAME, laneOffsets } from './config';
 import { clamp, constrainToRoad, curveSpeedLimit, damp, roadCenter, roadHeading } from './math';
 import { createRoadStrip, updateRoadStrip } from './roadSurface';
 import { AdaptiveQuality, chooseInitialQuality } from './rendering/AdaptiveQuality';
-import type { RenderQualitySettings } from './rendering/AdaptiveQuality';
+import type { GraphicsQualityMode, RenderQualitySettings } from './rendering/AdaptiveQuality';
 import { SceneryAssets } from './sceneryAssets';
 import { createSpeedPlan, scanTraffic } from './simulation/drivingAssist';
 import {
@@ -92,6 +92,8 @@ export class DrivingGame {
   private lastRoadUpdateDistance = Number.NaN;
   private animationFrame = 0;
   private performanceMonitoring = false;
+  private graphicsQualityMode: GraphicsQualityMode = 'auto';
+  private pendingRenderQuality?: RenderQualitySettings;
 
   constructor(
     private readonly container: HTMLElement,
@@ -286,6 +288,16 @@ export class DrivingGame {
   setPerformanceMonitoring(enabled: boolean): void {
     this.performanceMonitoring = enabled;
     this.performanceMonitor.reset();
+  }
+
+  setGraphicsQuality(mode: GraphicsQualityMode): void {
+    this.graphicsQualityMode = mode;
+    // Re-selecting the current tier clears stale adaptive samples. Fixed
+    // presets are applied inside the render loop so resizing the drawing
+    // buffer and repainting always happen in the same animation frame.
+    const level = mode === 'auto' ? this.adaptiveQuality.settings.level : mode;
+    const settings = this.adaptiveQuality.setLevel(level);
+    if (mode !== 'auto') this.pendingRenderQuality = settings;
   }
 
   whenReady(): Promise<void> {
@@ -669,10 +681,13 @@ export class DrivingGame {
     if (!playing && now - this.lastIdleRender < IDLE_RENDER_INTERVAL_MS) return;
     if (playing) this.updateSimulation(dt);
     this.updateWorld(dt);
-    if (playing) {
+    let qualitySettings = this.pendingRenderQuality;
+    this.pendingRenderQuality = undefined;
+    if (playing && this.graphicsQualityMode === 'auto') {
       const settings = this.adaptiveQuality.recordFrame(frameSeconds);
-      if (settings) this.applyRenderQuality(settings);
+      if (settings) qualitySettings = settings;
     }
+    if (qualitySettings) this.applyRenderQuality(qualitySettings);
     // Quality changes resize and clear the WebGL drawing buffer. Rendering
     // afterward fills it in the same animation frame and prevents a black flash.
     this.renderer.render(this.scene, this.camera);

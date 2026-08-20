@@ -48,6 +48,7 @@ On the first visit, a setup popup keeps the game locked while it downloads appro
 - **Keyboard mode:** use `W` or up arrow to accelerate, `S` or down arrow to brake, and `A` / `D` or left / right arrows to steer. Braking stops at zero; there is no reverse gear.
 - **Pause:** use the Pause button or press `Escape`.
 - **Performance diagnostics:** press `F3` to toggle the performance HUD. Add `?perf=1` to the URL to open it automatically.
+- **Graphics:** open Graphics in the top bar to choose Auto, Low, Medium, or High quality. The selected preset is saved locally.
 
 Hand-control mode accelerates automatically. Keyboard mode uses manual acceleration and braking. Traffic and curve assists can slow the car in either mode. Drive on the left with same-direction traffic; the right lane carries oncoming vehicles and can be used carefully for overtaking.
 

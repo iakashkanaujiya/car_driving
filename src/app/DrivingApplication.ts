@@ -9,6 +9,7 @@ import { cacheAssets } from '../services/assetCache';
 import { AssetGate } from '../ui/AssetGate';
 import { byId } from '../ui/dom';
 import { GameHud } from '../ui/GameHud';
+import { GraphicsSettings } from '../ui/GraphicsSettings';
 import { PerformanceHud } from '../ui/PerformanceHud';
 
 type TrackingState = 'ok' | 'warn' | 'off';
@@ -19,6 +20,7 @@ export class DrivingApplication {
   private readonly keyboard = new KeyboardController();
   private readonly audio = new EngineSound();
   private readonly hud = new GameHud();
+  private readonly graphicsSettings = new GraphicsSettings();
   private readonly performanceHud = new PerformanceHud();
   private readonly assetGate = new AssetGate();
   private readonly viewport = byId<HTMLDivElement>('viewport');
@@ -43,6 +45,7 @@ export class DrivingApplication {
   private modelCount = 1;
   private assetsReady: Promise<boolean> = Promise.resolve(false);
   private sceneReady: Promise<boolean> = Promise.resolve(false);
+  private resumeAfterGraphics = false;
 
   constructor() {
     if (!this.gameShell || !this.cameraShell) throw new Error('The game shell is incomplete.');
@@ -64,6 +67,14 @@ export class DrivingApplication {
 
   private bindUiEvents(): void {
     const options = { signal: this.events.signal };
+    this.graphicsSettings.bind(
+      {
+        onOpen: () => this.openGraphicsSettings(),
+        onClose: () => this.closeGraphicsSettings(),
+        onChange: (mode) => this.game?.setGraphicsQuality(mode),
+      },
+      this.events.signal,
+    );
     this.assetGate.retryButton.addEventListener(
       'click',
       () => {
@@ -172,6 +183,7 @@ export class DrivingApplication {
       (snapshot) => this.performanceHud.update(snapshot),
     );
     game.setPerformanceMonitoring(this.performanceHud.isVisible());
+    game.setGraphicsQuality(this.graphicsSettings.getMode());
     return game;
   }
 
@@ -409,6 +421,11 @@ export class DrivingApplication {
   }
 
   private onGlobalKeyDown(event: KeyboardEvent): void {
+    if (event.code === 'Escape' && this.graphicsSettings.isOpen()) {
+      event.preventDefault();
+      this.closeGraphicsSettings();
+      return;
+    }
     if (event.code === 'F3') {
       event.preventDefault();
       this.game?.setPerformanceMonitoring(this.performanceHud.toggle());
@@ -417,5 +434,27 @@ export class DrivingApplication {
     if (event.code !== 'Escape') return;
     if (document.fullscreenElement) void document.exitFullscreen();
     else this.pauseButton.click();
+  }
+
+  private openGraphicsSettings(): void {
+    if (this.graphicsSettings.isOpen()) return;
+    this.resumeAfterGraphics = this.game?.getPhase() === 'playing';
+    if (this.resumeAfterGraphics) {
+      this.game?.pause();
+      this.audio.setPlaying(false);
+      this.pauseButton.textContent = 'RESUME';
+    }
+    this.graphicsSettings.open();
+  }
+
+  private closeGraphicsSettings(): void {
+    if (!this.graphicsSettings.isOpen()) return;
+    this.graphicsSettings.close();
+    if (this.resumeAfterGraphics) {
+      this.game?.resume();
+      this.audio.setPlaying(true);
+      this.pauseButton.textContent = 'PAUSE';
+    }
+    this.resumeAfterGraphics = false;
   }
 }

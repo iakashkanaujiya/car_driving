@@ -33,6 +33,7 @@ export function createGameTemplate(): string {
           <div id="tracking-pill" class="tracking-pill">
             <span class="status-dot"></span><span id="tracking-label">INPUT NOT SET</span>
           </div>
+          <button id="graphics-button" class="icon-button" aria-label="Open graphics settings"><span class="graphics-button-label">GRAPHICS</span><span class="graphics-button-label-compact">GFX</span></button>
           <button id="fullscreen-button" class="icon-button" aria-label="Enter full screen" aria-pressed="false">FULL SCREEN</button>
           <button id="mute-button" class="icon-button" aria-label="Toggle sound">SOUND ON</button>
           <button id="pause-button" class="icon-button" aria-label="Pause game">PAUSE</button>
@@ -76,6 +77,27 @@ export function createGameTemplate(): string {
         <div id="camera-hint" class="camera-hint">WAITING FOR CAMERA</div>
       </aside>
       <button id="show-camera" class="show-camera is-hidden">SHOW HAND CAM</button>
+
+      <section id="graphics-settings" class="graphics-settings is-hidden" role="dialog" aria-modal="true" aria-labelledby="graphics-title">
+        <button id="graphics-backdrop" class="graphics-backdrop" type="button" aria-label="Close graphics settings"></button>
+        <div class="graphics-settings-card">
+          <div class="graphics-settings-heading">
+            <div><small>DISPLAY</small><h2 id="graphics-title">GRAPHICS</h2></div>
+            <button id="graphics-close" type="button" aria-label="Close graphics settings">CLOSE</button>
+          </div>
+          <label class="graphics-setting-row" for="graphics-quality">
+            <span><strong>QUALITY PRESET</strong><small>Resolution and shadow quality</small></span>
+            <select id="graphics-quality">
+              <option value="auto">AUTO</option>
+              <option value="low">LOW</option>
+              <option value="medium">MEDIUM</option>
+              <option value="high">HIGH</option>
+            </select>
+          </label>
+          <p id="graphics-quality-description" class="graphics-quality-description"></p>
+          <p class="graphics-settings-note"><i></i> Changes apply immediately and are saved for future runs.</p>
+        </div>
+      </section>
 
       <section id="overlay" class="overlay">
         <div class="modal intro-modal">
