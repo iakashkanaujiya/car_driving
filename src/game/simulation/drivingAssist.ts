@@ -1,5 +1,5 @@
 import { GAME, laneOffsets } from '../config';
-import { clamp } from '../math';
+import { clamp, lerp } from '../math';
 import type { ControlInput } from '../types';
 
 export interface TrafficAwarenessCar {
@@ -59,7 +59,9 @@ export function createSpeedPlan(
 ): SpeedPlan {
   let { targetSpeed } = threat;
   const { leadDistance, leadIsIncoming } = threat;
-  const manualControl = control.accelerating !== undefined || control.braking !== undefined;
+  const brakePressure = getBrakePressure(control);
+  const manualControl =
+    control.accelerating !== undefined || control.braking !== undefined || brakePressure > 0;
 
   if (!control.active) targetSpeed = 0;
   const assistMessage = describeAssist(control, curveSpeedLimit, leadDistance, leadIsIncoming);
@@ -67,13 +69,20 @@ export function createSpeedPlan(
   let acceleration: number;
 
   if (manualControl && control.active) {
-    if (control.braking || !control.accelerating) targetSpeed = 0;
+    if (brakePressure > 0) {
+      // Partial pressure behaves as a speed limiter rather than eventually
+      // stopping the car. Only the full-brake gesture produces zero.
+      const brakeSpeedCap = GAME.maxSpeed * (1 - brakePressure);
+      targetSpeed = Math.min(targetSpeed, currentSpeed, brakeSpeedCap);
+    } else if (!control.accelerating) {
+      targetSpeed = 0;
+    }
     acceleration = safetyBraking
       ? isEmergency(leadDistance, leadIsIncoming)
         ? GAME.emergencyBrake
         : GAME.serviceBrake
-      : control.braking
-        ? GAME.serviceBrake
+      : brakePressure > 0
+        ? lerp(GAME.coastDeceleration, GAME.serviceBrake, brakePressure)
         : control.accelerating
           ? GAME.acceleration
           : GAME.coastDeceleration;
@@ -100,20 +109,27 @@ function isEmergency(leadDistance: number, leadIsIncoming: boolean): boolean {
   return leadDistance < 15 || (leadIsIncoming && leadDistance < 32);
 }
 
+function getBrakePressure(control: ControlInput): number {
+  if (control.brakePressure !== undefined) return clamp(control.brakePressure, 0, 1);
+  return control.braking ? 1 : 0;
+}
+
 function describeAssist(
   control: ControlInput,
   curveSpeedLimit: number,
   leadDistance: number,
   leadIsIncoming: boolean,
 ): string {
-  const manualControl = control.accelerating !== undefined || control.braking !== undefined;
+  const brakePressure = getBrakePressure(control);
+  const manualControl =
+    control.accelerating !== undefined || control.braking !== undefined || brakePressure > 0;
   if (!control.active) return 'HANDS LOST · AUTO BRAKE';
   if (leadIsIncoming && leadDistance < 70) {
     return leadDistance < 28 ? 'ONCOMING · EMERGENCY BRAKE' : 'ONCOMING VEHICLE';
   }
   if (leadDistance < 32) return leadDistance < 15 ? 'EMERGENCY BRAKE' : 'TRAFFIC ASSIST';
   if (curveSpeedLimit < GAME.maxSpeed - 4) return 'CURVE ASSIST';
-  if (manualControl && control.braking) return 'BRAKING';
+  if (manualControl && brakePressure > 0) return `BRAKING ${Math.round(brakePressure * 100)}%`;
   if (manualControl && control.accelerating) return 'ACCELERATING';
   return manualControl ? 'COASTING' : 'CRUISING';
 }

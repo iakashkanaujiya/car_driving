@@ -49,4 +49,46 @@ describe('driving assistance', () => {
     expect(plan.acceleration).toBe(GAME.emergencyBrake);
     expect(plan.assistMessage).toBe('ONCOMING · EMERGENCY BRAKE');
   });
+
+  it('scales braking force with the requested brake level', () => {
+    const threat = {
+      targetSpeed: GAME.maxSpeed,
+      leadDistance: Infinity,
+      leadIsIncoming: false,
+    };
+    const partial = createSpeedPlan(
+      { steering: 0, confidence: 1, active: true, braking: true, brakePressure: 0.5 },
+      25,
+      GAME.maxSpeed,
+      threat,
+    );
+    const full = createSpeedPlan(
+      { steering: 0, confidence: 1, active: true, braking: true, brakePressure: 1 },
+      25,
+      GAME.maxSpeed,
+      threat,
+    );
+
+    expect(partial.targetSpeed).toBe(GAME.maxSpeed * 0.5);
+    expect(partial.acceleration).toBeGreaterThan(GAME.coastDeceleration);
+    expect(partial.acceleration).toBeLessThan(GAME.serviceBrake);
+    expect(partial.assistMessage).toBe('BRAKING 50%');
+    expect(full.targetSpeed).toBe(0);
+    expect(full.acceleration).toBe(GAME.serviceBrake);
+  });
+
+  it('does not stop or accelerate a car already below the partial-brake speed cap', () => {
+    const plan = createSpeedPlan(
+      { steering: 0, confidence: 1, active: true, braking: true, brakePressure: 0.5 },
+      10,
+      GAME.maxSpeed,
+      {
+        targetSpeed: GAME.maxSpeed,
+        leadDistance: Infinity,
+        leadIsIncoming: false,
+      },
+    );
+
+    expect(plan.targetSpeed).toBe(10);
+  });
 });

@@ -67,7 +67,7 @@ export function createGameTemplate(): string {
         <div class="modal intro-modal">
           <div class="eyebrow"><span></span> TWO-HAND DRIVING EXPERIENCE</div>
           <h1>YOUR HANDS.<br><em>YOUR ROAD.</em></h1>
-          <p class="lead">Grip an invisible wheel. Turn naturally, and raise both thumbs to brake.</p>
+          <p class="lead">Grip an invisible wheel. Raise both thumbs to slow down, or show both palms to stop.</p>
           <div class="wheel-guide" aria-hidden="true">
             <div class="hand hand-left"><span></span><b>LEFT HAND</b></div>
             <div class="virtual-wheel"><span class="wheel-center"></span></div>
@@ -76,7 +76,7 @@ export function createGameTemplate(): string {
           <div class="instruction-row">
             <div><b>01</b><span>Allow camera<br>access</span></div>
             <div><b>02</b><span>Hold two closed<br>hands apart</span></div>
-            <div><b>03</b><span>Rotate to steer<br>thumbs up to brake</span></div>
+            <div><b>03</b><span>Thumbs up: half brake<br>open palms: full brake</span></div>
           </div>
           <div id="car-options" class="car-options">
             <label><span>YOUR CAR</span><select id="driver-car" aria-label="Choose your car model">${carOptions}</select></label>

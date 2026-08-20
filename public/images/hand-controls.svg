@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1536" height="640" viewBox="0 0 1536 640" role="img" aria-labelledby="title description">
   <title id="title">Driftline hand controls</title>
-  <desc id="description">Three steps show how to calibrate with two fists, rotate both hands to steer, and raise both thumbs to brake.</desc>
+  <desc id="description">Three steps show how to calibrate with two fists, rotate both hands to steer, raise both thumbs for half braking, and show both palms for a full stop.</desc>
   <defs>
     <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#071017"/>
@@ -82,12 +82,12 @@
   <g transform="translate(1036 174)">
     <rect width="448" height="400" rx="22" fill="url(#panel)" stroke="#314650" stroke-width="2"/>
     <text x="28" y="46" fill="#f2ff52" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="900" letter-spacing="3">03  BRAKE</text>
-    <text x="28" y="79" fill="#93aab1" font-family="Arial, Helvetica, sans-serif" font-size="15" letter-spacing="1">RAISE BOTH THUMBS TO SLOW DOWN</text>
+    <text x="28" y="79" fill="#93aab1" font-family="Arial, Helvetica, sans-serif" font-size="15" letter-spacing="1">THUMBS UP: 50% BRAKE</text>
     <circle cx="224" cy="216" r="115" fill="#ff5148" opacity=".07" filter="url(#glow)"/>
     <g transform="translate(141 235) scale(.76)"><use href="#thumb-fist"/></g>
     <g transform="translate(307 235) scale(-.76 .76)"><use href="#thumb-fist"/></g>
     <rect x="168" y="294" width="112" height="42" rx="21" fill="#ff5148" filter="url(#glow)"/>
     <text x="224" y="322" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="900" letter-spacing="4">BRAKE</text>
-    <text x="224" y="370" text-anchor="middle" fill="#dbe6e8" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700">LOWER EITHER THUMB TO RELEASE</text>
+    <text x="224" y="370" text-anchor="middle" fill="#dbe6e8" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700">SHOW BOTH PALMS FOR FULL STOP</text>
   </g>
 </svg>

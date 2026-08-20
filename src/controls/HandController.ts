@@ -5,7 +5,7 @@ import {
 } from '@mediapipe/tasks-vision';
 import { damp, steeringFromHands } from '../game/math';
 import type { ControlInput } from '../game/types';
-import { isClosedHand, isThumbUp } from './handGestures';
+import { isClosedHand, isOpenPalm, isThumbUp, SustainedGesture } from './handGestures';
 import type { HandTrackingResult, HandWorkerInput, HandWorkerOutput } from './handWorkerTypes';
 
 type TrackingStatus = 'idle' | 'loading' | 'ready' | 'calibrating' | 'tracking' | 'lost' | 'error';
@@ -35,6 +35,7 @@ const HAND_POINT_COLORS = [
   '#ff7f9f',
 ] as const;
 const FINGERTIP_INDICES = new Set([4, 8, 12, 16, 20]);
+const BRAKE_GESTURE_HOLD_MS = 180;
 
 export class HandController {
   private landmarker: HandLandmarker | null = null;
@@ -50,6 +51,7 @@ export class HandController {
   private neutralAngle = 0;
   private calibrationAngles: number[] = [];
   private input: ControlInput = { steering: 0, confidence: 0, active: false };
+  private readonly brakeGesture = new SustainedGesture(BRAKE_GESTURE_HOLD_MS);
   private status: TrackingStatus = 'idle';
   private lastSeen = 0;
   private previewVisible = true;
@@ -196,12 +198,15 @@ export class HandController {
   beginCalibration(): void {
     this.calibrationAngles = [];
     this.input = { steering: 0, confidence: 0, active: false };
+    this.resetBrakeGesture();
     this.setStatus('calibrating', 0);
   }
 
   getInput(): ControlInput {
-    if (performance.now() - this.lastSeen > 420)
+    if (performance.now() - this.lastSeen > 420) {
+      this.resetBrakeGesture();
       return { steering: 0, confidence: 0, active: false };
+    }
     return { ...this.input };
   }
 
@@ -218,6 +223,7 @@ export class HandController {
 
   stop(): void {
     this.stopped = true;
+    this.resetBrakeGesture();
     this.cancelWorkerInitialization?.();
     this.cancelWorkerInitialization = null;
     cancelAnimationFrame(this.raf);
@@ -234,6 +240,7 @@ export class HandController {
     if (this.paused === paused || this.stopped) return;
     this.paused = paused;
     if (paused) {
+      this.resetBrakeGesture();
       cancelAnimationFrame(this.raf);
       if (this.videoFrameCallback) {
         this.video.cancelVideoFrameCallback(this.videoFrameCallback);
@@ -353,6 +360,7 @@ export class HandController {
 
   private consumeResult(result: HandTrackingResult): void {
     if (result.landmarks.length !== 2) {
+      this.resetBrakeGesture();
       this.input.active = false;
       if (this.status === 'tracking') this.setStatus('lost');
       return;
@@ -363,6 +371,7 @@ export class HandController {
         landmarks,
         wrist: landmarks[0],
         closed: isClosedHand(landmarks),
+        openPalm: isOpenPalm(landmarks),
         thumbUp: isThumbUp(landmarks),
         score: result.handednessScores[index] ?? 0.7,
       }))
@@ -372,7 +381,10 @@ export class HandController {
       hands[1].wrist.x - hands[0].wrist.x,
       hands[1].wrist.y - hands[0].wrist.y,
     );
-    if (!hands.every((hand) => hand.closed) || separation < 0.14) {
+    const fistsClosed = hands.every((hand) => hand.closed);
+    const palmsOpen = hands.every((hand) => hand.openPalm);
+    if ((!fistsClosed && !palmsOpen) || separation < 0.14) {
+      this.resetBrakeGesture();
       this.input.active = false;
       if (this.status === 'tracking') this.setStatus('lost');
       return;
@@ -386,6 +398,11 @@ export class HandController {
     this.lastSeen = performance.now();
 
     if (this.status === 'calibrating') {
+      this.resetBrakeGesture();
+      if (!fistsClosed) {
+        this.input.active = false;
+        return;
+      }
       this.calibrationAngles.push(angle);
       const progress = this.calibrationAngles.length / 45;
       this.onStatus('calibrating', progress);
@@ -397,14 +414,22 @@ export class HandController {
     }
 
     const raw = -steeringFromHands(hands[0].wrist, hands[1].wrist, this.neutralAngle);
-    const braking = hands.every((hand) => hand.thumbUp);
+    // Two explicit gestures keep braking predictable: thumbs-up is a fixed
+    // half brake, while showing both open palms requests a complete stop.
+    const rawBrakePressure = palmsOpen ? 1 : hands.every((hand) => hand.thumbUp) ? 0.5 : 0;
+    const braking = this.brakeGesture.update(rawBrakePressure > 0, this.lastSeen);
     this.input = {
       steering: damp(this.input.steering, raw, 13, 1 / 30),
       confidence,
       active: true,
       braking: braking ? true : undefined,
+      brakePressure: braking ? rawBrakePressure : undefined,
     };
     if (this.status !== 'tracking') this.setStatus('tracking');
+  }
+
+  private resetBrakeGesture(): void {
+    this.brakeGesture.reset();
   }
 
   private circularAverage(values: number[]): number {

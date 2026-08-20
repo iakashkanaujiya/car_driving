@@ -258,7 +258,7 @@ export class DrivingApplication {
       if (this.game?.getPhase() !== 'playing' && !document.getElementById('begin-run')) {
         this.showDriveReady(
           'CALIBRATION LOCKED.',
-          'Turn your hands like a wheel. Raise both thumbs to brake; otherwise the car manages its own speed.',
+          'Turn your hands like a wheel. Raise both thumbs for half brake, or show both open palms for a full stop.',
         );
       }
     } else if (status === 'lost') {

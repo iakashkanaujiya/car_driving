@@ -8,6 +8,8 @@ export interface ControlInput {
   active: boolean;
   accelerating?: boolean;
   braking?: boolean;
+  /** Normalized analog brake pressure. Omitted when the brake is released. */
+  brakePressure?: number;
 }
 
 export interface GameSnapshot {
