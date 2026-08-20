@@ -61,7 +61,6 @@ export class DrivingGame {
   private readonly roadsideFences: RoadsideFenceSystem;
   private readonly roadGeometry: THREE.BufferGeometry;
   private readonly roadMesh: THREE.Mesh;
-  private readonly roadSnow: THREE.Mesh;
   private readonly shoulderGeometry: THREE.BufferGeometry;
   private readonly shoulderMesh: THREE.Mesh;
   private readonly ground: THREE.Mesh;
@@ -164,27 +163,6 @@ export class DrivingGame {
     this.roadMesh = new THREE.Mesh(this.roadGeometry, roadMaterial);
     this.roadMesh.receiveShadow = true;
     this.scene.add(this.roadMesh);
-
-    const roadSnowTexture = createSnowPatchTexture(0x51a9c3);
-    roadSnowTexture.repeat.set(0.55, 0.22);
-    roadSnowTexture.anisotropy = Math.min(4, this.renderer.capabilities.getMaxAnisotropy());
-    this.textureStore.track(roadSnowTexture);
-    this.roadSnow = new THREE.Mesh(
-      this.roadGeometry,
-      new THREE.MeshStandardMaterial({
-        color: 0xeaf0f1,
-        map: roadSnowTexture,
-        transparent: true,
-        opacity: 0.48,
-        depthWrite: false,
-        roughness: 1,
-        metalness: 0,
-      }),
-    );
-    this.roadSnow.position.y = 0.015;
-    this.roadSnow.receiveShadow = true;
-    this.roadSnow.renderOrder = 2;
-    this.scene.add(this.roadSnow);
 
     this.shoulderGeometry = createRoadStrip(GAME.roadWidth + 5.5, 220);
     this.shoulderMesh = new THREE.Mesh(this.shoulderGeometry, shoulderMaterial);
