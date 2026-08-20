@@ -47,6 +47,7 @@ On the first visit, a setup popup keeps the game locked while it downloads appro
 - **Hand mode:** hold two closed hands apart, keep them level during calibration, and rotate them like a steering wheel. Raise both thumbs for 50% braking or show both open palms for a full stop.
 - **Keyboard mode:** use `W` or up arrow to accelerate, `S` or down arrow to brake, and `A` / `D` or left / right arrows to steer. Braking stops at zero; there is no reverse gear.
 - **Pause:** use the Pause button or press `Escape`.
+- **Performance diagnostics:** press `F3` to toggle the performance HUD. Add `?perf=1` to the URL to open it automatically.
 
 Hand-control mode accelerates automatically. Keyboard mode uses manual acceleration and braking. Traffic and curve assists can slow the car in either mode. Drive on the left with same-direction traffic; the right lane carries oncoming vehicles and can be used carefully for overtaking.
 
@@ -60,6 +61,7 @@ The runtime is organized by responsibility:
 - `src/ui` renders the static shell, startup gate, and HUD.
 - `src/audio` owns the procedural Web Audio graph.
 - `src/controls` contains keyboard and hand-tracking input adapters.
+- `src/diagnostics` contains opt-in runtime measurements that stay disabled during normal play.
 
 Keep game rules deterministic by passing state in and returning results. DOM and Three.js mutations should stay at the edges, and every scene system that allocates GPU resources should expose `dispose()`.
 

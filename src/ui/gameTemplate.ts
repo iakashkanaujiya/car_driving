@@ -55,6 +55,20 @@ export function createGameTemplate(): string {
         </div>
       </section>
 
+      <aside id="performance-hud" class="performance-hud is-hidden" aria-label="Performance diagnostics">
+        <div class="performance-hud-title"><span>PERFORMANCE</span><small>F3</small></div>
+        <div class="performance-hud-grid">
+          <span>FPS<strong id="perf-fps">--</strong></span>
+          <span>FRAME<strong id="perf-frame">--</strong></span>
+          <span>P90<strong id="perf-p90">--</strong></span>
+          <span>CALLS<strong id="perf-calls">--</strong></span>
+          <span>TRIS<strong id="perf-triangles">--</strong></span>
+          <span>GEOMETRY<strong id="perf-geometries">--</strong></span>
+          <span>TEXTURES<strong id="perf-textures">--</strong></span>
+          <span>QUALITY<strong id="perf-quality">--</strong></span>
+        </div>
+      </aside>
+
       <aside class="camera-shell is-offline is-hidden" aria-label="Camera tracking preview">
         <video id="camera-video" playsinline muted></video>
         <canvas id="camera-canvas"></canvas>

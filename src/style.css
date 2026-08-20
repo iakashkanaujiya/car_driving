@@ -938,6 +938,83 @@ h2 {
   transition: left 0.08s linear;
 }
 
+.performance-hud {
+  position: absolute;
+  z-index: 9;
+  top: 76px;
+  right: 34px;
+  width: 218px;
+  pointer-events: none;
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--acid);
+  background: rgba(8, 12, 17, 0.84);
+  backdrop-filter: blur(10px);
+  font-family: 'DM Mono', monospace;
+  transition: opacity 0.2s ease;
+}
+.performance-hud-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  color: var(--acid);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+}
+.performance-hud-title::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--mint);
+  box-shadow: 0 0 8px var(--mint);
+}
+.performance-hud-title span {
+  margin-right: auto;
+  margin-left: 7px;
+}
+.performance-hud-title small {
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 8px;
+}
+.performance-hud-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 5px;
+}
+.performance-hud-grid > span {
+  min-width: 0;
+  padding: 6px;
+  color: rgba(255, 255, 255, 0.46);
+  font-size: 7px;
+  letter-spacing: 0.08em;
+}
+.performance-hud-grid strong {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+}
+.performance-hud[data-state='warn'] {
+  border-left-color: #ffcc4d;
+}
+.performance-hud[data-state='warn'] .performance-hud-title::before {
+  background: #ffcc4d;
+  box-shadow: 0 0 8px #ffcc4d;
+}
+.performance-hud[data-state='slow'] {
+  border-left-color: #ff655d;
+}
+.performance-hud[data-state='slow'] .performance-hud-title::before {
+  background: #ff655d;
+  box-shadow: 0 0 8px rgba(255, 101, 93, 0.75);
+}
+
 .camera-shell {
   position: absolute;
   z-index: 12;
@@ -1130,6 +1207,11 @@ h2 {
   .run-stats {
     left: 15px;
     top: 72px;
+  }
+  .performance-hud {
+    top: 64px;
+    right: 15px;
+    width: 190px;
   }
   .run-stats div {
     min-width: 85px;

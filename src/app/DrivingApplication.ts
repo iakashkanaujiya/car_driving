@@ -9,6 +9,7 @@ import { cacheAssets } from '../services/assetCache';
 import { AssetGate } from '../ui/AssetGate';
 import { byId } from '../ui/dom';
 import { GameHud } from '../ui/GameHud';
+import { PerformanceHud } from '../ui/PerformanceHud';
 
 type TrackingState = 'ok' | 'warn' | 'off';
 
@@ -18,6 +19,7 @@ export class DrivingApplication {
   private readonly keyboard = new KeyboardController();
   private readonly audio = new EngineSound();
   private readonly hud = new GameHud();
+  private readonly performanceHud = new PerformanceHud();
   private readonly assetGate = new AssetGate();
   private readonly viewport = byId<HTMLDivElement>('viewport');
   private readonly gameShell = document.querySelector<HTMLElement>('.game-shell');
@@ -157,7 +159,7 @@ export class DrivingApplication {
 
   private async createGame(): Promise<DrivingGame> {
     const { DrivingGame } = await import('../game/DrivingGame');
-    return new DrivingGame(
+    const game = new DrivingGame(
       this.viewport,
       () => this.getControl(),
       (snapshot) => {
@@ -167,7 +169,10 @@ export class DrivingApplication {
       },
       () => this.showCrash(),
       () => this.audio.hornThreeTimes(),
+      (snapshot) => this.performanceHud.update(snapshot),
     );
+    game.setPerformanceMonitoring(this.performanceHud.isVisible());
+    return game;
   }
 
   private getControl(): ControlInput {
@@ -404,6 +409,11 @@ export class DrivingApplication {
   }
 
   private onGlobalKeyDown(event: KeyboardEvent): void {
+    if (event.code === 'F3') {
+      event.preventDefault();
+      this.game?.setPerformanceMonitoring(this.performanceHud.toggle());
+      return;
+    }
     if (event.code !== 'Escape') return;
     if (document.fullscreenElement) void document.exitFullscreen();
     else this.pauseButton.click();

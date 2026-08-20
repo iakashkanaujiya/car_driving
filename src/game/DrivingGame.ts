@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { PerformanceMonitor } from '../diagnostics/PerformanceMonitor';
+import type { PerformanceSnapshot } from '../diagnostics/PerformanceMonitor';
 import { GAME, laneOffsets } from './config';
 import { clamp, constrainToRoad, curveSpeedLimit, damp, roadCenter, roadHeading } from './math';
 import { createRoadStrip, updateRoadStrip } from './roadSurface';
@@ -46,6 +48,7 @@ export class DrivingGame {
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(58, 1, 0.1, 800);
   private readonly renderer: THREE.WebGLRenderer;
+  private readonly performanceMonitor = new PerformanceMonitor();
   private readonly adaptiveQuality: AdaptiveQuality;
   private readonly clock = new THREE.Clock();
   private readonly vehicleAssets = new VehicleAssets();
@@ -88,6 +91,7 @@ export class DrivingGame {
   private roadUpdateElapsed = Number.POSITIVE_INFINITY;
   private lastRoadUpdateDistance = Number.NaN;
   private animationFrame = 0;
+  private performanceMonitoring = false;
 
   constructor(
     private readonly container: HTMLElement,
@@ -95,6 +99,7 @@ export class DrivingGame {
     private readonly onUpdate: (snapshot: GameSnapshot) => void,
     private readonly onCrash: () => void,
     private readonly onHorn: () => void,
+    private readonly onPerformanceUpdate: (snapshot: PerformanceSnapshot) => void,
   ) {
     this.scene.background = new THREE.Color(0x9bb8bd);
     this.scene.fog = new THREE.FogExp2(0x9bb8bd, 0.0048);
@@ -276,6 +281,11 @@ export class DrivingGame {
 
   refreshViewport(): void {
     this.resize();
+  }
+
+  setPerformanceMonitoring(enabled: boolean): void {
+    this.performanceMonitoring = enabled;
+    this.performanceMonitor.reset();
   }
 
   whenReady(): Promise<void> {
@@ -666,6 +676,21 @@ export class DrivingGame {
     // Quality changes resize and clear the WebGL drawing buffer. Rendering
     // afterward fills it in the same animation frame and prevents a black flash.
     this.renderer.render(this.scene, this.camera);
+    if (this.performanceMonitoring && playing) {
+      const render = this.renderer.info.render;
+      const memory = this.renderer.info.memory;
+      const snapshot = this.performanceMonitor.recordFrame(
+        frameSeconds,
+        {
+          drawCalls: render.calls,
+          triangles: render.triangles,
+          geometries: memory.geometries,
+          textures: memory.textures,
+        },
+        this.adaptiveQuality.settings.level,
+      );
+      if (snapshot) this.onPerformanceUpdate(snapshot);
+    }
     if (!playing) this.lastIdleRender = now;
 
     if (now - this.lastSnapshot > 80) {
