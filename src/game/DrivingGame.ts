@@ -104,7 +104,7 @@ export class DrivingGame {
     private readonly onPerformanceUpdate: (snapshot: PerformanceSnapshot) => void,
   ) {
     this.scene.background = new THREE.Color(0x9bb8bd);
-    this.scene.fog = new THREE.FogExp2(0x9bb8bd, 0.0048);
+    this.scene.fog = new THREE.FogExp2(0x9bb8bd, 0.0025);
 
     const deviceMemory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
     this.adaptiveQuality = new AdaptiveQuality(

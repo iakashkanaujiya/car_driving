@@ -74,9 +74,9 @@ export class GraphicsSettings {
   private loadMode(): GraphicsQualityMode {
     try {
       const saved = window.localStorage.getItem(STORAGE_KEY) as GraphicsQualityMode | null;
-      return saved && MODES.includes(saved) ? saved : 'auto';
+      return saved && MODES.includes(saved) ? saved : 'low';
     } catch {
-      return 'auto';
+      return 'low';
     }
   }
 
