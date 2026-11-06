@@ -5,12 +5,28 @@ export interface RenderQualitySettings {
   level: QualityLevel;
   pixelRatioCap: number;
   shadowMapSize: number;
+  /** HDR bloom, MSAA and colour grading through the effect composer. */
+  postProcessing: boolean;
+  /** Second band of instanced forest trees. */
+  denseForest: boolean;
 }
 
 const QUALITY_LEVELS: readonly RenderQualitySettings[] = [
-  { level: 'low', pixelRatioCap: 1, shadowMapSize: 512 },
-  { level: 'medium', pixelRatioCap: 1.25, shadowMapSize: 1024 },
-  { level: 'high', pixelRatioCap: 1.5, shadowMapSize: 2048 },
+  { level: 'low', pixelRatioCap: 1, shadowMapSize: 512, postProcessing: false, denseForest: false },
+  {
+    level: 'medium',
+    pixelRatioCap: 1.25,
+    shadowMapSize: 1024,
+    postProcessing: true,
+    denseForest: true,
+  },
+  {
+    level: 'high',
+    pixelRatioCap: 1.5,
+    shadowMapSize: 2048,
+    postProcessing: true,
+    denseForest: true,
+  },
 ];
 
 const SAMPLE_WINDOW = 120;

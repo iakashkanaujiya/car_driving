@@ -5,7 +5,6 @@ import path from 'node:path';
 const projectRoot = process.cwd();
 const publicRoot = path.join(projectRoot, 'public');
 const requiredAssets = [
-  'great_mountain/landscape_mountain_optimized.glb',
   'roads/textures/Grass02_baseColor.jpeg',
   'roads/textures/Grass02_metallicRoughness.png',
   'roads/textures/Grass02_normal.png',

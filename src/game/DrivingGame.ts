@@ -6,22 +6,22 @@ import { clamp, constrainToRoad, curveSpeedLimit, damp, roadCenter, roadHeading 
 import { createRoadStrip, updateRoadStrip } from './roadSurface';
 import { AdaptiveQuality, chooseInitialQuality } from './rendering/AdaptiveQuality';
 import type { GraphicsQualityMode, RenderQualitySettings } from './rendering/AdaptiveQuality';
+import { PostProcessing } from './rendering/PostProcessing';
+import { applyGroundVariation } from './rendering/groundVariation';
 import { SceneryAssets } from './sceneryAssets';
 import { createSpeedPlan, scanTraffic } from './simulation/drivingAssist';
-import {
-  addSceneLighting,
-  createCloudTexture,
-  createSnowPatchTexture,
-  SurfaceTextureStore,
-  updateSceneShadow,
-} from './sceneAssets';
+import { addSceneLighting, SurfaceTextureStore, updateSceneShadow } from './sceneAssets';
 import type { SceneLighting } from './sceneAssets';
 import type { ControlInput, GamePhase, GameSnapshot } from './types';
 import { VehicleAssets } from './vehicleAssets';
 import type { LoadedCarModel } from './vehicleAssets';
 import { DEFAULT_CAR_MODEL_ID, selectCarModelIds } from './vehicleCatalog';
 import type { CarModelId } from './vehicleCatalog';
+import { ATMOSPHERE, installAtmosphericFog } from './world/atmosphere';
+import { ForestSystem } from './world/ForestSystem';
+import { MountainRange } from './world/MountainRange';
 import { RoadsideFenceSystem } from './world/RoadsideFenceSystem';
+import { SkySystem } from './world/SkySystem';
 
 interface TrafficCar {
   mesh: THREE.Group;
@@ -39,14 +39,14 @@ interface TrafficCar {
 const GROUND_SIZE = 1200;
 const GRASS_TEXTURE_REPEAT = 30;
 const GRASS_TILE_METERS = GROUND_SIZE / GRASS_TEXTURE_REPEAT;
-const SNOW_TEXTURE_REPEAT = 12;
-const SNOW_TILE_METERS = GROUND_SIZE / SNOW_TEXTURE_REPEAT;
 const ROAD_UPDATE_INTERVAL = 1 / 30;
 const IDLE_RENDER_INTERVAL_MS = 200;
+const BASE_FOV = 56;
+const SPEED_FOV_BOOST = 9;
 
 export class DrivingGame {
   private readonly scene = new THREE.Scene();
-  private readonly camera = new THREE.PerspectiveCamera(58, 1, 0.1, 800);
+  private readonly camera = new THREE.PerspectiveCamera(BASE_FOV, 1, 0.1, 2400);
   private readonly renderer: THREE.WebGLRenderer;
   private readonly performanceMonitor = new PerformanceMonitor();
   private readonly adaptiveQuality: AdaptiveQuality;
@@ -55,8 +55,10 @@ export class DrivingGame {
   private readonly player = new THREE.Group();
   private readonly traffic: TrafficCar[] = [];
   private readonly scenery: THREE.Group[] = [];
-  private readonly mountains: THREE.Group[] = [];
-  private readonly clouds: THREE.Sprite[] = [];
+  private readonly sky: SkySystem;
+  private readonly mountainRange: MountainRange;
+  private readonly forest: ForestSystem;
+  private postProcessing?: PostProcessing;
   private readonly lighting: SceneLighting;
   private readonly textureStore: SurfaceTextureStore;
   private readonly sceneryAssets: SceneryAssets;
@@ -67,7 +69,6 @@ export class DrivingGame {
   private readonly shoulderGeometry: THREE.BufferGeometry;
   private readonly shoulderMesh: THREE.Mesh;
   private readonly ground: THREE.Mesh;
-  private readonly groundSnow: THREE.Mesh;
   private readonly forward = new THREE.Vector3();
   private readonly shadowCenter = new THREE.Vector3();
   private readonly desiredCamera = new THREE.Vector3();
@@ -79,6 +80,7 @@ export class DrivingGame {
   private worldX = roadCenter(0) + Math.cos(roadHeading(0)) * laneOffsets[0];
   private vehicleHeading = roadHeading(0);
   private steeringVisual = 0;
+  private longitudinalAcceleration = 0;
   private overtakes = 0;
   private assistMessage = 'READY';
   private hornCooldown = 0;
@@ -103,8 +105,10 @@ export class DrivingGame {
     private readonly onHorn: () => void,
     private readonly onPerformanceUpdate: (snapshot: PerformanceSnapshot) => void,
   ) {
-    this.scene.background = new THREE.Color(0x9bb8bd);
-    this.scene.fog = new THREE.FogExp2(0x9bb8bd, 0.0025);
+    // Aerial-perspective fog must be installed before any material compiles.
+    installAtmosphericFog();
+    this.scene.background = ATMOSPHERE.fogColor.clone();
+    this.scene.fog = new THREE.FogExp2(ATMOSPHERE.fogColor.getHex(), ATMOSPHERE.fogDensity);
 
     const deviceMemory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
     this.adaptiveQuality = new AdaptiveQuality(
@@ -122,8 +126,23 @@ export class DrivingGame {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMappingExposure = 1.0;
+    // The effect composer issues several renders per frame; count them all.
+    this.renderer.info.autoReset = false;
     container.appendChild(this.renderer.domElement);
+
+    // The sky is both the backdrop and the source of image-based lighting, so
+    // car paint, glass and chrome reflect the same clouds the player sees.
+    this.sky = new SkySystem();
+    this.scene.add(this.sky.mesh);
+    this.scene.environment = this.sky.createEnvironment(this.renderer);
+    this.scene.environmentIntensity = 0.75;
+    this.mountainRange = new MountainRange();
+    this.scene.add(this.mountainRange.mesh);
+    this.forest = new ForestSystem(this.scene);
+    // Apply the starting tier on the first frame (creates the effect composer
+    // when post-processing is enabled, including in Auto mode).
+    this.pendingRenderQuality = this.adaptiveQuality.settings;
 
     this.textureStore = new SurfaceTextureStore(this.renderer.capabilities.getMaxAnisotropy());
 
@@ -159,10 +178,12 @@ export class DrivingGame {
         tint: 0xffffff,
       },
     );
+    applyGroundVariation(groundMaterial);
     const rockMaterial = new THREE.MeshStandardMaterial({
-      color: 0x77736b,
-      roughness: 0.94,
-      metalness: 0.02,
+      vertexColors: true,
+      roughness: 0.95,
+      metalness: 0,
+      flatShading: true,
     });
     this.sceneryAssets = new SceneryAssets(rockMaterial);
 
@@ -183,40 +204,15 @@ export class DrivingGame {
     this.ground.receiveShadow = true;
     this.scene.add(this.ground);
 
-    const groundSnowTexture = createSnowPatchTexture(0xb7e134);
-    groundSnowTexture.repeat.set(SNOW_TEXTURE_REPEAT, SNOW_TEXTURE_REPEAT);
-    groundSnowTexture.anisotropy = Math.min(4, this.renderer.capabilities.getMaxAnisotropy());
-    this.textureStore.track(groundSnowTexture);
-    this.groundSnow = new THREE.Mesh(
-      this.ground.geometry,
-      new THREE.MeshStandardMaterial({
-        color: 0xe6edef,
-        map: groundSnowTexture,
-        transparent: true,
-        opacity: 0.72,
-        depthWrite: false,
-        roughness: 1,
-        metalness: 0,
-        side: THREE.DoubleSide,
-      }),
-    );
-    this.groundSnow.rotation.x = -Math.PI / 2;
-    this.groundSnow.position.y = -0.075;
-    this.groundSnow.receiveShadow = true;
-    this.groundSnow.renderOrder = 1;
-    this.scene.add(this.groundSnow);
-
     this.roadsideFences = new RoadsideFenceSystem(this.scene);
 
     this.lighting = addSceneLighting(this.scene, this.adaptiveQuality.settings.shadowMapSize);
     this.setupWorld();
-    const natureReady = this.sceneryAssets.loadNature(this.scenery);
-    const mountainsReady = this.sceneryAssets.loadMountains(this.mountains);
-    this.sceneAssetsReady = Promise.all([
-      this.textureStore.whenReady(),
-      natureReady,
-      mountainsReady,
-    ]).then(() => {
+    const natureReady = this.sceneryAssets.loadNature(this.scenery).then(() => {
+      const pine = this.sceneryAssets.getPineTreePrototype();
+      if (pine) this.forest.setNearModel(pine);
+    });
+    this.sceneAssetsReady = Promise.all([this.textureStore.whenReady(), natureReady]).then(() => {
       this.sceneAssetsLoaded = true;
     });
     this.scene.add(this.player);
@@ -275,6 +271,8 @@ export class DrivingGame {
       object.userData.distance = -45 + index * 12.5;
       object.userData.worldPositioned = false;
     });
+    this.longitudinalAcceleration = 0;
+    this.forest.reset();
   }
 
   getPhase(): GamePhase {
@@ -318,6 +316,11 @@ export class DrivingGame {
     cancelAnimationFrame(this.animationFrame);
     window.removeEventListener('resize', this.resize);
     this.roadsideFences.dispose();
+    this.forest.dispose();
+    this.mountainRange.dispose();
+    this.sky.dispose();
+    this.sceneryAssets.dispose();
+    this.postProcessing?.dispose();
     this.textureStore.dispose();
     this.renderer.dispose();
   }
@@ -335,35 +338,6 @@ export class DrivingGame {
       object.scale.setScalar(0.72 + (index % 5) * 0.11);
       this.scenery.push(object);
       this.scene.add(object);
-    }
-
-    for (let index = 0; index < 4; index += 1) {
-      const mountain = this.sceneryAssets.createMountain();
-      mountain.userData.slot = index;
-      this.mountains.push(mountain);
-      this.scene.add(mountain);
-    }
-
-    const cloudTexture = createCloudTexture();
-    for (let index = 0; index < 11; index += 1) {
-      const cloud = new THREE.Sprite(
-        new THREE.SpriteMaterial({
-          map: cloudTexture,
-          color: index % 3 === 0 ? 0xe8f2ef : 0xffffff,
-          transparent: true,
-          opacity: 0.58 + (index % 4) * 0.07,
-          depthWrite: false,
-          fog: false,
-        }),
-      );
-      const width = 54 + (index % 5) * 13;
-      cloud.scale.set(width, width * (0.3 + (index % 2) * 0.04), 1);
-      cloud.userData.baseX = -250 + index * 49;
-      cloud.userData.height = 58 + (index % 4) * 15;
-      cloud.userData.distanceOffset = 155 + (index % 3) * 68;
-      cloud.userData.speed = (index % 2 === 0 ? 1 : -1) * (1.3 + (index % 4) * 0.42);
-      this.clouds.push(cloud);
-      this.scene.add(cloud);
     }
 
     let ongoingSpawnCursor = 45;
@@ -449,9 +423,9 @@ export class DrivingGame {
   private updateSimulation(dt: number): void {
     const control = this.getControl();
     const curveLimit = curveSpeedLimit(this.distance, GAME.maxSpeed, GAME.minCurveSpeed);
-    const conceptDriver = this.driverCar === 'luxury-concept';
-    const collisionLength = conceptDriver ? GAME.conceptCollisionLength : GAME.collisionLength;
-    const collisionWidth = conceptDriver ? GAME.conceptCollisionWidth : GAME.collisionWidth;
+    const { length: collisionLength, width: collisionWidth } = this.vehicleAssets.collisionSize(
+      this.driverCar,
+    );
     this.hornCooldown = Math.max(0, this.hornCooldown - dt);
 
     // Horn state is an audiovisual side effect; speed planning stays pure and testable.
@@ -471,6 +445,7 @@ export class DrivingGame {
     const speedPlan = createSpeedPlan(control, this.speed, curveLimit, threat);
     const { targetSpeed, acceleration, safetyBraking } = speedPlan;
     this.assistMessage = speedPlan.assistMessage;
+    const previousSpeed = this.speed;
     this.vehicleAssets.setBrakeLights(this.player, safetyBraking || control.braking === true);
     this.speed = Math.max(
       0,
@@ -482,6 +457,12 @@ export class DrivingGame {
       ),
     );
     if (targetSpeed === 0 && this.speed < 0.3) this.speed = 0;
+    this.longitudinalAcceleration = damp(
+      this.longitudinalAcceleration,
+      (this.speed - previousSpeed) / Math.max(dt, 1e-3),
+      5,
+      dt,
+    );
 
     this.steeringVisual = damp(this.steeringVisual, control.steering, 10, dt);
     const steeringAuthority = 0.28 + 0.72 * clamp(this.speed / 18, 0, 1);
@@ -574,7 +555,15 @@ export class DrivingGame {
     const centerX = roadCenter(this.distance);
     this.player.position.set(this.worldX, 0.02, -this.distance);
     this.player.rotation.y = this.vehicleHeading;
-    this.player.rotation.z = damp(this.player.rotation.z, -this.steeringVisual * 0.06, 6, dt);
+    // Body roll leans away from the turn and pitch follows braking/acceleration;
+    // both act on the sprung body only so the tyres stay on the road.
+    const lateralLoad = this.steeringVisual * clamp(this.speed / 30, 0, 1);
+    this.vehicleAssets.updateSuspension(
+      this.player,
+      lateralLoad * 0.04,
+      this.longitudinalAcceleration * 0.0024,
+      dt,
+    );
     this.vehicleAssets.updateWheelAnimation(this.player, this.speed * dt, this.steeringVisual, dt);
 
     for (const car of this.traffic) {
@@ -617,34 +606,7 @@ export class DrivingGame {
       }
     }
 
-    for (const mountain of this.mountains) {
-      const slot = mountain.userData.slot as number;
-      const pair = Math.floor(slot / 2);
-      const isLeft = slot % 2 === 0;
-      const distance = this.distance + 275 + pair * 95;
-      const horizonOffset = (pair === 0 ? 215 : 390) * (isLeft ? -1 : 1);
-      mountain.position.set(roadCenter(distance) + horizonOffset, -6, -distance);
-      mountain.rotation.y = roadHeading(distance) * 0.25 + (isLeft ? 0.18 : -0.18) + pair * 0.12;
-      mountain.scale.setScalar(pair === 0 ? 1 : 0.86);
-    }
-
-    const sunDistance = this.distance + 350;
-    this.lighting.visual.position.set(roadCenter(sunDistance) - 92, 102, -sunDistance);
-
-    const cloudTime = performance.now() * 0.001;
-    for (const cloud of this.clouds) {
-      const cloudDistance = this.distance + (cloud.userData.distanceOffset as number);
-      const drift = (cloud.userData.baseX as number) + cloudTime * (cloud.userData.speed as number);
-      const wrappedX = ((((drift + 270) % 540) + 540) % 540) - 270;
-      cloud.position.set(
-        roadCenter(cloudDistance) + wrappedX,
-        cloud.userData.height as number,
-        -cloudDistance,
-      );
-    }
-
     this.ground.position.set(centerX, -0.09, -this.distance - 180);
-    this.groundSnow.position.set(centerX, -0.075, -this.distance - 180);
     const groundMaterial = this.ground.material as THREE.MeshStandardMaterial;
     // PlaneGeometry's V axis points toward negative world Z after the ground is
     // rotated flat. Offset from the plane's world position so recentering the
@@ -655,12 +617,6 @@ export class DrivingGame {
     groundMaterial.normalMap?.offset.set(grassOffsetX, grassOffsetY);
     groundMaterial.roughnessMap?.offset.set(grassOffsetX, grassOffsetY);
     groundMaterial.metalnessMap?.offset.set(grassOffsetX, grassOffsetY);
-    const groundSnowMaterial = this.groundSnow.material as THREE.MeshStandardMaterial;
-    groundSnowMaterial.map?.offset.set(
-      this.groundSnow.position.x / SNOW_TILE_METERS,
-      -this.groundSnow.position.z / SNOW_TILE_METERS,
-    );
-
     this.forward.set(-Math.sin(this.vehicleHeading), 0, -Math.cos(this.vehicleHeading));
     this.shadowCenter.copy(this.player.position).addScaledVector(this.forward, 32);
     updateSceneShadow(this.lighting, this.shadowCenter);
@@ -670,6 +626,16 @@ export class DrivingGame {
     this.cameraTarget.copy(this.player.position).addScaledVector(this.forward, 12);
     this.cameraTarget.y += 1;
     this.camera.lookAt(this.cameraTarget);
+    // Widen the lens with speed for a stronger sense of velocity.
+    const fov = BASE_FOV + SPEED_FOV_BOOST * clamp(this.speed / GAME.maxSpeed, 0, 1) ** 1.5;
+    if (Math.abs(this.camera.fov - fov) > 0.01) {
+      this.camera.fov = damp(this.camera.fov, fov, 3, dt);
+      this.camera.updateProjectionMatrix();
+    }
+
+    this.sky.update(this.camera, performance.now() * 0.001);
+    this.mountainRange.update(this.camera.position);
+    this.forest.update(this.distance);
   }
 
   private animate = (): void => {
@@ -688,9 +654,14 @@ export class DrivingGame {
       if (settings) qualitySettings = settings;
     }
     if (qualitySettings) this.applyRenderQuality(qualitySettings);
+    this.renderer.info.reset();
     // Quality changes resize and clear the WebGL drawing buffer. Rendering
     // afterward fills it in the same animation frame and prevents a black flash.
-    this.renderer.render(this.scene, this.camera);
+    if (this.postProcessing && this.adaptiveQuality.settings.postProcessing) {
+      this.postProcessing.render(dt);
+    } else {
+      this.renderer.render(this.scene, this.camera);
+    }
     if (this.performanceMonitoring && playing) {
       const render = this.renderer.info.render;
       const memory = this.renderer.info.memory;
@@ -727,10 +698,16 @@ export class DrivingGame {
     this.camera.aspect = width / Math.max(height, 1);
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height, false);
+    this.postProcessing?.syncSize(width, height);
   };
 
   private applyRenderQuality(settings: RenderQualitySettings): void {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, settings.pixelRatioCap));
+    this.forest.setDense(settings.denseForest);
+    if (settings.postProcessing) {
+      this.postProcessing ??= new PostProcessing(this.renderer, this.scene, this.camera);
+      this.postProcessing.syncSize(this.container.clientWidth, this.container.clientHeight);
+    }
     const shadow = this.lighting.sun.shadow;
     if (shadow.mapSize.x !== settings.shadowMapSize) {
       shadow.mapSize.set(settings.shadowMapSize, settings.shadowMapSize);

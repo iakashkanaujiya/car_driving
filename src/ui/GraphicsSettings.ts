@@ -4,10 +4,10 @@ import { byId } from './dom';
 const STORAGE_KEY = 'driftline-graphics-quality';
 const MODES: readonly GraphicsQualityMode[] = ['auto', 'low', 'medium', 'high'];
 const DESCRIPTIONS: Record<GraphicsQualityMode, string> = {
-  auto: 'Balances resolution and shadow detail from sustained frame pacing.',
-  low: 'Prioritizes stable performance with 1x resolution and 512px shadows.',
-  medium: 'Uses balanced 1.25x resolution and 1024px shadows.',
-  high: 'Prioritizes detail with 1.5x resolution and 2048px shadows.',
+  auto: 'Balances resolution, effects and shadow detail from sustained frame pacing.',
+  low: 'Prioritizes stable performance with 1x resolution, 512px shadows and no post effects.',
+  medium: 'Adds bloom, MSAA, colour grading and a denser forest at 1.25x resolution.',
+  high: 'Full effects with 1.5x resolution and 2048px shadows.',
 };
 
 interface GraphicsSettingsHandlers {
