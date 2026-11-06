@@ -1,0 +1,110 @@
+import * as THREE from 'three';
+import { describe, expect, it } from 'vitest';
+import { GAME } from '../config';
+import { createRockGeometry } from '../sceneryAssets';
+import {
+  ATMOSPHERE,
+  atmosphericFogFactor,
+  createAtmosphericFogChunks,
+  installAtmosphericFog,
+} from './atmosphere';
+import { createPineGeometry, forestChunkTrees } from './ForestSystem';
+import { mountainColor, mountainHeight } from './MountainRange';
+import { fbm3, mulberry32, ridged3, valueNoise3 } from './noise';
+
+describe('procedural noise', () => {
+  it('is deterministic and normalized', () => {
+    for (let index = 0; index < 200; index += 1) {
+      const x = index * 0.37;
+      const value = fbm3(x, x * 0.5, -x, 5, 3);
+      expect(value).toBe(fbm3(x, x * 0.5, -x, 5, 3));
+      expect(value).toBeGreaterThanOrEqual(0);
+      expect(value).toBeLessThanOrEqual(1);
+      expect(ridged3(x, 1, x, 4)).toBeLessThanOrEqual(1);
+      expect(valueNoise3(x, 0, 0)).toBeGreaterThanOrEqual(0);
+    }
+    const a = mulberry32(42);
+    const b = mulberry32(42);
+    expect([a(), a(), a()]).toEqual([b(), b(), b()]);
+  });
+});
+
+describe('aerial perspective fog', () => {
+  it('thickens with distance and thins for rays climbing toward summits', () => {
+    const near = atmosphericFogFactor(50, 0, 4);
+    const far = atmosphericFogFactor(800, 0, 4);
+    const summit = atmosphericFogFactor(800, 0.3, 4);
+    expect(near).toBeLessThan(far);
+    expect(summit).toBeLessThan(far);
+    expect(far).toBeLessThan(1);
+  });
+
+  it('replaces three.js fog chunks with the shared sun direction', () => {
+    const chunks = createAtmosphericFogChunks();
+    const sun = ATMOSPHERE.sunDirection;
+    expect(chunks.fog_fragment).toContain(sun.x.toFixed(6));
+    expect(chunks.fog_vertex).toContain('vFogViewPosition = mvPosition.xyz');
+    installAtmosphericFog();
+    installAtmosphericFog();
+    expect(THREE.ShaderChunk.fog_fragment).toBe(chunks.fog_fragment);
+  });
+});
+
+describe('mountain range', () => {
+  it('is seamless around the ring', () => {
+    for (const radius of [500, 900, 1400]) {
+      expect(mountainHeight(0, radius)).toBeCloseTo(mountainHeight(Math.PI * 2, radius), 6);
+    }
+  });
+
+  it('rises from low foothills to tall outer summits', () => {
+    let foothills = 0;
+    let summits = 0;
+    for (let index = 0; index < 64; index += 1) {
+      const angle = (index / 64) * Math.PI * 2;
+      foothills = Math.max(foothills, mountainHeight(angle, 370));
+      summits = Math.max(summits, mountainHeight(angle, 1300));
+    }
+    expect(foothills).toBeLessThan(40);
+    expect(summits).toBeGreaterThan(180);
+  });
+
+  it('puts snow on gentle high ground and forest in the valley', () => {
+    const snow = mountainColor(300, 0.9, 0.5, new THREE.Color());
+    const forest = mountainColor(10, 0.95, 0.5, new THREE.Color());
+    expect(snow.r).toBeGreaterThan(0.5);
+    expect(forest.g).toBeGreaterThan(forest.r);
+    expect(forest.r).toBeLessThan(0.1);
+  });
+});
+
+describe('forest placement', () => {
+  it('is deterministic and never encroaches on the road verge', () => {
+    const trees = forestChunkTrees(5, 60);
+    expect(trees).toEqual(forestChunkTrees(5, 60));
+    for (const tree of trees) {
+      expect(Math.abs(tree.offset)).toBeGreaterThan(GAME.roadWidth / 2 + 10);
+      expect(tree.distance).toBeGreaterThanOrEqual(5 * 40);
+      expect(tree.distance).toBeLessThan(6 * 40);
+    }
+  });
+
+  it('builds a vertex-shaded conifer about one unit tall', () => {
+    const geometry = createPineGeometry();
+    geometry.computeBoundingBox();
+    expect(geometry.getAttribute('color')).toBeDefined();
+    expect(geometry.boundingBox!.max.y).toBeCloseTo(1.05, 1);
+    expect(geometry.boundingBox!.min.y).toBeGreaterThanOrEqual(-0.1);
+  });
+});
+
+describe('roadside rocks', () => {
+  it('produces distinct boulders that sit on the ground', () => {
+    const a = createRockGeometry(1);
+    const b = createRockGeometry(2);
+    a.computeBoundingBox();
+    expect(a.getAttribute('color')).toBeDefined();
+    expect(a.boundingBox!.min.y).toBeGreaterThan(-0.2);
+    expect(a.getAttribute('position').array).not.toEqual(b.getAttribute('position').array);
+  });
+});

@@ -5,8 +5,9 @@ const assetPaths = manifest.assets.map(({ path }) => path);
 
 describe('asset manifest', () => {
   it('contains core scenery while deferring optional vehicle packs', () => {
-    expect(assetPaths).toHaveLength(11);
-    expect(assetPaths).toContain('great_mountain/landscape_mountain_optimized.glb');
+    expect(assetPaths).toHaveLength(10);
+    // Mountains are generated procedurally, so no landscape download is needed.
+    expect(assetPaths.some((path) => path.startsWith('great_mountain/'))).toBe(false);
     expect(assetPaths).toContain('tree/pine_tree_1.glb');
     expect(assetPaths.filter((path) => path.startsWith('models/'))).toHaveLength(0);
     expect(assetPaths.filter((path) => path.startsWith('roads/textures/'))).toHaveLength(9);

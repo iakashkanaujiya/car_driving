@@ -1,11 +1,7 @@
 {
-  "version": "eae39fa4e6215bbd",
-  "totalBytes": 20818002,
+  "version": "14cec4a1a37cef04",
+  "totalBytes": 11419918,
   "assets": [
-    {
-      "path": "great_mountain/landscape_mountain_optimized.glb",
-      "size": 9398084
-    },
     {
       "path": "roads/textures/Grass02_baseColor.jpeg",
       "size": 232651

@@ -175,6 +175,78 @@ describe('VehicleAssets wheel animation', () => {
     expect(wheels.filter((wheel) => wheel.userData.frontWheel)).toHaveLength(2);
   });
 
+  it('tilts only the sprung body so the wheels stay planted', () => {
+    const assets = new VehicleAssets();
+    const source = new THREE.Group();
+    source.add(new THREE.Mesh(new THREE.BoxGeometry(4, 1, 8)));
+    for (const [name, x, z] of [
+      ['WHEEL_LF', 2, 2.5],
+      ['WHEEL_RF', -2, 2.5],
+      ['WHEEL_LR', 2, -2.5],
+      ['WHEEL_RR', -2, -2.5],
+    ] as const) {
+      const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.25));
+      wheel.name = name;
+      wheel.position.set(x, 0, z);
+      source.add(wheel);
+    }
+    const prepareCarModel = (
+      assets as unknown as {
+        prepareCarModel: (
+          source: THREE.Group,
+          rotationY: number,
+          optimize: boolean,
+          modelId: 'ford-f150-raptor',
+        ) => THREE.Group;
+      }
+    ).prepareCarModel.bind(assets);
+    const car = new THREE.Group();
+    assets.replaceVisual(
+      car,
+      prepareCarModel(source, Math.PI, true, 'ford-f150-raptor'),
+      false,
+      'ford-f150-raptor',
+    );
+
+    const body = car.getObjectByName('car-body')!;
+    const wheel = (car.userData.animatedWheels as Array<{ steeringPivot: THREE.Object3D }>)[0]
+      .steeringPivot;
+    car.updateMatrixWorld(true);
+    const wheelBefore = wheel.getWorldPosition(new THREE.Vector3());
+    for (let frame = 0; frame < 120; frame += 1) {
+      assets.updateSuspension(car, 0.5, -0.5, 1 / 60);
+    }
+    car.updateMatrixWorld(true);
+
+    expect(body.rotation.z).toBeCloseTo(0.045, 3);
+    expect(body.rotation.x).toBeCloseTo(-0.03, 3);
+    expect(wheel.getWorldPosition(new THREE.Vector3()).distanceTo(wheelBefore)).toBeLessThan(1e-9);
+  });
+
+  it('grounds each car with a contact shadow that never casts shadows', () => {
+    const assets = new VehicleAssets();
+    const prototype = new THREE.Group();
+    prototype.add(new THREE.Mesh(new THREE.BoxGeometry(2, 1, 4.6)));
+    prototype.userData.footprint = { width: 2, length: 4.6 };
+    const car = new THREE.Group();
+    assets.replaceVisual(car, prototype, false, 'ioniq-5');
+
+    const shadow = car.getObjectByName('contact-shadow') as THREE.Mesh;
+    expect(shadow).toBeDefined();
+    expect(shadow.castShadow).toBe(false);
+    expect(car.userData.shadowMeshes as THREE.Mesh[]).not.toContain(shadow);
+    // Shared GPU resources survive replacing a car's visual.
+    assets.replaceVisual(car, prototype, false, 'ioniq-5');
+    expect((car.getObjectByName('contact-shadow') as THREE.Mesh).material).toBe(shadow.material);
+  });
+
+  it('uses the larger collision envelope only for the concept car', () => {
+    const assets = new VehicleAssets();
+    expect(assets.collisionSize('luxury-concept').length).toBeGreaterThan(
+      assets.collisionSize('ioniq-5').length,
+    );
+  });
+
   it('brightens and restores the concept car rear lights', () => {
     const assets = new VehicleAssets();
     const car = new THREE.Group();

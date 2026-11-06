@@ -38,7 +38,7 @@ Choose any of these vehicles directly on the start screen. Traffic reuses the sa
 
 You can select 0, 4, 8, 12, or 16 traffic cars and choose how many different models appear. Car variety defaults to 1, which reuses the selected driver model for traffic and reduces model parsing and memory use. Higher traffic counts or model variety may reduce frame rates on lower-powered devices.
 
-On the first visit, a setup popup keeps the game locked while it downloads approximately 20 MB of core scenery and road textures with live progress. Only selected car models are downloaded afterward; each model is stored on first use and reused on later visits. Interrupted core downloads can be retried and resume from files that are already cached.
+On the first visit, a setup popup keeps the game locked while it downloads approximately 11 MB of core scenery and road textures with live progress. Only selected car models are downloaded afterward; each model is stored on first use and reused on later visits. Interrupted core downloads can be retried and resume from files that are already cached.
 
 ## Controls
 
@@ -48,9 +48,18 @@ On the first visit, a setup popup keeps the game locked while it downloads appro
 - **Keyboard mode:** use `W` or up arrow to accelerate, `S` or down arrow to brake, and `A` / `D` or left / right arrows to steer. Braking stops at zero; there is no reverse gear.
 - **Pause:** use the Pause button or press `Escape`.
 - **Performance diagnostics:** press `F3` to toggle the performance HUD. Add `?perf=1` to the URL to open it automatically.
-- **Graphics:** open Graphics in the top bar to choose Auto, Low, Medium, or High quality. The selected preset is saved locally.
+- **Graphics:** open Graphics in the top bar to choose Auto, Low, Medium, or High quality. Low renders directly for speed; Medium and High add HDR bloom, MSAA, colour grading and a denser photoreal forest band. The selected preset is saved locally.
 
 Hand-control mode accelerates automatically. Keyboard mode uses manual acceleration and braking. Traffic and curve assists can slow the car in either mode. Drive on the left with same-direction traffic; the right lane carries oncoming vehicles and can be used carefully for overtaking.
+
+## Rendering
+
+The valley is lit and shaded as one physically based system:
+
+- **Sky and lighting:** a Preetham atmospheric sky with drifting procedural cumulus is both the backdrop and the source of a prefiltered environment map, so car paint, glass and chrome reflect the same sky the player sees. The sun light, shadows, sky disc and haze share one direction (`src/game/world/atmosphere.ts`).
+- **Aerial perspective:** three.js fog chunks are replaced with exponential height fog integrated along each view ray and tinted toward the sun, so distant summits fade into the horizon realistically.
+- **Terrain:** a seamless ring of ridged-noise mountains with altitude- and slope-based snow, rock and forest colouring replaces the old landscape download. Instanced conifers fill the valley, and the meadow uses world-space macro variation to hide texture tiling.
+- **Cars:** every model gets a soft contact shadow, and roll and pitch are applied to the sprung body only, so the tyres stay planted while the body leans through corners and dives under braking.
 
 ## Architecture
 
@@ -58,7 +67,8 @@ The runtime is organized by responsibility:
 
 - `src/app` coordinates menus, input mode, asset readiness, and game lifecycle.
 - `src/game/simulation` contains deterministic gameplay rules that can be tested without WebGL.
-- `src/game/world` owns reusable Three.js scene systems and their GPU-resource lifecycle.
+- `src/game/world` owns reusable Three.js scene systems (sky, atmosphere, mountains, forest, fences) and their GPU-resource lifecycle.
+- `src/game/rendering` contains quality tiers, post-processing and material shader extensions.
 - `src/ui` renders the static shell, startup gate, and HUD.
 - `src/audio` owns the procedural Web Audio graph.
 - `src/controls` contains keyboard and hand-tracking input adapters.

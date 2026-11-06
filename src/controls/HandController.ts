@@ -7,34 +7,22 @@ import { damp, steeringFromHands } from '../game/math';
 import type { ControlInput } from '../game/types';
 import { isClosedHand, isOpenPalm, isThumbUp, SustainedGesture } from './handGestures';
 import type { HandTrackingResult, HandWorkerInput, HandWorkerOutput } from './handWorkerTypes';
+import {
+  defaultWheelPose,
+  drawSteeringWheel,
+  smoothWheelPose,
+  wheelPoseFromHands,
+} from './steeringWheelOverlay';
+import type { WheelPose, WheelState } from './steeringWheelOverlay';
 
 type TrackingStatus = 'idle' | 'loading' | 'ready' | 'calibrating' | 'tracking' | 'lost' | 'error';
 const INFERENCE_INTERVAL_MS = 1000 / 20;
-const PREVIEW_INTERVAL_MS = 1000 / 12;
-const HAND_POINT_COLORS = [
-  '#ecff76',
-  '#ffb866',
-  '#ffb866',
-  '#ffb866',
-  '#ffb866',
-  '#55e8ff',
-  '#55e8ff',
-  '#55e8ff',
-  '#55e8ff',
-  '#72ffad',
-  '#72ffad',
-  '#72ffad',
-  '#72ffad',
-  '#d98cff',
-  '#d98cff',
-  '#d98cff',
-  '#d98cff',
-  '#ff7f9f',
-  '#ff7f9f',
-  '#ff7f9f',
-  '#ff7f9f',
-] as const;
-const FINGERTIP_INDICES = new Set([4, 8, 12, 16, 20]);
+// The wheel animates every camera frame (capped) for smooth motion between
+// 20 Hz tracking results.
+const PREVIEW_INTERVAL_MS = 1000 / 30;
+const CALIBRATION_SAMPLES = 45;
+/** After losing the hands for this long, the ghost wheel drifts back to centre. */
+const WHEEL_RETURN_MS = 1500;
 const BRAKE_GESTURE_HOLD_MS = 180;
 
 export class HandController {
@@ -57,6 +45,11 @@ export class HandController {
   private previewVisible = true;
   private lastPreviewTime = 0;
   private previewContext: CanvasRenderingContext2D | null = null;
+  private wheelTarget: WheelPose | null = null;
+  private wheelPose: WheelPose | null = null;
+  private wheelAlpha = 0;
+  private wheelGrip = false;
+  private lastWheelSeen = 0;
   private paused = false;
   private stopped = false;
 
@@ -263,11 +256,13 @@ export class HandController {
 
   private processVideoFrame = (now: DOMHighResTimeStamp): void => {
     this.processFrame(now);
+    this.drawPreview(now);
     this.scheduleNextFrame();
   };
 
   private processAnimationFrame = (now: DOMHighResTimeStamp): void => {
     this.processFrame(now);
+    this.drawPreview(now);
     this.scheduleNextFrame();
   };
 
@@ -306,7 +301,7 @@ export class HandController {
     if (this.landmarker) {
       const result = this.serializeResult(this.landmarker.detectForVideo(this.video, now));
       this.consumeResult(result);
-      this.drawPreview(result);
+      this.updateWheelTarget(result);
     }
   }
 
@@ -314,7 +309,7 @@ export class HandController {
     if (event.data.type === 'result') {
       this.frameInFlight = false;
       this.consumeResult(event.data.result);
-      this.drawPreview(event.data.result);
+      this.updateWheelTarget(event.data.result);
     } else if (event.data.type === 'error') {
       this.frameInFlight = false;
       void this.activateMainThreadFallback(new Error(event.data.message));
@@ -359,6 +354,7 @@ export class HandController {
   }
 
   private consumeResult(result: HandTrackingResult): void {
+    this.wheelGrip = false;
     if (result.landmarks.length !== 2) {
       this.resetBrakeGesture();
       this.input.active = false;
@@ -396,6 +392,7 @@ export class HandController {
     );
     const confidence = Math.min(hands[0].score, hands[1].score);
     this.lastSeen = performance.now();
+    this.wheelGrip = true;
 
     if (this.status === 'calibrating') {
       this.resetBrakeGesture();
@@ -404,9 +401,9 @@ export class HandController {
         return;
       }
       this.calibrationAngles.push(angle);
-      const progress = this.calibrationAngles.length / 45;
+      const progress = this.calibrationAngles.length / CALIBRATION_SAMPLES;
       this.onStatus('calibrating', progress);
-      if (this.calibrationAngles.length >= 45) {
+      if (this.calibrationAngles.length >= CALIBRATION_SAMPLES) {
         this.neutralAngle = this.circularAverage(this.calibrationAngles);
         this.setStatus('tracking');
       }
@@ -438,103 +435,67 @@ export class HandController {
     return Math.atan2(sin, cos);
   }
 
-  private drawPreview(result: HandTrackingResult): void {
+  /** Records where the virtual wheel should sit, from the latest two-hand result. */
+  private updateWheelTarget(result: HandTrackingResult): void {
+    const pose = wheelPoseFromHands(
+      result.landmarks,
+      this.video.videoWidth || 320,
+      this.video.videoHeight || 240,
+    );
+    if (!pose) return;
+    this.wheelTarget = pose;
+    this.lastWheelSeen = performance.now();
+  }
+
+  /** Draws the virtual yoke held between the player's fists. */
+  private drawPreview(now: number): void {
     const shell = this.canvas.closest('.camera-shell');
-    const now = performance.now();
     if (
       !this.previewVisible ||
       shell?.classList.contains('is-hidden') ||
       now - this.lastPreviewTime < PREVIEW_INTERVAL_MS
     )
       return;
+    const dt = Math.min(0.1, (now - this.lastPreviewTime) / 1000);
     this.lastPreviewTime = now;
 
     const width = this.video.videoWidth || 320;
     const height = this.video.videoHeight || 240;
-    if (this.canvas.width !== width) this.canvas.width = width;
-    if (this.canvas.height !== height) this.canvas.height = height;
+    if (this.canvas.width !== width || this.canvas.height !== height) {
+      this.canvas.width = width;
+      this.canvas.height = height;
+      this.wheelPose = null;
+    }
     this.previewContext ??= this.canvas.getContext('2d');
     const context = this.previewContext;
     if (!context) return;
+
+    const sinceSeen = now - this.lastWheelSeen;
+    const target =
+      this.wheelTarget && sinceSeen < WHEEL_RETURN_MS
+        ? this.wheelTarget
+        : defaultWheelPose(width, height);
+    this.wheelPose = this.wheelPose ? smoothWheelPose(this.wheelPose, target, dt) : { ...target };
+    const gripping = this.wheelGrip && sinceSeen < 300;
+    this.wheelAlpha = damp(this.wheelAlpha, gripping ? 1 : 0.38, 8, dt);
+    const brakePressure = gripping ? (this.input.brakePressure ?? 0) : 0;
+    let state: WheelState = 'idle';
+    if (this.status === 'calibrating') state = 'calibrating';
+    else if (gripping) state = brakePressure > 0 ? 'braking' : 'gripping';
+
     context.clearRect(0, 0, width, height);
     context.save();
+    // Landmarks are in camera space; mirror to match the selfie-view video.
     context.translate(width, 0);
     context.scale(-1, 1);
-
-    if (result.landmarks.length === 2) {
-      const leftWrist = result.landmarks[0][0];
-      const rightWrist = result.landmarks[1][0];
-      const leftX = leftWrist.x * width;
-      const leftY = leftWrist.y * height;
-      const rightX = rightWrist.x * width;
-      const rightY = rightWrist.y * height;
-      const centerX = (leftX + rightX) * 0.5;
-      const centerY = (leftY + rightY) * 0.5;
-
-      context.save();
-      context.setLineDash([10, 7]);
-      context.lineWidth = 2;
-      context.strokeStyle = 'rgba(236, 255, 118, 0.82)';
-      context.beginPath();
-      context.moveTo(leftX, leftY);
-      context.lineTo(rightX, rightY);
-      context.stroke();
-      context.setLineDash([]);
-      context.fillStyle = '#ecff76';
-      context.strokeStyle = 'rgba(5, 12, 16, 0.9)';
-      context.lineWidth = 3;
-      context.beginPath();
-      context.arc(centerX, centerY, 7, 0, Math.PI * 2);
-      context.fill();
-      context.stroke();
-      context.restore();
-    }
-
-    context.lineCap = 'round';
-    context.lineJoin = 'round';
-    for (const hand of result.landmarks) {
-      for (const connection of HandLandmarker.HAND_CONNECTIONS) {
-        const a = connection.start;
-        const b = connection.end;
-        const startX = hand[a].x * width;
-        const startY = hand[a].y * height;
-        const endX = hand[b].x * width;
-        const endY = hand[b].y * height;
-
-        context.strokeStyle = 'rgba(3, 10, 14, 0.78)';
-        context.lineWidth = 4;
-        context.beginPath();
-        context.moveTo(startX, startY);
-        context.lineTo(endX, endY);
-        context.stroke();
-
-        context.strokeStyle = HAND_POINT_COLORS[b] ?? HAND_POINT_COLORS[0];
-        context.lineWidth = 2;
-        context.beginPath();
-        context.moveTo(startX, startY);
-        context.lineTo(endX, endY);
-        context.stroke();
-      }
-
-      for (let index = 0; index < hand.length; index += 1) {
-        const point = hand[index];
-        // Keep landmarks subtle so the camera feed remains readable, while
-        // retaining slightly larger wrist and fingertip anchors.
-        const radius = index === 0 ? 3.5 : FINGERTIP_INDICES.has(index) ? 3 : 2;
-        const x = point.x * width;
-        const y = point.y * height;
-
-        context.fillStyle = 'rgba(3, 10, 14, 0.9)';
-        context.beginPath();
-        context.arc(x, y, radius + 1, 0, Math.PI * 2);
-        context.fill();
-
-        context.fillStyle = HAND_POINT_COLORS[index] ?? HAND_POINT_COLORS[0];
-        context.beginPath();
-        context.arc(x, y, radius, 0, Math.PI * 2);
-        context.fill();
-      }
-    }
+    drawSteeringWheel(context, this.wheelPose, {
+      state,
+      alpha: this.wheelAlpha,
+      calibration:
+        this.status === 'calibrating' ? this.calibrationAngles.length / CALIBRATION_SAMPLES : 0,
+      brakePressure,
+      mirrored: true,
+    });
     context.restore();
   }
 

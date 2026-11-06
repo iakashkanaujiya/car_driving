@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { fbm3 } from './world/noise';
 
 interface NatureModelOptions {
   kind: 'pine-tree';
@@ -10,12 +11,59 @@ interface NatureModelOptions {
 }
 
 export const PINE_TREE_MODEL_PATH = 'tree/pine_tree_1.glb';
+const ROCK_VARIANTS = 4;
+
+/**
+ * Builds a weathered boulder: an icosphere displaced by fractal noise, with
+ * lichen and moss on upward faces baked into vertex colours.
+ */
+export function createRockGeometry(seed: number): THREE.BufferGeometry {
+  // Polyhedron geometries are already non-indexed, so faces stay faceted.
+  const geometry = new THREE.IcosahedronGeometry(1, 2);
+  const position = geometry.getAttribute('position') as THREE.BufferAttribute;
+  const point = new THREE.Vector3();
+  for (let vertex = 0; vertex < position.count; vertex += 1) {
+    point.fromBufferAttribute(position, vertex);
+    const n = fbm3(point.x * 1.3 + seed * 3.1, point.y * 1.3, point.z * 1.3 - seed, 4, seed + 3);
+    const scale = 0.72 + n * 0.62;
+    point.multiplyScalar(scale);
+    // Flatten the base and squash the boulder so it sits naturally in the grass.
+    point.y = point.y > 0 ? point.y * 0.72 : point.y * 0.35;
+    position.setXYZ(vertex, point.x * 1.25, point.y + 0.35, point.z);
+  }
+  geometry.computeVertexNormals();
+  const normal = geometry.getAttribute('normal') as THREE.BufferAttribute;
+  const colors = new Float32Array(position.count * 3);
+  const stone = new THREE.Color();
+  const moss = new THREE.Color(0x4d5a32);
+  for (let vertex = 0; vertex < position.count; vertex += 1) {
+    const tone = fbm3(position.getX(vertex) * 2.4, position.getY(vertex) * 2.4, seed, 3, 9);
+    stone.setRGB(0.36 + tone * 0.2, 0.35 + tone * 0.18, 0.33 + tone * 0.16);
+    stone.lerp(moss, THREE.MathUtils.smoothstep(normal.getY(vertex), 0.55, 0.9) * 0.55);
+    colors[vertex * 3] = stone.r;
+    colors[vertex * 3 + 1] = stone.g;
+    colors[vertex * 3 + 2] = stone.b;
+  }
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geometry.computeBoundingSphere();
+  return geometry;
+}
 
 export class SceneryAssets {
   private pineTreePrototype?: THREE.Group;
-  private greatMountainPrototype?: THREE.Group;
+  private readonly rockGeometries: THREE.BufferGeometry[] = [];
+  private rockCounter = 0;
 
-  constructor(private readonly rockMaterial: THREE.MeshStandardMaterial) {}
+  constructor(private readonly rockMaterial: THREE.MeshStandardMaterial) {
+    for (let variant = 0; variant < ROCK_VARIANTS; variant += 1) {
+      this.rockGeometries.push(createRockGeometry(variant + 1));
+    }
+  }
+
+  /** The normalized pine model, available once loadNature() resolves. */
+  getPineTreePrototype(): THREE.Group | undefined {
+    return this.pineTreePrototype;
+  }
 
   createTree(): THREE.Group {
     const group = new THREE.Group();
@@ -26,18 +74,30 @@ export class SceneryAssets {
 
   createRock(): THREE.Group {
     const group = new THREE.Group();
-    const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(1.25, 0), this.rockMaterial);
-    rock.scale.set(1.2, 0.7, 0.9);
-    rock.position.y = 0.7;
+    const geometry = this.rockGeometries[this.rockCounter % this.rockGeometries.length];
+    this.rockCounter += 1;
+    const rock = new THREE.Mesh(geometry, this.rockMaterial);
+    rock.scale.setScalar(1.35);
     rock.castShadow = true;
+    rock.receiveShadow = true;
     group.add(rock);
+    // A couple of smaller stones around the boulder.
+    for (let index = 0; index < 2; index += 1) {
+      const pebble = new THREE.Mesh(
+        this.rockGeometries[(this.rockCounter + index + 1) % this.rockGeometries.length],
+        this.rockMaterial,
+      );
+      const angle = this.rockCounter * 1.7 + index * 2.4;
+      pebble.position.set(Math.cos(angle) * 2.1, -0.05, Math.sin(angle) * 1.8);
+      pebble.scale.setScalar(0.38 + index * 0.16);
+      pebble.castShadow = true;
+      group.add(pebble);
+    }
     return group;
   }
 
-  createMountain(): THREE.Group {
-    const group = new THREE.Group();
-    if (this.greatMountainPrototype) group.add(this.greatMountainPrototype.clone(true));
-    return group;
+  dispose(): void {
+    this.rockGeometries.forEach((geometry) => geometry.dispose());
   }
 
   loadNature(targets: readonly THREE.Group[]): Promise<void> {
@@ -136,39 +196,5 @@ export class SceneryAssets {
     prototype.scale.setScalar(options.targetHeight / size.y);
     prototype.add(content);
     return prototype;
-  }
-
-  async loadMountains(targets: readonly THREE.Group[]): Promise<void> {
-    const loader = new GLTFLoader();
-    const gltf = await loader.loadAsync(
-      `${import.meta.env.BASE_URL}great_mountain/landscape_mountain_optimized.glb`,
-    );
-    gltf.scene.updateMatrixWorld(true);
-    const bounds = new THREE.Box3().setFromObject(gltf.scene);
-    const size = bounds.getSize(new THREE.Vector3());
-    const center = bounds.getCenter(new THREE.Vector3());
-    if (!Number.isFinite(size.y) || size.y <= 0) {
-      throw new Error('The mountain bounds could not be calculated.');
-    }
-
-    gltf.scene.traverse((object) => {
-      if (!(object instanceof THREE.Mesh)) return;
-      object.castShadow = false;
-      object.receiveShadow = false;
-    });
-
-    const content = new THREE.Group();
-    content.position.set(-center.x, -bounds.min.y, -center.z);
-    content.add(gltf.scene);
-
-    const prototype = new THREE.Group();
-    prototype.scale.setScalar(85 / size.y);
-    prototype.add(content);
-    this.greatMountainPrototype = prototype;
-
-    for (const mountain of targets) {
-      mountain.clear();
-      mountain.add(prototype.clone(true));
-    }
   }
 }
