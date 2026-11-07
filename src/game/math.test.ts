@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GAME, laneOffsets, TRAFFIC_COUNT_OPTIONS } from './config';
+import { GAME, laneDividerOffsets, laneOffsets, TRAFFIC_COUNT_OPTIONS } from './config';
 import { clamp, constrainToRoad, steeringFromHands } from './math';
 
 describe('driving math', () => {
@@ -20,10 +20,25 @@ describe('driving math', () => {
     expect(fullTurn).toBe(1);
   });
 
-  it('keeps exactly two traffic lanes inside the road edges', () => {
-    expect(laneOffsets).toHaveLength(2);
+  it('has four lanes, two each way, inside the road edges', () => {
+    expect(laneOffsets).toHaveLength(4);
+    expect(laneOffsets.slice(0, 2).every((offset) => offset < 0)).toBe(true);
+    expect(laneOffsets.slice(2).every((offset) => offset > 0)).toBe(true);
+    const widest = GAME.conceptCollisionWidth / 2 + GAME.trafficLaneJitter;
     for (const offset of laneOffsets) {
-      expect(Math.abs(offset) + GAME.collisionWidth / 2).toBeLessThan(GAME.roadWidth / 2);
+      expect(Math.abs(offset) + widest).toBeLessThan(GAME.roadWidth / 2);
+      // Traffic always stays clear of the double yellow centre line.
+      expect(Math.abs(offset) - widest).toBeGreaterThan(GAME.centerLineHalfWidth);
+    }
+    for (const divider of laneDividerOffsets) {
+      expect(Math.abs(divider)).toBeCloseTo(GAME.centerLineHalfWidth + GAME.laneWidth);
+    }
+  });
+
+  it('leaves room for cars side by side in neighbouring lanes', () => {
+    for (let lane = 1; lane < laneOffsets.length; lane += 1) {
+      const spacing = laneOffsets[lane] - laneOffsets[lane - 1];
+      expect(spacing - GAME.trafficLaneJitter * 2).toBeGreaterThan(GAME.conceptCollisionWidth);
     }
   });
 
