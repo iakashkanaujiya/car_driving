@@ -4,6 +4,7 @@ import { whenCarLodReady } from './rendering/carLod';
 import {
   CAR_MODEL_OPTIONS,
   CAR_MODEL_VARIETY_OPTIONS,
+  findLampAnchor,
   selectCarModelIds,
   VehicleAssets,
 } from './vehicleAssets';
@@ -228,7 +229,7 @@ describe('VehicleAssets wheel animation', () => {
     const assets = new VehicleAssets();
     const prototype = new THREE.Group();
     prototype.add(new THREE.Mesh(new THREE.BoxGeometry(2, 1, 4.6)));
-    prototype.userData.footprint = { width: 2, length: 4.6 };
+    prototype.userData.footprint = { width: 2, length: 4.6, height: 1.6 };
     const car = new THREE.Group();
     assets.replaceVisual(car, prototype, false, 'ioniq-5');
 
@@ -239,6 +240,87 @@ describe('VehicleAssets wheel animation', () => {
     // Shared GPU resources survive replacing a car's visual.
     assets.replaceVisual(car, prototype, false, 'ioniq-5');
     expect((car.getObjectByName('contact-shadow') as THREE.Mesh).material).toBe(shadow.material);
+  });
+
+  it('records lamp positions and brightens resting tail lights after dark', () => {
+    const assets = new VehicleAssets();
+    const prototype = new THREE.Group();
+    const lensMaterial = new THREE.MeshStandardMaterial({
+      name: 'M_Emission',
+      emissive: 0x330000,
+      emissiveIntensity: 1,
+    });
+    prototype.add(new THREE.Mesh(new THREE.BoxGeometry(2, 1, 4.6), lensMaterial));
+    prototype.userData.footprint = { width: 2, length: 4.6, height: 1.6 };
+    const car = new THREE.Group();
+    assets.replaceVisual(car, prototype, false, 'ioniq-5');
+
+    // Without measured lenses the lamps are estimated from the footprint.
+    const rig = assets.lightRig(car)!;
+    expect(rig.length).toBeCloseTo(4.6 * car.scale.x, 6);
+    expect(rig.headlamp.z).toBeCloseTo(-2.3 * car.scale.x, 6);
+    expect(rig.taillamp.z).toBeCloseTo(2.3 * car.scale.x, 6);
+    expect(rig.taillamp.y).toBeGreaterThan(0);
+
+    const lens = (): THREE.MeshStandardMaterial => {
+      let found: THREE.MeshStandardMaterial | undefined;
+      car.traverse((object) => {
+        if (object instanceof THREE.Mesh && object.material.name === 'M_Emission') {
+          found = object.material as THREE.MeshStandardMaterial;
+        }
+      });
+      return found!;
+    };
+    assets.setBrakeLights(car, false);
+    const daytime = lens().emissiveIntensity;
+    assets.setRunningLights(1);
+    assets.setBrakeLights(car, false);
+    expect(lens().emissiveIntensity).toBeGreaterThan(daytime * 2);
+    expect(assets.isBraking(car)).toBe(false);
+    assets.setBrakeLights(car, true);
+    expect(assets.isBraking(car)).toBe(true);
+  });
+
+  it('anchors lamps on the lens geometry at the requested end of the car', () => {
+    const lens = new THREE.MeshStandardMaterial({ name: 'lens' });
+    const root = new THREE.Group();
+    // One lens material shared by a lamp at each end, as some models do.
+    for (const [x, z] of [
+      [-0.7, -2.2],
+      [0.7, -2.2],
+      [0.6, 2.2],
+    ]) {
+      const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.1), lens);
+      lamp.position.set(x, 0.8, z);
+      root.add(lamp);
+    }
+    root.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial()));
+
+    const front = findLampAnchor(root, new Set(['lens']), 'front', 1)!;
+    expect(front.z).toBeCloseTo(-2.25, 6);
+    expect(front.y).toBeCloseTo(0.8, 6);
+    expect(front.x).toBeGreaterThan(0.6);
+    expect(front.x).toBeLessThanOrEqual(0.8);
+    const rear = findLampAnchor(root, new Set(['lens']), 'rear', 1)!;
+    expect(rear.z).toBeCloseTo(2.25, 6);
+    expect(rear.x).toBeLessThan(front.x);
+    expect(findLampAnchor(root, new Set(['missing']), 'rear', 1)).toBeUndefined();
+  });
+
+  it('puts a wrap-around lamp on its corner lens, not level with the centre bar', () => {
+    const lens = new THREE.MeshStandardMaterial({ name: 'tail' });
+    const root = new THREE.Group();
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.1, 0.1), lens);
+    bar.position.set(0, 0.7, 2.3);
+    root.add(bar);
+    for (const side of [-1, 1]) {
+      const corner = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.1), lens);
+      corner.position.set(side * 0.7, 0.8, 2);
+      root.add(corner);
+    }
+    const anchor = findLampAnchor(root, new Set(['tail']), 'rear', 1)!;
+    expect(anchor.z).toBeCloseTo(2.05, 6);
+    expect(anchor.y).toBeCloseTo(0.8, 6);
   });
 
   it('uses the larger collision envelope only for the concept car', () => {

@@ -27,6 +27,8 @@ interface CarModelSpec {
   /** Node names that form the four wheel assemblies. */
   wheelNodes?: readonly string[];
   tailMaterials?: readonly string[];
+  /** Headlamp lens materials; only their geometry at the front of the car is used. */
+  headlampMaterials?: readonly string[];
   tailLightProfile?: Omit<ModelBrakeLight, 'material'>;
   preserveTailColor?: boolean;
   removePaintTexture?: boolean;
@@ -37,6 +39,103 @@ interface CarModelSpec {
 export interface CollisionSize {
   length: number;
   width: number;
+}
+
+/** A lamp's centre on the car's right side, in car-local units (forward is -Z). */
+export interface LampAnchor {
+  x: number;
+  y: number;
+  z: number;
+}
+
+/** Where a car's lamps sit, in world units relative to the car. */
+export interface VehicleLightRig {
+  /** Bumper-to-bumper length. */
+  length: number;
+  headlamp: LampAnchor;
+  taillamp: LampAnchor;
+}
+
+interface Footprint {
+  width: number;
+  length: number;
+  height: number;
+}
+
+interface ModelLamps {
+  head?: LampAnchor;
+  tail?: LampAnchor;
+}
+
+/**
+ * Finds the centre of one side's lamp cluster from the lens geometry itself.
+ * Some lens materials cover both ends of a car, so only vertices more than
+ * `minDepth` toward the requested end count. The anchor sits halfway between
+ * the cluster's mean and outer edge, on the lens surface at that width: lamps
+ * that wrap around a corner sit well forward of a centre light bar.
+ */
+export function findLampAnchor(
+  root: THREE.Object3D,
+  materialNames: ReadonlySet<string>,
+  end: 'front' | 'rear',
+  minDepth: number,
+): LampAnchor | undefined {
+  if (materialNames.size === 0) return undefined;
+  root.updateMatrixWorld(true);
+  const toRoot = new THREE.Matrix4();
+  const inverseRoot = root.matrixWorld.clone().invert();
+  const vertex = new THREE.Vector3();
+  // Mirrored onto the right side: |x|, y and depth toward the requested end.
+  const lens: number[] = [];
+  let sumX = 0;
+  let outerX = 0;
+  root.traverse((object) => {
+    if (!(object instanceof THREE.Mesh) || Array.isArray(object.material)) return;
+    if (!materialNames.has(object.material.name)) return;
+    toRoot.multiplyMatrices(inverseRoot, object.matrixWorld);
+    const positions = object.geometry.getAttribute('position');
+    for (let index = 0; index < positions.count; index += 1) {
+      vertex.fromBufferAttribute(positions, index).applyMatrix4(toRoot);
+      const depth = end === 'front' ? -vertex.z : vertex.z;
+      if (depth < minDepth) continue;
+      const x = Math.abs(vertex.x);
+      lens.push(x, vertex.y, depth);
+      sumX += x;
+      outerX = Math.max(outerX, x);
+    }
+  });
+  const count = lens.length / 3;
+  if (count === 0) return undefined;
+  const anchorX = (sumX / count + outerX) / 2;
+  // Outboard of the anchor the surface only recedes, so its furthest point
+  // toward the end is the lens face at the anchor's own width.
+  let sumY = 0;
+  let outboard = 0;
+  let surface = 0;
+  for (let index = 0; index < lens.length; index += 3) {
+    if (lens[index] < anchorX) continue;
+    sumY += lens[index + 1];
+    surface = Math.max(surface, lens[index + 2]);
+    outboard += 1;
+  }
+  return {
+    x: anchorX,
+    y: sumY / outboard,
+    z: end === 'front' ? -surface : surface,
+  };
+}
+
+/** Scales measured lamp anchors to world units, estimating any the model lacks. */
+function createLightRig(footprint: Footprint, lamps: ModelLamps, scale: number): VehicleLightRig {
+  const { width, length, height } = footprint;
+  const head = lamps.head ?? { x: width * 0.31, y: height * 0.4, z: -length / 2 };
+  const tail = lamps.tail ?? { x: width * 0.34, y: height * 0.55, z: length / 2 };
+  const scaled = (anchor: LampAnchor): LampAnchor => ({
+    x: anchor.x * scale,
+    y: anchor.y * scale,
+    z: anchor.z * scale,
+  });
+  return { length: length * scale, headlamp: scaled(head), taillamp: scaled(tail) };
 }
 
 interface SuspensionState {
@@ -118,6 +217,7 @@ const BASE_MODEL_SPECS: readonly CarModelSpec[] = [
     displayScale: 2.1,
     paintMaterials: ['RaptorM_CarPaint_Max1'],
     tailMaterials: ['RaptorM_LightGlass_Red_Low1'],
+    headlampMaterials: ['RaptorM_LightGlass_Clear_Low1'],
     wheelNodes: ['WHEEL_RF', 'WHEEL_RR', 'WHEEL_LF', 'WHEEL_LR'],
   },
   {
@@ -127,6 +227,7 @@ const BASE_MODEL_SPECS: readonly CarModelSpec[] = [
     displayScale: 2.2,
     paintMaterials: ['carpaint'],
     tailMaterials: ['redglass'],
+    headlampMaterials: ['light'],
     wheelNodes: ['WHEEL_RF', 'WHEEL_RR', 'WHEEL_LF', 'WHEEL_LR'],
   },
   {
@@ -136,6 +237,7 @@ const BASE_MODEL_SPECS: readonly CarModelSpec[] = [
     displayScale: 1.9,
     paintMaterials: ['M_Gravity_Gold_Matte'],
     tailMaterials: ['M_Emission'],
+    headlampMaterials: ['M_Emission'],
     preserveTailColor: true,
     wheelNodes: ['SM_Wheel_BL_0', 'SM_Wheel_BR_1', 'SM_Wheel_FL_2', 'SM_Wheel_FR_3'],
   },
@@ -153,6 +255,7 @@ const AUDI_ETRON_MODEL_SPEC: CarModelSpec = {
     'gtVehicle_Exterior_mm_tyre_009',
   ],
   tailMaterials: ['Emiss'],
+  headlampMaterials: ['Glass_light'],
   collision: { length: GAME.conceptCollisionLength, width: GAME.conceptCollisionWidth },
   tailLightProfile: {
     restColor: 0xa80000,
@@ -249,6 +352,8 @@ function createFarMesh(geometry: THREE.BufferGeometry, material: THREE.Material)
 
 export class VehicleAssets {
   private readonly farModels = new WeakMap<THREE.Group, FarModel | null>();
+  /** Multiplies resting tail-light emission while vehicles drive with lights on. */
+  private tailLightBoost = 1;
 
   randomColor(): number {
     return CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)];
@@ -359,7 +464,9 @@ export class VehicleAssets {
       ? ({ body: sprungBody, roll: 0, pitch: 0 } satisfies SuspensionState)
       : undefined;
 
-    const footprint = prototype.userData.footprint as { width: number; length: number } | undefined;
+    const footprint = prototype.userData.footprint as Footprint | undefined;
+    const lamps = (prototype.userData.lamps ?? {}) as ModelLamps;
+    car.userData.lightRig = footprint ? createLightRig(footprint, lamps, car.scale.x) : undefined;
     if (footprint) {
       const { geometry, material } = getContactShadowResources();
       const contactShadow = new THREE.Mesh(geometry, material);
@@ -409,12 +516,29 @@ export class VehicleAssets {
     lod.simplified.visible = far;
   }
 
+  /** Brightens resting tail lights by `level` (0 = daytime, 1 = full darkness). */
+  setRunningLights(level: number): void {
+    this.tailLightBoost = 1 + THREE.MathUtils.clamp(level, 0, 1) * 2.2;
+  }
+
+  lightRig(car: THREE.Group): VehicleLightRig | undefined {
+    return car.userData.lightRig as VehicleLightRig | undefined;
+  }
+
+  isBraking(car: THREE.Group): boolean {
+    return car.userData.braking === true;
+  }
+
   setBrakeLights(car: THREE.Group, braking: boolean): void {
+    car.userData.braking = braking;
+    const boost = this.tailLightBoost;
     const modelBrakeLights = car.userData.modelBrakeLights as ModelBrakeLight[] | undefined;
     for (const light of modelBrakeLights ?? []) {
       light.material.color.setHex(braking ? light.brakingColor : light.restColor);
       light.material.emissive.setHex(braking ? light.brakingEmissive : light.restEmissive);
-      light.material.emissiveIntensity = braking ? light.brakingIntensity : light.restIntensity;
+      light.material.emissiveIntensity = braking
+        ? light.brakingIntensity
+        : light.restIntensity * boost;
     }
 
     const material = car.userData.tailMaterial as THREE.MeshStandardMaterial | undefined;
@@ -422,7 +546,7 @@ export class VehicleAssets {
       const highBrakeOnly = car.userData.highBrakeOnly === true;
       material.color.setHex(braking ? 0xff1d29 : highBrakeOnly ? 0x260205 : 0x681015);
       material.emissive.setHex(braking ? 0xff0712 : highBrakeOnly ? 0x000000 : 0x240003);
-      material.emissiveIntensity = braking ? 4.5 : highBrakeOnly ? 0 : 0.7;
+      material.emissiveIntensity = braking ? 4.5 : highBrakeOnly ? 0 : 0.7 * boost;
     }
     const glow = car.userData.brakeGlow as THREE.PointLight | undefined;
     if (glow) glow.intensity = braking ? 4.2 : 0;
@@ -608,7 +732,17 @@ export class VehicleAssets {
       pivot.userData.wheelRadius = Math.max(0.1, wheelSize.y * 0.5);
     }
     const footprint = new THREE.Box3().setFromObject(prototype).getSize(new THREE.Vector3());
-    prototype.userData.footprint = { width: footprint.x, length: footprint.z };
+    prototype.userData.footprint = {
+      width: footprint.x,
+      length: footprint.z,
+      height: footprint.y,
+    } satisfies Footprint;
+    const spec = CAR_MODEL_SPECS.find((candidate) => candidate.id === modelId);
+    const minDepth = footprint.z * 0.25;
+    prototype.userData.lamps = {
+      head: findLampAnchor(prototype, new Set(spec?.headlampMaterials), 'front', minDepth),
+      tail: findLampAnchor(prototype, new Set(spec?.tailMaterials), 'rear', minDepth),
+    } satisfies ModelLamps;
     return prototype;
   }
 

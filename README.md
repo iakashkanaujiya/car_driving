@@ -29,6 +29,15 @@ Push the project to a repository named `car_driving` using the `main` branch. In
 https://<your-github-username>.github.io/car_driving/
 ```
 
+## Time of day and weather
+
+Pick the conditions on the start screen, or change them mid-run under **Graphics → Conditions**. Your choice is saved for future visits.
+
+- **Time of day:** Day (high afternoon sun), Evening (a low sunset straight ahead with long shadows) or Night (moonlight, stars, and every car driving with its lights on).
+- **Weather:** Clear, Cloudy (broken cloud and softer shadows), Rain (an overcast sky, falling rain, a glossy wet road, rain sound, and headlights on) or Fog (visibility drops to a couple of hundred metres and headlights come on).
+
+Any time of day combines with any weather, so night fog or evening rain are available too.
+
 ## Available car models
 
 Choose any of these vehicles directly on the start screen. Traffic reuses the same model collection with randomized realistic paint colors.
@@ -52,7 +61,7 @@ On the first visit, a setup popup keeps the game locked while it downloads appro
 - **Keyboard mode:** use `W` or up arrow to accelerate, `S` or down arrow to brake, and `A` / `D` or left / right arrows to steer. Braking stops at zero; there is no reverse gear.
 - **Pause:** use the Pause button or press `Escape`.
 - **Performance diagnostics:** press `F3` to toggle the performance HUD. Add `?perf=1` to the URL to open it automatically.
-- **Graphics:** open Graphics in the top bar to choose Auto, Low, Medium, or High quality. Low renders directly for speed; Medium and High add HDR bloom, MSAA, colour grading and a denser photoreal forest band. The selected preset is saved locally.
+- **Graphics:** open Graphics in the top bar to choose Auto, Low, Medium, or High quality. Low renders directly for speed; Medium and High add HDR bloom, MSAA, colour grading and a denser photoreal forest band. The same panel sets the time of day and weather. All choices are saved locally.
 
 Hand-control mode accelerates automatically and only brakes on its own when it loses your hands. Keyboard mode uses manual acceleration and braking. Neither mode brakes for traffic or curves, so watch the road ahead. The road has four lanes and traffic drives on the left: the two left lanes carry traffic going your way, so overtake in the inner one, and the two right lanes carry oncoming vehicles.
 
@@ -64,6 +73,7 @@ The valley is lit and shaded as one physically based system:
 - **Aerial perspective:** three.js fog chunks are replaced with exponential height fog integrated along each view ray and tinted toward the sun, so distant summits fade into the horizon realistically.
 - **Terrain:** a seamless ring of ridged-noise mountains with altitude- and slope-based snow, rock and forest colouring replaces the old landscape download. Instanced conifers fill the valley, and the meadow uses world-space macro variation to hide texture tiling.
 - **Cars:** every model gets a soft contact shadow, and roll and pitch are applied to the sprung body only, so the tyres stay planted while the body leans through corners and dives under braking.
+- **Conditions:** each time of day and weather is one set of values (`src/game/world/conditions.ts`) shared by the sky, sun or moon light, shadows, fog and reflections. The fog's sun-scatter direction is a uniform every material shares, so switching conditions needs no shader rebuild. At night the player's headlights are a real spot light; traffic lamps are one draw call of glow sprites plus one instanced draw of light pools on the road. Rain is a single GPU-animated draw of streaks that slant with your speed and catch your headlight beam. Under a full rain cloud the sun or moon and its shadow pass switch off.
 
 ## Architecture
 

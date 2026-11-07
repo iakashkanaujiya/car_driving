@@ -4,6 +4,10 @@ import {
   CAR_MODEL_VARIETY_OPTIONS,
   DEFAULT_CAR_MODEL_ID,
 } from '../game/vehicleCatalog';
+import { TIME_OF_DAY_OPTIONS, WEATHER_OPTIONS } from '../game/conditionsCatalog';
+
+const optionList = (options: readonly { id: string; label: string }[]): string =>
+  options.map(({ id, label }) => `<option value="${id}">${label}</option>`).join('');
 
 /** Builds the static application shell. Dynamic overlays remain in the app controller. */
 export function createGameTemplate(): string {
@@ -20,6 +24,8 @@ export function createGameTemplate(): string {
     (count) =>
       `<option value="${count}"${count === 1 ? ' selected' : ''}>${count} ${count === 1 ? 'MODEL' : 'MODELS'}</option>`,
   ).join('');
+  const timeOfDayOptions = optionList(TIME_OF_DAY_OPTIONS);
+  const weatherOptions = optionList(WEATHER_OPTIONS);
 
   return `
     <main class="game-shell">
@@ -95,6 +101,15 @@ export function createGameTemplate(): string {
             </select>
           </label>
           <p id="graphics-quality-description" class="graphics-quality-description"></p>
+          <div class="graphics-section-title">CONDITIONS</div>
+          <label class="graphics-setting-row graphics-setting-row-compact" for="settings-time-of-day">
+            <span><strong>TIME OF DAY</strong><small>Midday sun, sunset or a moonlit night</small></span>
+            <select id="settings-time-of-day">${timeOfDayOptions}</select>
+          </label>
+          <label class="graphics-setting-row graphics-setting-row-compact" for="settings-weather">
+            <span><strong>WEATHER</strong><small>Rain and fog reduce visibility</small></span>
+            <select id="settings-weather">${weatherOptions}</select>
+          </label>
           <p class="graphics-settings-note"><i></i> Changes apply immediately and are saved for future runs.</p>
         </div>
       </section>
@@ -118,6 +133,8 @@ export function createGameTemplate(): string {
             <label><span>YOUR CAR</span><select id="driver-car" aria-label="Choose your car model">${carOptions}</select></label>
             <label><span>TRAFFIC CARS</span><select id="traffic-count" aria-label="Choose number of traffic cars">${trafficOptions}</select></label>
             <label><span>CAR VARIETY</span><select id="car-model-count" aria-label="Choose number of different car models">${varietyOptions}</select></label>
+            <label class="condition-option"><span>TIME OF DAY</span><select id="time-of-day" aria-label="Choose the time of day">${timeOfDayOptions}</select></label>
+            <label class="condition-option"><span>WEATHER</span><select id="weather" aria-label="Choose the weather">${weatherOptions}</select></label>
           </div>
           <p class="traffic-performance-note"><i>!</i> More traffic cars or model variety may reduce frame rates on lower-powered devices.</p>
           <div class="modal-actions">

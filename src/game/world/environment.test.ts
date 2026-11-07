@@ -8,6 +8,7 @@ import {
   atmosphericFogFactor,
   createAtmosphericFogChunks,
   installAtmosphericFog,
+  setAtmosphericScattering,
 } from './atmosphere';
 import { createPineGeometry, forestChunkTrees } from './ForestSystem';
 import { createDashTexture, DASH_FRACTION, LaneMarkings } from './LaneMarkings';
@@ -42,14 +43,41 @@ describe('aerial perspective fog', () => {
     expect(far).toBeLessThan(1);
   });
 
-  it('replaces three.js fog chunks with the shared sun direction', () => {
+  it('replaces three.js fog chunks with a shared sun-scatter direction', () => {
     const chunks = createAtmosphericFogChunks();
-    const sun = ATMOSPHERE.sunDirection;
-    expect(chunks.fog_fragment).toContain(sun.x.toFixed(6));
+    expect(chunks.fog_pars_fragment).toContain('uniform vec3 fogScatterDirection');
+    expect(chunks.fog_fragment).toContain('dot( fogRay, fogScatterDirection )');
     expect(chunks.fog_vertex).toContain('vFogViewPosition = mvPosition.xyz');
     installAtmosphericFog();
     installAtmosphericFog();
     expect(THREE.ShaderChunk.fog_fragment).toBe(chunks.fog_fragment);
+  });
+
+  it('shares one scatter uniform across every material, even after cloning', () => {
+    installAtmosphericFog();
+    const standard = THREE.UniformsUtils.clone(THREE.ShaderLib.standard.uniforms);
+    const basic = THREE.UniformsUtils.clone(THREE.ShaderLib.basic.uniforms);
+    expect(standard.fogScatterDirection.value).toBe(basic.fogScatterDirection.value);
+    expect(THREE.ShaderLib.physical.uniforms.fogScatterColor).toBeDefined();
+    expect(THREE.ShaderLib.depth.uniforms.fogScatterDirection).toBeUndefined();
+
+    const moon = new THREE.Vector3(0.46, 0.25, -0.85).normalize();
+    setAtmosphericScattering(moon, new THREE.Color(0.2, 0.3, 0.4));
+    expect(Array.from(standard.fogScatterDirection.value as Float32Array)).toEqual(
+      Array.from(new Float32Array(moon.toArray())),
+    );
+    setAtmosphericScattering(ATMOSPHERE.sunDirection, ATMOSPHERE.sunScatterColor);
+    expect((basic.fogScatterColor.value as Float32Array)[0]).toBeCloseTo(
+      ATMOSPHERE.sunScatterColor.r,
+      6,
+    );
+  });
+
+  it('closes in when the density rises for fog', () => {
+    const clear = atmosphericFogFactor(200, 0, 4);
+    const foggy = atmosphericFogFactor(200, 0, 4, ATMOSPHERE.fogDensity * 8.5);
+    expect(foggy).toBeGreaterThan(0.75);
+    expect(clear).toBeLessThan(0.25);
   });
 });
 

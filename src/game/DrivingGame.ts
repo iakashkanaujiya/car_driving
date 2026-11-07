@@ -6,24 +6,34 @@ import { clamp, constrainToRoad, damp, roadCenter, roadHeading } from './math';
 import { createRoadStrip, updateRoadStrip } from './roadSurface';
 import { AdaptiveQuality, chooseInitialQuality } from './rendering/AdaptiveQuality';
 import type { GraphicsQualityMode, RenderQualitySettings } from './rendering/AdaptiveQuality';
+import { installKeyLightGlintControl, setKeyLightGlint } from './rendering/keyLightGlint';
 import { PostProcessing } from './rendering/PostProcessing';
 import { applyGroundVariation } from './rendering/groundVariation';
 import { SceneryAssets } from './sceneryAssets';
 import { createSpeedPlan } from './simulation/drivingAssist';
-import { addSceneLighting, SurfaceTextureStore, updateSceneShadow } from './sceneAssets';
+import {
+  addSceneLighting,
+  applySceneLighting,
+  SurfaceTextureStore,
+  updateSceneShadow,
+} from './sceneAssets';
 import type { SceneLighting } from './sceneAssets';
 import type { ControlInput, GamePhase, GameSnapshot } from './types';
 import { VehicleAssets } from './vehicleAssets';
 import type { LoadedCarModel } from './vehicleAssets';
 import { DEFAULT_CAR_MODEL_ID, selectCarModelIds } from './vehicleCatalog';
 import type { CarModelId } from './vehicleCatalog';
-import { ATMOSPHERE, installAtmosphericFog } from './world/atmosphere';
+import { installAtmosphericFog, setAtmosphericScattering } from './world/atmosphere';
+import { createEnvironmentLook, DEFAULT_CONDITIONS } from './world/conditions';
+import type { DrivingConditions, EnvironmentLook } from './world/conditions';
 import { ForestSystem } from './world/ForestSystem';
 import { LaneMarkings } from './world/LaneMarkings';
 import { MountainRange } from './world/MountainRange';
 import { RoadsideFenceSystem } from './world/RoadsideFenceSystem';
+import { RainSystem } from './world/RainSystem';
 import { RoadsideScenerySystem } from './world/RoadsideScenerySystem';
 import { SkySystem } from './world/SkySystem';
+import { VehicleLightSystem } from './world/VehicleLightSystem';
 
 interface TrafficCar {
   mesh: THREE.Group;
@@ -45,6 +55,12 @@ const ROAD_UPDATE_INTERVAL = 1 / 30;
 const IDLE_RENDER_INTERVAL_MS = 200;
 const BASE_FOV = 56;
 const SPEED_FOV_BOOST = 9;
+/** Dry and fully wet values for the road, verge and meadow surfaces. */
+const SURFACE_WETNESS = {
+  road: { roughness: [0.96, 0.36], brightness: [1, 0.64], reflection: [1, 1.5] },
+  shoulder: { roughness: [0.96, 0.48], brightness: [1, 0.74], reflection: [1, 1.3] },
+  ground: { roughness: [0.96, 0.8], brightness: [1, 0.84], reflection: [1, 1.1] },
+} as const;
 
 export class DrivingGame {
   private readonly scene = new THREE.Scene();
@@ -57,6 +73,11 @@ export class DrivingGame {
   private readonly player = new THREE.Group();
   private readonly traffic: TrafficCar[] = [];
   private readonly sky: SkySystem;
+  private readonly fog: THREE.FogExp2;
+  private readonly vehicleLights: VehicleLightSystem;
+  private readonly rain: RainSystem;
+  private readonly drawingBufferSize = new THREE.Vector2();
+  private look?: EnvironmentLook;
   private readonly mountainRange: MountainRange;
   private readonly forest: ForestSystem;
   private postProcessing?: PostProcessing;
@@ -108,10 +129,13 @@ export class DrivingGame {
     private readonly onHorn: () => void,
     private readonly onPerformanceUpdate: (snapshot: PerformanceSnapshot) => void,
   ) {
-    // Aerial-perspective fog must be installed before any material compiles.
+    // Aerial-perspective fog and the key-light glint control must be installed
+    // before any material compiles.
     installAtmosphericFog();
-    this.scene.background = ATMOSPHERE.fogColor.clone();
-    this.scene.fog = new THREE.FogExp2(ATMOSPHERE.fogColor.getHex(), ATMOSPHERE.fogDensity);
+    installKeyLightGlintControl();
+    this.fog = new THREE.FogExp2(0xffffff);
+    this.scene.fog = this.fog;
+    this.scene.background = new THREE.Color();
 
     const deviceMemory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
     this.adaptiveQuality = new AdaptiveQuality(
@@ -138,8 +162,6 @@ export class DrivingGame {
     // car paint, glass and chrome reflect the same clouds the player sees.
     this.sky = new SkySystem();
     this.scene.add(this.sky.mesh);
-    this.scene.environment = this.sky.createEnvironment(this.renderer);
-    this.scene.environmentIntensity = 0.75;
     this.mountainRange = new MountainRange();
     this.scene.add(this.mountainRange.mesh);
     this.forest = new ForestSystem(this.scene);
@@ -206,7 +228,10 @@ export class DrivingGame {
     this.roadsideScenery = new RoadsideScenerySystem(this.scene);
 
     this.lighting = addSceneLighting(this.scene, this.adaptiveQuality.settings.shadowMapSize);
+    this.vehicleLights = new VehicleLightSystem(this.scene);
+    this.rain = new RainSystem(this.scene);
     this.setupTraffic();
+    this.setConditions(DEFAULT_CONDITIONS);
     const natureReady = this.sceneryAssets.loadNature().then(() => {
       const pine = this.sceneryAssets.getPineTreePrototype();
       if (!pine) return;
@@ -296,6 +321,34 @@ export class DrivingGame {
     if (mode !== 'auto') this.pendingRenderQuality = settings;
   }
 
+  /** Switches the time of day and weather; repaints immediately, even on menus. */
+  setConditions(conditions: DrivingConditions): void {
+    const current = this.look?.conditions;
+    if (current?.timeOfDay === conditions.timeOfDay && current.weather === conditions.weather) {
+      return;
+    }
+    const look = createEnvironmentLook(conditions);
+    this.look = look;
+    setAtmosphericScattering(look.lightDirection, look.scatterColor);
+    setKeyLightGlint(look.keyLightGlint);
+    this.fog.color.copy(look.fogColor);
+    this.fog.density = look.fogDensity;
+    (this.scene.background as THREE.Color).copy(look.fogColor);
+    this.sky.setLook(look);
+    this.scene.environment = this.sky.createEnvironment(this.renderer);
+    this.scene.environmentIntensity = look.environmentIntensity;
+    this.renderer.toneMappingExposure = look.exposure;
+    applySceneLighting(this.lighting, look);
+    this.vehicleLights.setLook(look);
+    this.vehicleAssets.setRunningLights(look.vehicleLights);
+    for (const car of [this.player, ...this.traffic.map((traffic) => traffic.mesh)]) {
+      this.vehicleAssets.setBrakeLights(car, this.vehicleAssets.isBraking(car));
+    }
+    this.rain.setRain(look.rain, look.rainColor);
+    this.applyWetness(look.wetness);
+    this.lastIdleRender = 0;
+  }
+
   whenReady(): Promise<void> {
     return this.sceneAssetsReady;
   }
@@ -315,6 +368,8 @@ export class DrivingGame {
     window.removeEventListener('resize', this.resize);
     this.roadsideFences.dispose();
     this.roadsideScenery.dispose();
+    this.vehicleLights.dispose();
+    this.rain.dispose();
     this.laneMarkings.dispose();
     this.forest.dispose();
     this.mountainRange.dispose();
@@ -522,7 +577,7 @@ export class DrivingGame {
     }
   }
 
-  private updateWorld(dt: number): void {
+  private updateWorld(dt: number, rainSeconds: number): void {
     this.roadUpdateElapsed += dt;
     const roadJumped =
       !Number.isFinite(this.lastRoadUpdateDistance) ||
@@ -605,6 +660,38 @@ export class DrivingGame {
     this.sky.update(this.camera, performance.now() * 0.001);
     this.mountainRange.update(this.camera.position);
     this.forest.update(this.distance);
+    this.rain.update(this.camera, rainSeconds, this.vehicleLights.headlight);
+    this.updateVehicleLights();
+  }
+
+  private updateVehicleLights(): void {
+    const bufferHeight = this.renderer.getDrawingBufferSize(this.drawingBufferSize).y;
+    if (!this.vehicleLights.beginFrame(this.camera, bufferHeight)) return;
+    const playerRig = this.vehicleAssets.lightRig(this.player);
+    if (playerRig) this.vehicleLights.placeHeadlight(this.player, playerRig);
+    for (const car of this.traffic) {
+      if (!car.mesh.visible) continue;
+      const rig = this.vehicleAssets.lightRig(car.mesh);
+      if (!rig) continue;
+      this.vehicleLights.addVehicle(car.mesh, rig, this.vehicleAssets.isBraking(car.mesh));
+    }
+    this.vehicleLights.endFrame();
+  }
+
+  private applyWetness(wetness: number): void {
+    const surfaces = [
+      [this.roadMesh, SURFACE_WETNESS.road],
+      [this.shoulderMesh, SURFACE_WETNESS.shoulder],
+      [this.ground, SURFACE_WETNESS.ground],
+    ] as const;
+    for (const [mesh, response] of surfaces) {
+      const material = mesh.material as THREE.MeshStandardMaterial;
+      const mix = (range: readonly [number, number]): number =>
+        THREE.MathUtils.lerp(range[0], range[1], wetness);
+      material.roughness = mix(response.roughness);
+      material.color.setScalar(mix(response.brightness));
+      material.envMapIntensity = mix(response.reflection);
+    }
   }
 
   private animate = (): void => {
@@ -615,7 +702,8 @@ export class DrivingGame {
     const playing = this.phase === 'playing';
     if (!playing && now - this.lastIdleRender < IDLE_RENDER_INTERVAL_MS) return;
     if (playing) this.updateSimulation(dt);
-    this.updateWorld(dt);
+    // Rain keeps real time on menus, where the world only repaints a few times a second.
+    this.updateWorld(dt, Math.min(frameSeconds, 0.25));
     let qualitySettings = this.pendingRenderQuality;
     this.pendingRenderQuality = undefined;
     if (playing && this.graphicsQualityMode === 'auto') {

@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 
 /**
- * Shared look-development constants for the sky, sun light and haze. Keeping
- * them in one place guarantees that the visible sun, the shadow direction,
- * the environment reflections and the fog scattering always agree.
+ * Clear-day look-development constants for the sky, sun light and haze. Other
+ * times of day and weather derive from them in `conditions.ts`; the visible
+ * sun, the shadow direction, the reflections and the fog always share one
+ * light direction.
  */
 export const ATMOSPHERE = {
   /** Unit vector pointing from the scene toward the sun (late afternoon, low left). */
@@ -27,8 +28,13 @@ const glslFloat = (value: number): string => {
   return text.includes('.') ? text : `${text}.0`;
 };
 
-const glslVec3 = (x: number, y: number, z: number): string =>
-  `vec3(${glslFloat(x)}, ${glslFloat(y)}, ${glslFloat(z)})`;
+/**
+ * Storage for the fog's sun-scatter terms. three.js copies vector and colour
+ * uniforms into every material but keeps typed arrays by reference, so all
+ * materials read these two arrays and one write retints the whole scene.
+ */
+const fogScatterDirection = new Float32Array(3);
+const fogScatterColor = new Float32Array(3);
 
 /**
  * Builds the GLSL that replaces three.js' uniform fog with aerial perspective:
@@ -39,8 +45,6 @@ export function createAtmosphericFogChunks(): Record<
   'fog_pars_vertex' | 'fog_vertex' | 'fog_pars_fragment' | 'fog_fragment',
   string
 > {
-  const sun = ATMOSPHERE.sunDirection;
-  const scatter = ATMOSPHERE.sunScatterColor;
   return {
     fog_pars_vertex: /* glsl */ `
 #ifdef USE_FOG
@@ -55,6 +59,8 @@ export function createAtmosphericFogChunks(): Record<
     fog_pars_fragment: /* glsl */ `
 #ifdef USE_FOG
   uniform vec3 fogColor;
+  uniform vec3 fogScatterDirection;
+  uniform vec3 fogScatterColor;
   varying vec3 vFogViewPosition;
   #ifdef FOG_EXP2
     uniform float fogDensity;
@@ -78,8 +84,8 @@ export function createAtmosphericFogChunks(): Record<
   #else
     float fogFactor = smoothstep( fogNear, fogFar, fogDistance );
   #endif
-  float fogSun = pow( max( dot( fogRay, ${glslVec3(sun.x, sun.y, sun.z)} ), 0.0 ), 7.0 );
-  vec3 fogTint = mix( fogColor, ${glslVec3(scatter.r, scatter.g, scatter.b)}, fogSun );
+  float fogSun = pow( max( dot( fogRay, fogScatterDirection ), 0.0 ), 7.0 );
+  vec3 fogTint = mix( fogColor, fogScatterColor, fogSun );
   gl_FragColor.rgb = mix( gl_FragColor.rgb, fogTint, fogFactor );
 #endif
 `,
@@ -92,13 +98,30 @@ let installed = false;
 export function installAtmosphericFog(): void {
   if (installed) return;
   Object.assign(THREE.ShaderChunk, createAtmosphericFogChunks());
+  for (const shader of Object.values(THREE.ShaderLib)) {
+    if (!('fogColor' in shader.uniforms)) continue;
+    shader.uniforms.fogScatterDirection = { value: fogScatterDirection };
+    shader.uniforms.fogScatterColor = { value: fogScatterColor };
+  }
+  setAtmosphericScattering(ATMOSPHERE.sunDirection, ATMOSPHERE.sunScatterColor);
   installed = true;
 }
 
+/** Points the fog's forward scattering at the key light (sun or moon) and tints it. */
+export function setAtmosphericScattering(direction: THREE.Vector3, color: THREE.Color): void {
+  direction.toArray(fogScatterDirection);
+  color.toArray(fogScatterColor);
+}
+
 /** CPU mirror of the shader's fog factor, used by tests and tuning tools. */
-export function atmosphericFogFactor(distance: number, rayY: number, cameraHeight: number): number {
+export function atmosphericFogFactor(
+  distance: number,
+  rayY: number,
+  cameraHeight: number,
+  density: number = ATMOSPHERE.fogDensity,
+): number {
   const b = ATMOSPHERE.heightFalloff;
-  let optical = ATMOSPHERE.fogDensity * Math.exp(-Math.max(cameraHeight, 0) * b) * distance;
+  let optical = density * Math.exp(-Math.max(cameraHeight, 0) * b) * distance;
   const climb = distance * rayY * b;
   if (Math.abs(climb) > 1e-4) optical *= (1 - Math.exp(-climb)) / climb;
   return 1 - Math.exp(-optical);

@@ -2,11 +2,13 @@ import { EngineSound } from '../audio/EngineSound';
 import type { HandController } from '../controls/HandController';
 import { KeyboardController } from '../controls/KeyboardController';
 import type { DrivingGame } from '../game/DrivingGame';
+import type { DrivingConditions } from '../game/conditionsCatalog';
 import type { ControlInput, ControlMode, GameSnapshot } from '../game/types';
 import { DEFAULT_CAR_MODEL_ID } from '../game/vehicleCatalog';
 import type { CarModelId } from '../game/vehicleCatalog';
 import { cacheAssets } from '../services/assetCache';
 import { AssetGate } from '../ui/AssetGate';
+import { ConditionsSettings } from '../ui/ConditionsSettings';
 import { byId } from '../ui/dom';
 import { GameHud } from '../ui/GameHud';
 import { GraphicsSettings } from '../ui/GraphicsSettings';
@@ -21,6 +23,7 @@ export class DrivingApplication {
   private readonly audio = new EngineSound();
   private readonly hud = new GameHud();
   private readonly graphicsSettings = new GraphicsSettings();
+  private readonly conditionsSettings = new ConditionsSettings();
   private readonly performanceHud = new PerformanceHud();
   private readonly assetGate = new AssetGate();
   private readonly viewport = byId<HTMLDivElement>('viewport');
@@ -53,6 +56,7 @@ export class DrivingApplication {
 
   start(): void {
     this.fullscreenButton.hidden = !document.fullscreenEnabled;
+    this.applyConditions(this.conditionsSettings.get());
     this.bindUiEvents();
     this.assetsReady = this.installAssets();
   }
@@ -73,6 +77,10 @@ export class DrivingApplication {
         onClose: () => this.closeGraphicsSettings(),
         onChange: (mode) => this.game?.setGraphicsQuality(mode),
       },
+      this.events.signal,
+    );
+    this.conditionsSettings.bind(
+      (conditions) => this.applyConditions(conditions),
       this.events.signal,
     );
     this.assetGate.retryButton.addEventListener(
@@ -184,7 +192,13 @@ export class DrivingApplication {
     );
     game.setPerformanceMonitoring(this.performanceHud.isVisible());
     game.setGraphicsQuality(this.graphicsSettings.getMode());
+    game.setConditions(this.conditionsSettings.get());
     return game;
+  }
+
+  private applyConditions(conditions: DrivingConditions): void {
+    this.game?.setConditions(conditions);
+    this.audio.setRain(conditions.weather === 'rain' ? 1 : 0);
   }
 
   private getControl(): ControlInput {

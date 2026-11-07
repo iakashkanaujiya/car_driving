@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { ATMOSPHERE } from './world/atmosphere';
+import type { EnvironmentLook } from './world/conditions';
 
 export interface SurfaceMaterialOptions {
   repeatX?: number;
@@ -12,12 +13,15 @@ export interface SurfaceMaterialOptions {
 }
 
 export interface SceneLighting {
+  /** The key light: the sun by day, the moon at night. */
   sun: THREE.DirectionalLight;
   target: THREE.Object3D;
+  hemisphere: THREE.HemisphereLight;
+  /** Light position relative to the shadow centre, along the sky's sun or moon. */
+  shadowOffset: THREE.Vector3;
 }
 
-/** The shadow-casting light sits along the same direction as the sky's sun. */
-export const SUN_SHADOW_OFFSET = ATMOSPHERE.sunDirection.clone().multiplyScalar(110);
+const SHADOW_LIGHT_DISTANCE = 110;
 
 export class SurfaceTextureStore {
   private readonly textures: THREE.Texture[] = [];
@@ -116,12 +120,26 @@ export function addSceneLighting(scene: THREE.Scene, shadowMapSize = 1024): Scen
   const target = new THREE.Object3D();
   sun.target = target;
   scene.add(sun, target);
-  const lighting = { sun, target };
+  const shadowOffset = ATMOSPHERE.sunDirection.clone().multiplyScalar(SHADOW_LIGHT_DISTANCE);
+  const lighting = { sun, target, hemisphere, shadowOffset };
   updateSceneShadow(lighting, new THREE.Vector3());
   return lighting;
 }
 
+/** Points the key light along the look's sun or moon and sets the fill light. */
+export function applySceneLighting(lighting: SceneLighting, look: EnvironmentLook): void {
+  lighting.sun.color.copy(look.lightColor);
+  lighting.sun.intensity = look.lightIntensity;
+  // Toggling shadows recompiles lit materials, so only write real changes.
+  if (lighting.sun.castShadow !== look.castShadows) lighting.sun.castShadow = look.castShadows;
+  lighting.hemisphere.color.copy(look.hemisphereSkyColor);
+  lighting.hemisphere.groundColor.copy(look.hemisphereGroundColor);
+  lighting.hemisphere.intensity = look.hemisphereIntensity;
+  lighting.shadowOffset.copy(look.lightDirection).normalize().multiplyScalar(SHADOW_LIGHT_DISTANCE);
+  updateSceneShadow(lighting, lighting.target.position);
+}
+
 export function updateSceneShadow(lighting: SceneLighting, center: THREE.Vector3): void {
   lighting.target.position.copy(center);
-  lighting.sun.position.copy(center).add(SUN_SHADOW_OFFSET);
+  lighting.sun.position.copy(center).add(lighting.shadowOffset);
 }

@@ -1,3 +1,6 @@
+/** Rain sits under the engine and music as a soft background patter. */
+const RAIN_VOLUME = 0.014;
+
 /**
  * Owns all procedural game audio. Keeping Web Audio nodes behind this class
  * prevents UI and game-state code from depending on the audio graph.
@@ -7,10 +10,12 @@ export class EngineSound {
   private oscillator: OscillatorNode | null = null;
   private gain: GainNode | null = null;
   private musicGain: GainNode | null = null;
+  private rainGain: GainNode | null = null;
   private musicTimer: number | null = null;
   private beat = 0;
   private playing = false;
   private enabled = true;
+  private rainIntensity = 0;
 
   start(): void {
     if (this.context) return;
@@ -29,7 +34,14 @@ export class EngineSound {
     this.oscillator.connect(filter).connect(this.gain).connect(this.context.destination);
     this.musicGain.connect(this.context.destination);
     this.oscillator.start();
+    this.startRainLoop();
     this.musicTimer = window.setInterval(() => this.scheduleMusicBeat(), 250);
+  }
+
+  /** Sets the rainfall heard while driving (0 is dry). */
+  setRain(intensity: number): void {
+    this.rainIntensity = Math.min(1, Math.max(0, intensity));
+    this.refreshRain();
   }
 
   update(speedKph: number): void {
@@ -42,6 +54,7 @@ export class EngineSound {
   setPlaying(playing: boolean): void {
     this.playing = playing;
     if (playing) void this.context?.resume();
+    this.refreshRain();
   }
 
   setEnabled(enabled: boolean): void {
@@ -49,6 +62,7 @@ export class EngineSound {
     if (!enabled && this.context && this.gain) {
       this.gain.gain.setTargetAtTime(0, this.context.currentTime, 0.04);
     }
+    this.refreshRain();
   }
 
   hornThreeTimes(): void {
@@ -64,6 +78,37 @@ export class EngineSound {
     this.musicTimer = null;
     void this.context?.close();
     this.context = null;
+  }
+
+  /** A looping band of filtered noise reads as steady rain on the bodywork. */
+  private startRainLoop(): void {
+    if (!this.context) return;
+    const seconds = 2;
+    const frameCount = Math.floor(this.context.sampleRate * seconds);
+    const buffer = this.context.createBuffer(1, frameCount, this.context.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let index = 0; index < frameCount; index += 1) data[index] = Math.random() * 2 - 1;
+    const source = this.context.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    const highpass = this.context.createBiquadFilter();
+    highpass.type = 'highpass';
+    highpass.frequency.value = 500;
+    const lowpass = this.context.createBiquadFilter();
+    lowpass.type = 'lowpass';
+    lowpass.frequency.value = 1700;
+    this.rainGain = this.context.createGain();
+    this.rainGain.gain.value = 0;
+    source.connect(highpass).connect(lowpass).connect(this.rainGain);
+    this.rainGain.connect(this.context.destination);
+    source.start();
+    this.refreshRain();
+  }
+
+  private refreshRain(): void {
+    if (!this.context || !this.rainGain) return;
+    const volume = this.enabled && this.playing ? this.rainIntensity * RAIN_VOLUME : 0;
+    this.rainGain.gain.setTargetAtTime(volume, this.context.currentTime, 0.3);
   }
 
   private scheduleMusicBeat(): void {
