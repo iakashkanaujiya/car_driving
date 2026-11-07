@@ -38,6 +38,8 @@ Pick the conditions on the start screen, or change them mid-run under **Graphics
 
 Any time of day combines with any weather, so night fog or evening rain are available too.
 
+Street lights line both verges, staggered so a lamp passes about every 30 m. By day they are poles that cast shadows; from dusk, and in dark rain or fog, their lamps glow, paint warm pools of light on the road, and light up your car as you pass underneath.
+
 ## Available car models
 
 Choose any of these vehicles directly on the start screen. Traffic reuses the same model collection with randomized realistic paint colors.
@@ -79,7 +81,7 @@ The valley is lit and shaded as one physically based system:
 - **Aerial perspective:** three.js fog chunks are replaced with exponential height fog integrated along each view ray and tinted toward the sun, so distant summits fade into the horizon realistically.
 - **Terrain:** a seamless ring of ridged-noise mountains with altitude- and slope-based snow, rock and forest colouring replaces the old landscape download. Instanced conifers fill the valley, and the meadow uses world-space macro variation to hide texture tiling.
 - **Cars:** every model gets a soft contact shadow, and roll and pitch are applied to the sprung body only, so the tyres stay planted while the body leans through corners and dives under braking.
-- **Conditions:** each time of day and weather is one set of values (`src/game/world/conditions.ts`) shared by the sky, sun or moon light, shadows, fog and reflections. The fog's sun-scatter direction is a uniform every material shares, so switching conditions needs no shader rebuild. At night the player's headlights are a real spot light; traffic lamps are one draw call of glow sprites plus one instanced draw of light pools on the road. Rain is a single GPU-animated draw of streaks that slant with your speed and catch your headlight beam. Under a full rain cloud the sun or moon and its shadow pass switch off.
+- **Conditions:** each time of day and weather is one set of values (`src/game/world/conditions.ts`) shared by the sky, sun or moon light, shadows, fog and reflections. The fog's sun-scatter direction is a uniform every material shares, so switching conditions needs no shader rebuild. At night the player's headlights are a real spot light; traffic lamps are one draw call of glow sprites plus one instanced draw of light pools on the road. Street lights are instanced the same way (poles, lenses, pools and glows in four draw calls), with one real light riding on the lamp you are passing. Rain is a single GPU-animated draw of streaks that slant with your speed and catch your headlight beam. Under a full rain cloud the sun or moon and its shadow pass switch off.
 
 ## Architecture
 

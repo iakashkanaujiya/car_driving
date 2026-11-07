@@ -166,13 +166,13 @@ function nightLook(conditions: DrivingConditions): EnvironmentLook {
   // readable in cool moonlight and headlights add warm pools on top.
   look.lightDirection.set(0.46, 0.25, -0.85).normalize();
   look.lightColor.setHex(0xa8bcf0);
-  look.lightIntensity = 1.9;
+  look.lightIntensity = 1.4;
   look.keyLightGlint = 0.1;
   look.hemisphereSkyColor.setHex(0x5468a0);
   look.hemisphereGroundColor.setHex(0x1a2218);
-  look.hemisphereIntensity = 0.9;
-  look.environmentIntensity = 1.5;
-  look.exposure = 1.45;
+  look.hemisphereIntensity = 0.7;
+  look.environmentIntensity = 1.25;
+  look.exposure = 1.32;
   look.fogColor.setHex(0x1a2740);
   look.scatterColor.setHex(0x5a6e94);
   look.fogDensity = 0.0011;

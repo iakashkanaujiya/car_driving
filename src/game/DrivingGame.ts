@@ -47,6 +47,7 @@ import { RoadsideFenceSystem } from './world/RoadsideFenceSystem';
 import { RainSystem } from './world/RainSystem';
 import { RoadsideScenerySystem } from './world/RoadsideScenerySystem';
 import { SkySystem } from './world/SkySystem';
+import { StreetLightSystem } from './world/StreetLightSystem';
 import { VehicleLightSystem } from './world/VehicleLightSystem';
 
 interface TrafficCar {
@@ -97,6 +98,7 @@ export class DrivingGame {
   private readonly sky: SkySystem;
   private readonly fog: THREE.FogExp2;
   private readonly vehicleLights: VehicleLightSystem;
+  private readonly streetLights: StreetLightSystem;
   private readonly rain: RainSystem;
   private readonly drawingBufferSize = new THREE.Vector2();
   private look?: EnvironmentLook;
@@ -266,6 +268,7 @@ export class DrivingGame {
 
     this.lighting = addSceneLighting(this.scene, this.adaptiveQuality.settings.shadowMapSize);
     this.vehicleLights = new VehicleLightSystem(this.scene);
+    this.streetLights = new StreetLightSystem(this.scene);
     this.rain = new RainSystem(this.scene);
     this.setupTraffic();
     this.setConditions(DEFAULT_CONDITIONS);
@@ -383,6 +386,7 @@ export class DrivingGame {
     this.renderer.toneMappingExposure = look.exposure;
     applySceneLighting(this.lighting, look);
     this.vehicleLights.setLook(look);
+    this.streetLights.setLook(look);
     this.vehicleAssets.setRunningLights(look.vehicleLights);
     for (const car of [this.player, ...this.traffic.map((traffic) => traffic.mesh)]) {
       this.vehicleAssets.setBrakeLights(car, this.vehicleAssets.isBraking(car));
@@ -435,6 +439,7 @@ export class DrivingGame {
     this.roadsideFences.dispose();
     this.roadsideScenery.dispose();
     this.vehicleLights.dispose();
+    this.streetLights.dispose();
     this.rain.dispose();
     this.laneMarkings.dispose();
     this.forest.dispose();
@@ -808,6 +813,13 @@ export class DrivingGame {
 
   private updateVehicleLights(): void {
     const bufferHeight = this.renderer.getDrawingBufferSize(this.drawingBufferSize).y;
+    this.streetLights.update(
+      this.distance,
+      this.viewAlong,
+      this.camera,
+      bufferHeight,
+      this.player.position,
+    );
     if (!this.vehicleLights.beginFrame(this.camera, bufferHeight)) return;
     const playerRig = this.vehicleAssets.lightRig(this.player);
     if (playerRig) this.vehicleLights.placeHeadlight(this.player, playerRig);
