@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { isClosedHand, isOpenPalm, isThumbUp, SustainedGesture } from './handGestures';
+import {
+  GestureTrigger,
+  isClosedHand,
+  isOpenPalm,
+  isThumbUp,
+  isVictorySign,
+  SustainedGesture,
+} from './handGestures';
 import type { HandPoint } from './handWorkerTypes';
 
 function createFist(thumb: 'up' | 'low' | 'folded' | 'sideways' | 'bent'): HandPoint[] {
@@ -42,6 +49,13 @@ function createOpenPalm(): HandPoint[] {
   points[12] = { x: 0.46, y: 0.18, z: 0 };
   points[16] = { x: 0.57, y: 0.22, z: 0 };
   points[20] = { x: 0.7, y: 0.32, z: 0 };
+  return points;
+}
+
+function createVictorySign(): HandPoint[] {
+  const points = createFist('folded');
+  points[8] = { x: 0.38, y: 0.26, z: 0 };
+  points[12] = { x: 0.5, y: 0.2, z: 0 };
   return points;
 }
 
@@ -102,5 +116,36 @@ describe('hand gestures', () => {
     expect(gesture.update(true, 1_180)).toBe(true);
     expect(gesture.update(false, 1_181)).toBe(false);
     expect(gesture.update(true, 1_200)).toBe(false);
+  });
+});
+
+describe('cruise gestures', () => {
+  it('recognises a V sign, but not a fist, an open palm or one raised finger', () => {
+    expect(isVictorySign(createVictorySign())).toBe(true);
+    expect(isVictorySign(rotateHand(createVictorySign(), 0.6))).toBe(true);
+    expect(isVictorySign(createFist('folded'))).toBe(false);
+    expect(isVictorySign(createOpenPalm())).toBe(false);
+    const pointing = createFist('folded');
+    pointing[8] = { x: 0.38, y: 0.26, z: 0 };
+    expect(isVictorySign(pointing)).toBe(false);
+    // A V sign is not a closed hand, so it never reads as gripping or thumbs up.
+    expect(isClosedHand(createVictorySign())).toBe(false);
+  });
+
+  it('fires once after the hold, then only after release', () => {
+    const toggle = new GestureTrigger(800);
+    expect(toggle.update(true, 0)).toBe(false);
+    expect(toggle.update(true, 799)).toBe(false);
+    expect(toggle.update(true, 800)).toBe(true);
+    expect(toggle.update(true, 5000)).toBe(false);
+    expect(toggle.update(false, 5100)).toBe(false);
+    expect(toggle.update(true, 5200)).toBe(false);
+    expect(toggle.update(true, 6000)).toBe(true);
+  });
+
+  it('repeats while held when a repeat interval is set', () => {
+    const step = new GestureTrigger(450, 550);
+    const fired = [0, 300, 450, 700, 1000, 1550].filter((time) => step.update(true, time));
+    expect(fired).toEqual([450, 1000, 1550]);
   });
 });

@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { GAME, HAND_REVERSE, KEYBOARD_REVERSE } from '../config';
+import {
+  driveAcceleration,
+  fromKph,
+  GAME,
+  HALF_BRAKE_KPH,
+  HAND_REVERSE,
+  KEYBOARD_REVERSE,
+  toKph,
+} from '../config';
+import { damp } from '../math';
 import { createSpeedPlan, updateReverseHold } from './drivingAssist';
 
 describe('driving assistance', () => {
@@ -12,7 +21,7 @@ describe('driving assistance', () => {
 
     for (const plan of [handCruise, keyboard]) {
       expect(plan.targetSpeed).toBe(GAME.maxSpeed);
-      expect(plan.acceleration).toBe(GAME.acceleration);
+      expect(plan.acceleration).toBe(driveAcceleration(25));
       expect(plan.autoBraking).toBe(false);
     }
     expect(handCruise.assistMessage).toBe('CRUISING');
@@ -41,21 +50,40 @@ describe('driving assistance', () => {
   });
 
   it('scales braking force with the requested brake level', () => {
+    const fast = GAME.maxSpeed * 0.8;
     const partial = createSpeedPlan(
       { steering: 0, confidence: 1, active: true, braking: true, brakePressure: 0.5 },
-      25,
+      fast,
     );
     const full = createSpeedPlan(
       { steering: 0, confidence: 1, active: true, braking: true, brakePressure: 1 },
-      25,
+      fast,
     );
 
-    expect(partial.targetSpeed).toBe(GAME.maxSpeed * 0.5);
+    expect(partial.targetSpeed).toBeCloseTo(fromKph(HALF_BRAKE_KPH), 9);
+    expect(HALF_BRAKE_KPH).toBe(40);
     expect(partial.acceleration).toBeGreaterThan(GAME.coastDeceleration);
     expect(partial.acceleration).toBeLessThan(GAME.serviceBrake);
     expect(partial.assistMessage).toBe('BRAKING 50%');
     expect(full.targetSpeed).toBe(0);
     expect(full.acceleration).toBe(GAME.serviceBrake);
+  });
+
+  it('slows a fast car to 40 km/h and holds it there on the half brake', () => {
+    const thumbs = { steering: 0, confidence: 1, active: true, braking: true, brakePressure: 0.5 };
+    let speed = fromKph(120);
+    const dt = 1 / 60;
+    for (let step = 0; step < 60 * 8; step += 1) {
+      const { targetSpeed, acceleration } = createSpeedPlan(thumbs, speed);
+      speed = damp(
+        speed,
+        targetSpeed,
+        acceleration / Math.max(8, Math.abs(targetSpeed - speed)),
+        dt,
+      );
+    }
+    expect(toKph(speed)).toBeGreaterThan(39);
+    expect(toKph(speed)).toBeLessThan(41.5);
   });
 
   describe('keyboard reverse', () => {
@@ -114,12 +142,16 @@ describe('driving assistance', () => {
     const fists = { steering: 0, confidence: 1, active: true, reverseGear: HAND_REVERSE };
 
     it('waits at a standstill before backing up slowly', () => {
-      const waiting = createSpeedPlan(palms, 0, HAND_REVERSE.delaySeconds - 0.1);
+      const waiting = createSpeedPlan(palms, 0, {
+        reverseHoldSeconds: HAND_REVERSE.delaySeconds - 0.1,
+      });
       expect(waiting.targetSpeed).toBe(0);
       expect(waiting.assistMessage).toBe('HOLD TO REVERSE');
       expect(waiting.braking).toBe(true);
 
-      const reversing = createSpeedPlan(palms, 0, HAND_REVERSE.delaySeconds);
+      const reversing = createSpeedPlan(palms, 0, {
+        reverseHoldSeconds: HAND_REVERSE.delaySeconds,
+      });
       expect(reversing.targetSpeed).toBe(-HAND_REVERSE.maxSpeed);
       expect(HAND_REVERSE.maxSpeed).toBeLessThan(KEYBOARD_REVERSE.maxSpeed);
     });
@@ -157,7 +189,7 @@ describe('driving assistance', () => {
     const plan = createSpeedPlan(
       { steering: 0, confidence: 1, active: true, braking: true, brakePressure: 1 },
       0,
-      5,
+      { reverseHoldSeconds: 5 },
     );
     expect(plan.targetSpeed).toBe(0);
   });

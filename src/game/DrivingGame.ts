@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { PerformanceMonitor } from '../diagnostics/PerformanceMonitor';
 import type { PerformanceSnapshot } from '../diagnostics/PerformanceMonitor';
-import { GAME, laneOffsets } from './config';
+import { fromKph, GAME, laneOffsets, toKph, toMeters } from './config';
 import {
   clamp,
   constrainToRoad,
@@ -18,6 +18,12 @@ import { installKeyLightGlintControl, setKeyLightGlint } from './rendering/keyLi
 import { PostProcessing } from './rendering/PostProcessing';
 import { applyGroundVariation } from './rendering/groundVariation';
 import { SceneryAssets } from './sceneryAssets';
+import {
+  adjustCruise,
+  CRUISE_DEFAULT_KPH,
+  cruiseStaysEngaged,
+  findLeadVehicle,
+} from './simulation/cruiseControl';
 import { createSpeedPlan, updateReverseHold } from './simulation/drivingAssist';
 import {
   addSceneLighting,
@@ -26,7 +32,7 @@ import {
   updateSceneShadow,
 } from './sceneAssets';
 import type { SceneLighting } from './sceneAssets';
-import type { ControlInput, GamePhase, GameSnapshot } from './types';
+import type { ControlInput, CruiseStatus, GamePhase, GameSnapshot } from './types';
 import { VehicleAssets } from './vehicleAssets';
 import type { LoadedCarModel } from './vehicleAssets';
 import { DEFAULT_CAR_MODEL_ID, selectCarModelIds } from './vehicleCatalog';
@@ -61,9 +67,16 @@ const GRASS_TILE_METERS = GROUND_SIZE / GRASS_TEXTURE_REPEAT;
 const ROAD_UPDATE_INTERVAL = 1 / 30;
 const IDLE_RENDER_INTERVAL_MS = 200;
 const BASE_FOV = 56;
+const SPEED_FOV_BOOST = 9;
+const CAMERA_DISTANCE = 8.5;
+/** The chase camera eases back this much further at top speed. */
+const CAMERA_SPEED_PULLBACK = 3;
+/** Road texture vibration felt through the camera at top speed, in world units. */
+const CAMERA_SHAKE = 0.05;
+/** Spawn queues start at least this far ahead: about four seconds of warning at top speed. */
+const TRAFFIC_SPAWN_AHEAD = 260;
 /** The view must turn this far past side-on before traffic treats it as the new way ahead. */
 const FACING_HYSTERESIS = 0.2;
-const SPEED_FOV_BOOST = 9;
 /** Dry and fully wet values for the road, verge and meadow surfaces. */
 const SURFACE_WETNESS = {
   road: { roughness: [0.96, 0.36], brightness: [1, 0.64], reflection: [1, 1.5] },
@@ -122,7 +135,15 @@ export class DrivingGame {
   private viewAlong = 1;
   /** Distance driven in forward gear; the score counts this, not the position. */
   private odometer = 0;
+  /** Adaptive cruise: on/off, its set speed (kept while off) and what it is doing. */
+  private cruiseOn = false;
+  private cruiseSetKph = CRUISE_DEFAULT_KPH;
+  private cruiseStatus: CruiseStatus = 'off';
+  /** A short-lived HUD message, such as a refused cruise request. */
+  private notice = { message: '', seconds: 0 };
   private readonly viewDirection = new THREE.Vector3();
+  private readonly lastPlayerPosition = new THREE.Vector3();
+  private hasLastPlayerPosition = false;
   private overtakes = 0;
   private assistMessage = 'READY';
   private driverCar: CarModelId = DEFAULT_CAR_MODEL_ID;
@@ -222,12 +243,12 @@ export class DrivingGame {
     applyGroundVariation(groundMaterial);
     this.sceneryAssets = new SceneryAssets();
 
-    this.roadGeometry = createRoadStrip(GAME.roadWidth, 220, 0, 1, GAME.roadWidth);
+    this.roadGeometry = createRoadStrip(GAME.roadWidth, 320, 0, 1, GAME.roadWidth);
     this.roadMesh = new THREE.Mesh(this.roadGeometry, roadMaterial);
     this.roadMesh.receiveShadow = true;
     this.scene.add(this.roadMesh);
 
-    this.shoulderGeometry = createRoadStrip(GAME.roadWidth + 5.5, 220);
+    this.shoulderGeometry = createRoadStrip(GAME.roadWidth + 5.5, 320);
     this.shoulderMesh = new THREE.Mesh(this.shoulderGeometry, shoulderMaterial);
     this.shoulderMesh.position.y = -0.055;
     this.shoulderMesh.receiveShadow = true;
@@ -298,6 +319,9 @@ export class DrivingGame {
     this.facing = 1;
     this.viewAlong = 1;
     this.odometer = 0;
+    this.cruiseOn = false;
+    this.cruiseStatus = 'off';
+    this.notice.seconds = 0;
     this.phase = 'ready';
     this.vehicleAssets.setBrakeLights(this.player, false);
     let ongoingCursor = 45;
@@ -366,6 +390,29 @@ export class DrivingGame {
     this.rain.setRain(look.rain, look.rainColor);
     this.applyWetness(look.wetness);
     this.lastIdleRender = 0;
+  }
+
+  /**
+   * Turns adaptive cruise on (it drives toward the set speed, even from a
+   * standstill) or off. Only while driving forward.
+   */
+  toggleCruise(): void {
+    if (this.phase !== 'playing') return;
+    if (this.cruiseOn) {
+      this.cruiseOn = false;
+      this.cruiseStatus = 'off';
+      this.showNotice('CRUISE OFF');
+    } else if (this.speed < -0.3) {
+      this.showNotice('STOP BEFORE CRUISE');
+    } else {
+      this.cruiseOn = true;
+      this.cruiseStatus = 'cruising';
+    }
+  }
+
+  /** Raises (+1) or lowers (−1) the cruise set speed in 5 km/h steps, on or off. */
+  adjustCruise(direction: 1 | -1): void {
+    this.cruiseSetKph = adjustCruise(this.cruiseSetKph, direction);
   }
 
   whenReady(): Promise<void> {
@@ -473,12 +520,19 @@ export class DrivingGame {
     if (randomizeDirection) car.direction = Math.random() < 0.56 ? facing : (-facing as 1 | -1);
     const furthest = this.traffic
       .filter((other) => other !== car && other.direction === car.direction)
-      .reduce((max, other) => Math.max(max, (other.distance - this.distance) * facing), 120);
+      .reduce(
+        (max, other) => Math.max(max, (other.distance - this.distance) * facing),
+        TRAFFIC_SPAWN_AHEAD,
+      );
     car.distance = this.distance + facing * (ahead ?? furthest + 48 + Math.random() * 95);
     // Traffic keeps left: lanes 0-1 run toward increasing distance, 2-3 the other way.
     car.lane = (car.direction === 1 ? 0 : 2) + (Math.random() < 0.5 ? 0 : 1);
     car.laneOffset = (Math.random() * 2 - 1) * GAME.trafficLaneJitter;
-    car.speed = car.direction === facing ? 20 + Math.random() * 16 : 24 + Math.random() * 12;
+    // Highway speeds: 80–120 km/h with the player, 90–130 km/h oncoming.
+    car.speed =
+      car.direction === facing
+        ? fromKph(80 + Math.random() * 40)
+        : fromKph(90 + Math.random() * 40);
     car.targetSpeed = car.speed;
     car.speedChangeTimer = 2.5 + Math.random() * 6;
     car.counted = false;
@@ -492,9 +546,23 @@ export class DrivingGame {
     );
 
     this.reverseHoldSeconds = updateReverseHold(this.reverseHoldSeconds, control, this.speed, dt);
-    const speedPlan = createSpeedPlan(control, this.speed, this.reverseHoldSeconds);
+    if (this.cruiseOn && !cruiseStaysEngaged(control)) this.cruiseOn = false;
+    const lead = this.cruiseOn
+      ? findLeadVehicle(this.distance, this.lateral, this.facing, collisionLength, this.traffic)
+      : null;
+    const speedPlan = createSpeedPlan(control, this.speed, {
+      reverseHoldSeconds: this.reverseHoldSeconds,
+      cruiseKph: this.cruiseOn ? this.cruiseSetKph : null,
+      lead,
+    });
+    // A keyboard driver overtaking on the accelerator keeps cruise armed.
+    this.cruiseStatus = this.cruiseOn ? (speedPlan.cruiseStatus ?? 'cruising') : 'off';
     const { targetSpeed, acceleration, autoBraking } = speedPlan;
     this.assistMessage = speedPlan.assistMessage;
+    if (this.notice.seconds > 0) {
+      this.notice.seconds -= dt;
+      this.assistMessage = this.notice.message;
+    }
     const previousSpeed = this.speed;
     this.vehicleAssets.setBrakeLights(this.player, autoBraking || speedPlan.braking);
     // Speed is signed: negative while reversing.
@@ -560,17 +628,19 @@ export class DrivingGame {
       car.speedChangeTimer -= dt;
       if (car.speedChangeTimer <= 0) {
         car.targetSpeed =
-          car.direction === facing ? 19 + Math.random() * 18 : 23 + Math.random() * 14;
+          car.direction === facing
+            ? fromKph(75 + Math.random() * 50)
+            : fromKph(85 + Math.random() * 45);
         car.speedChangeTimer = 2.5 + Math.random() * 7;
       }
       let trafficTargetSpeed = car.targetSpeed;
       for (const other of this.traffic) {
         if (other === car || other.direction !== car.direction || other.lane !== car.lane) continue;
         const forwardGap = (other.distance - car.distance) * car.direction;
-        if (forwardGap > 0 && forwardGap < 22) {
+        if (forwardGap > 0 && forwardGap < 60) {
           trafficTargetSpeed = Math.min(
             trafficTargetSpeed,
-            other.speed * clamp((forwardGap - 5) / 12, 0, 1),
+            other.speed * clamp((forwardGap - 14) / 32, 0, 1),
           );
         }
       }
@@ -695,11 +765,27 @@ export class DrivingGame {
     this.forward.set(-Math.sin(this.vehicleHeading), 0, -Math.cos(this.vehicleHeading));
     this.shadowCenter.copy(this.player.position).addScaledVector(this.forward, 32);
     updateSceneShadow(this.lighting, this.shadowCenter);
-    this.desiredCamera.copy(this.player.position).addScaledVector(this.forward, -8.5);
+    // Carry the camera with the car so it never trails further behind at
+    // speed; the lerp below only smooths turns and the speed pull-back.
+    if (this.hasLastPlayerPosition) {
+      const moved = this.player.position.distanceTo(this.lastPlayerPosition);
+      if (moved < 40) {
+        this.camera.position.add(this.lastPlayerPosition.sub(this.player.position).negate());
+      }
+    }
+    this.lastPlayerPosition.copy(this.player.position);
+    this.hasLastPlayerPosition = true;
+    const speedFraction = clamp(Math.abs(this.speed) / GAME.maxSpeed, 0, 1);
+    this.desiredCamera
+      .copy(this.player.position)
+      .addScaledVector(this.forward, -(CAMERA_DISTANCE + CAMERA_SPEED_PULLBACK * speedFraction));
     this.desiredCamera.y += 4.3;
     this.camera.position.lerp(this.desiredCamera, 1 - Math.exp(-5 * dt));
     this.cameraTarget.copy(this.player.position).addScaledVector(this.forward, 12);
-    this.cameraTarget.y += 1;
+    // A faint high-frequency judder from the road surface grows with speed.
+    const time = performance.now() * 0.001;
+    const judder = Math.sin(time * 37) * 0.6 + Math.sin(time * 23.7 + 1.3) * 0.4;
+    this.cameraTarget.y += 1 + judder * CAMERA_SHAKE * speedFraction * speedFraction;
     this.camera.lookAt(this.cameraTarget);
     // Widen the lens with speed for a stronger sense of velocity.
     const fov = BASE_FOV + SPEED_FOV_BOOST * clamp(this.speed / GAME.maxSpeed, 0, 1) ** 1.5;
@@ -713,6 +799,11 @@ export class DrivingGame {
     this.forest.update(this.distance, viewAlong);
     this.rain.update(this.camera, rainSeconds, this.vehicleLights.headlight);
     this.updateVehicleLights();
+  }
+
+  private showNotice(message: string): void {
+    this.notice.message = message;
+    this.notice.seconds = 1.6;
   }
 
   private updateVehicleLights(): void {
@@ -790,10 +881,11 @@ export class DrivingGame {
     if (now - this.lastSnapshot > 80) {
       this.lastSnapshot = now;
       this.onUpdate({
-        speedKph: Math.abs(this.speed) * 3.6,
-        distance: this.odometer,
+        speedKph: toKph(Math.abs(this.speed)),
+        distance: toMeters(this.odometer),
         overtakes: this.overtakes,
-        score: Math.floor(this.odometer + this.overtakes * 250),
+        score: Math.floor(toMeters(this.odometer) + this.overtakes * 250),
+        cruise: { status: this.cruiseStatus, setKph: this.cruiseSetKph },
         phase: this.phase,
         assistMessage: this.assistMessage,
       });

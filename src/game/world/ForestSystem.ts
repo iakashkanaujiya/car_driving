@@ -5,7 +5,7 @@ import { roadCenter, roadHeading, roadWindowStart } from '../math';
 import { mulberry32 } from './noise';
 
 const CHUNK_LENGTH = 40;
-const CHUNK_COUNT = 11;
+const CHUNK_COUNT = 14;
 const FAR_TREES_PER_CHUNK = 54;
 const NEAR_TREES_PER_CHUNK = 12;
 /** The photoreal pine band sits just behind the roadside trees. */

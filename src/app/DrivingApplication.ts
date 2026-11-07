@@ -1,5 +1,5 @@
 import { EngineSound } from '../audio/EngineSound';
-import type { HandController } from '../controls/HandController';
+import type { HandCommand, HandController } from '../controls/HandController';
 import { KeyboardController } from '../controls/KeyboardController';
 import type { DrivingGame } from '../game/DrivingGame';
 import type { DrivingConditions } from '../game/conditionsCatalog';
@@ -120,6 +120,9 @@ export class DrivingApplication {
     );
     byId('keyboard-start').addEventListener('click', () => void this.useKeyboard(), options);
     this.pauseButton.addEventListener('click', () => this.togglePause(), options);
+    byId('cruise-toggle').addEventListener('click', () => this.game?.toggleCruise(), options);
+    byId('cruise-down').addEventListener('click', () => this.game?.adjustCruise(-1), options);
+    byId('cruise-up').addEventListener('click', () => this.game?.adjustCruise(1), options);
     byId('hide-camera').addEventListener('click', () => this.setCameraVisible(false), options);
     byId('show-camera').addEventListener('click', () => this.setCameraVisible(true), options);
     byId<HTMLButtonElement>('mute-button').addEventListener(
@@ -271,12 +274,18 @@ export class DrivingApplication {
       this.video,
       this.cameraCanvas,
       (status, progress = 0) => this.onHandStatus(status, progress),
+      (command) => this.onHandCommand(command),
     );
     try {
       await this.handController.start();
     } catch {
       this.mode = 'keyboard';
     }
+  }
+
+  private onHandCommand(command: HandCommand): void {
+    if (command === 'cruise-toggle') this.game?.toggleCruise();
+    else this.game?.adjustCruise(command === 'cruise-faster' ? 1 : -1);
   }
 
   private onHandStatus(status: string, progress: number): void {
@@ -296,7 +305,7 @@ export class DrivingApplication {
       if (this.game?.getPhase() !== 'playing' && !document.getElementById('begin-run')) {
         this.showDriveReady(
           'CALIBRATION LOCKED.',
-          'Turn your hands like a wheel. Raise both thumbs for half brake, or show both open palms for a full stop; keep them open a second longer to reverse. Press H for the horn.',
+          'Turn your hands like a wheel. Raise both thumbs to slow to 40 km/h, or show both open palms for a full stop; keep them open a second longer to reverse. Hold a V sign with both hands for adaptive cruise, and raise just your right or left thumb to change its speed. Press H for the horn.',
         );
       }
     } else if (status === 'lost') {
@@ -326,7 +335,7 @@ export class DrivingApplication {
   private showKeyboardReady(): void {
     this.showDriveReady(
       'KEYBOARD READY.',
-      'Use W or ↑ to accelerate, S or ↓ to brake, and A / D or ← / → to steer. Keep holding S at a stop to reverse. Hold H for the horn.',
+      'Use W or ↑ to accelerate, S or ↓ to brake, and A / D or ← / → to steer. Keep holding S at a stop to reverse. Hold H for the horn. Press C or use the ACC panel for adaptive cruise; + and − set its speed.',
     );
   }
 
@@ -445,6 +454,18 @@ export class DrivingApplication {
     if (event.code === 'KeyH') {
       // The horn is manual, in hand and keyboard modes alike.
       if (this.game?.getPhase() === 'playing') this.audio.setHorn(true);
+      return;
+    }
+    if (event.code === 'KeyC') {
+      if (!event.repeat) this.game?.toggleCruise();
+      return;
+    }
+    if (event.code === 'Equal' || event.code === 'NumpadAdd') {
+      this.game?.adjustCruise(1);
+      return;
+    }
+    if (event.code === 'Minus' || event.code === 'NumpadSubtract') {
+      this.game?.adjustCruise(-1);
       return;
     }
     if (event.code === 'Escape' && this.graphicsSettings.isOpen()) {

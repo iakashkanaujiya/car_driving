@@ -23,6 +23,7 @@ export class KeyboardController {
       accelerating: this.accelerating,
       braking: this.braking,
       reverseGear: KEYBOARD_REVERSE,
+      brakeCancelsCruise: true,
     };
   }
 

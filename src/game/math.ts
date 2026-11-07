@@ -38,18 +38,24 @@ export function steeringFromHands(
 const MAX_YAW_RATE = 0.82;
 /** Tightest turning circle radius in world units, so the car can never pivot in place. */
 export const MIN_TURN_RADIUS = 13;
+/**
+ * Grip limit on cornering, in world units per second squared (about 1.8 g):
+ * enough for the road's tightest bend at top speed, but no snap turns at speed.
+ */
+export const MAX_LATERAL_ACCELERATION = 36;
 
 /**
  * Yaw rate (radians per second, positive turns left) for a steering input.
  * Like a real car it scales with speed: a stopped car only turns its wheels,
- * slow turns never get tighter than MIN_TURN_RADIUS, and steering swings the
- * nose the other way in reverse.
+ * slow turns never get tighter than MIN_TURN_RADIUS, grip caps fast turns,
+ * and steering swings the nose the other way in reverse.
  */
 export function steeringYawRate(steering: number, speed: number): number {
   const absoluteSpeed = Math.abs(speed);
   const authority = Math.min(
     0.28 + 0.72 * clamp(absoluteSpeed / 18, 0, 1),
     absoluteSpeed / (MAX_YAW_RATE * MIN_TURN_RADIUS),
+    MAX_LATERAL_ACCELERATION / (MAX_YAW_RATE * Math.max(absoluteSpeed, 1e-6)),
   );
   return steering * MAX_YAW_RATE * authority * (speed < 0 ? -1 : 1);
 }

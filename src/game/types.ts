@@ -20,6 +20,19 @@ export interface ControlInput {
   brakePressure?: number;
   /** Present when this input can reverse. */
   reverseGear?: ReverseGear;
+  /**
+   * A brake press switches adaptive cruise off, like a real pedal (keyboard).
+   * Otherwise braking and lost tracking only override it until the driver grips again.
+   */
+  brakeCancelsCruise?: boolean;
+}
+
+export type CruiseStatus = 'off' | 'cruising' | 'following' | 'braking';
+
+export interface CruiseSnapshot {
+  status: CruiseStatus;
+  /** Adaptive cruise set speed in km/h, kept while it is off. */
+  setKph: number;
 }
 
 export interface GameSnapshot {
@@ -29,6 +42,7 @@ export interface GameSnapshot {
   distance: number;
   overtakes: number;
   score: number;
+  cruise: CruiseSnapshot;
   phase: GamePhase;
   assistMessage: string;
 }

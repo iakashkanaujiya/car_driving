@@ -124,8 +124,11 @@ describe('forest recycling', () => {
       far.getMatrixAt(index, matrix);
       return -position.setFromMatrixPosition(matrix).z;
     });
-    expect(Math.max(...distances)).toBeLessThan(2000 + 70 + 40);
-    expect(Math.min(...distances)).toBeGreaterThan(2000 - 440);
+    expect(Math.max(...distances)).toBeLessThan(2000 + 70 + 40 + 100);
+    // Fourteen 40-unit chunks, 70 units of them behind the view. The far band
+    // stands up to 300 units off the curving road, skewing trees by up to ~100.
+    expect(Math.min(...distances)).toBeGreaterThan(2000 - 560 + 70 - 100);
+    expect(Math.min(...distances)).toBeLessThan(2000 - 400);
 
     // Back at the start facing forward, every chunk is rebuilt from its index.
     forest.update(0, 1);

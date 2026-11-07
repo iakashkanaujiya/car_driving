@@ -8,7 +8,7 @@ interface FenceSlot {
 }
 
 const SEGMENT_LENGTH = 9.7;
-const SEGMENT_COUNT = 36;
+const SEGMENT_COUNT = 52;
 /** Fence kept built behind the view; the rest of the ring lies ahead. */
 const KEEP_BEHIND = 65;
 

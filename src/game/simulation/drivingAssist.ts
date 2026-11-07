@@ -1,6 +1,8 @@
-import { GAME } from '../config';
+import { driveAcceleration, fromKph, GAME, HALF_BRAKE_KPH } from '../config';
 import { clamp, lerp } from '../math';
-import type { ControlInput } from '../types';
+import type { ControlInput, CruiseStatus } from '../types';
+import { cruiseIsDriving, planAdaptiveCruise } from './cruiseControl';
+import type { LeadVehicle } from './cruiseControl';
 
 export interface SpeedPlan {
   /** Negative while reversing. */
@@ -8,10 +10,18 @@ export interface SpeedPlan {
   acceleration: number;
   /** The car is stopping on its own because hand tracking lost the player. */
   autoBraking: boolean;
-  /** The driver is slowing the car with the brake (lights the brake lamps). */
+  /** The driver or adaptive cruise is slowing the car with the brake (lights the brake lamps). */
   braking: boolean;
   assistMessage: string;
+  /** Set while adaptive cruise is driving the car. */
+  cruiseStatus?: Exclude<CruiseStatus, 'off'>;
 }
+
+const CRUISE_MESSAGES: Record<Exclude<CruiseStatus, 'off'>, string> = {
+  cruising: 'ADAPTIVE CRUISE',
+  following: 'ACC FOLLOWING',
+  braking: 'ACC BRAKING',
+};
 
 /** Below this speed the car counts as rolling backward. */
 const REVERSE_ROLL_SPEED = -0.05;
@@ -31,18 +41,41 @@ export function updateReverseHold(
   return fullBrake && currentSpeed <= GAME.reverseEngageSpeed ? heldSeconds + dt : 0;
 }
 
+export interface SpeedPlanOptions {
+  /** Seconds the full brake has been held at a standstill (see updateReverseHold). */
+  reverseHoldSeconds?: number;
+  /** Adaptive cruise set speed in km/h, or null when it is off. */
+  cruiseKph?: number | null;
+  /** The car ahead in the player's lane, as seen by the cruise radar. */
+  lead?: LeadVehicle | null;
+}
+
 /**
- * Converts player intent into a deterministic speed plan. Traffic and curves
- * never slow the car: avoiding them is up to the player. The only automatic
- * braking is the stop when hand controls go inactive.
+ * Converts player intent into a deterministic speed plan. Without adaptive
+ * cruise, traffic and curves never slow the car: avoiding them is up to the
+ * player, and the only automatic braking is the stop when hand controls go
+ * inactive. With it on, the car brakes for the car ahead in its lane.
  */
 export function createSpeedPlan(
   control: ControlInput,
   currentSpeed: number,
-  reverseHoldSeconds = 0,
+  { reverseHoldSeconds = 0, cruiseKph = null, lead = null }: SpeedPlanOptions = {},
 ): SpeedPlan {
   const reverse = planReverse(control, currentSpeed, reverseHoldSeconds);
   if (reverse) return reverse;
+  // Adaptive cruise drives unless the driver brakes, loses tracking or (on
+  // the keyboard) presses the accelerator to overtake; then it takes back over.
+  if (cruiseKph !== null && cruiseIsDriving(control)) {
+    const cruise = planAdaptiveCruise(fromKph(cruiseKph), currentSpeed, lead);
+    return {
+      targetSpeed: cruise.targetSpeed,
+      acceleration: cruise.acceleration,
+      autoBraking: false,
+      braking: cruise.braking,
+      assistMessage: CRUISE_MESSAGES[cruise.status],
+      cruiseStatus: cruise.status,
+    };
+  }
   let targetSpeed: number = GAME.maxSpeed;
   const brakePressure = getBrakePressure(control);
   const manualControl =
@@ -55,9 +88,10 @@ export function createSpeedPlan(
 
   if (manualControl && control.active) {
     if (brakePressure > 0) {
-      // Partial pressure behaves as a speed limiter rather than eventually
-      // stopping the car. Only the full-brake gesture produces zero.
-      const brakeSpeedCap = GAME.maxSpeed * (1 - brakePressure);
+      // Partial pressure slows the car to a speed and holds it there rather
+      // than eventually stopping: the half brake settles at HALF_BRAKE_KPH,
+      // and only full pressure (open palms or the brake key) produces zero.
+      const brakeSpeedCap = fromKph(HALF_BRAKE_KPH) * 2 * (1 - brakePressure);
       targetSpeed = Math.min(targetSpeed, currentSpeed, brakeSpeedCap);
     } else if (!control.accelerating) {
       targetSpeed = 0;
@@ -66,10 +100,10 @@ export function createSpeedPlan(
       brakePressure > 0
         ? lerp(GAME.coastDeceleration, GAME.serviceBrake, brakePressure)
         : control.accelerating
-          ? GAME.acceleration
+          ? driveAcceleration(currentSpeed)
           : GAME.coastDeceleration;
   } else {
-    acceleration = targetSpeed > currentSpeed ? GAME.acceleration : GAME.serviceBrake;
+    acceleration = targetSpeed > currentSpeed ? driveAcceleration(currentSpeed) : GAME.serviceBrake;
   }
 
   const braking = manualControl && control.active && brakePressure > 0;

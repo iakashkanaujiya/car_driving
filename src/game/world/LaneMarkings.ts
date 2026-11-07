@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { laneDividerOffsets } from '../config';
 import { createRoadStrip, updateRoadStrip } from '../roadSurface';
 
-const SEGMENTS = 220;
+const SEGMENTS = 320;
 const LINE_WIDTH = 0.32;
 /** One painted dash plus the gap after it, in metres along the road. */
 export const DASH_PERIOD = 18;

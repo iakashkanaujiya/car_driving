@@ -48,6 +48,12 @@ export function createGameTemplate(): string {
 
       <section id="hud" class="hud is-hidden" aria-live="polite">
         <div class="speed-panel">
+          <div id="cruise-panel" class="cruise-panel" data-state="off" role="group" aria-label="Adaptive cruise control">
+            <button id="cruise-toggle" class="cruise-toggle" type="button" aria-pressed="false" title="Adaptive cruise on or off (C)"><i></i><span id="cruise-status">ACC OFF</span></button>
+            <button id="cruise-down" class="cruise-step" type="button" aria-label="Lower cruise speed" title="Lower set speed (−)">−</button>
+            <span class="cruise-set" aria-live="polite"><b id="cruise-speed">80</b><small>KM/H</small></span>
+            <button id="cruise-up" class="cruise-step" type="button" aria-label="Raise cruise speed" title="Raise set speed (+)">+</button>
+          </div>
           <div class="speed-number"><span id="speed">000</span><small>KM/H</small></div>
           <div class="speed-track"><span id="speed-fill"></span></div>
         </div>
@@ -127,7 +133,7 @@ export function createGameTemplate(): string {
           <div class="instruction-row">
             <div><b>01</b><span>Allow camera<br>access</span></div>
             <div><b>02</b><span>Hold two closed<br>hands apart</span></div>
-            <div><b>03</b><span>Thumbs up: half brake<br>open palms: full brake</span></div>
+            <div><b>03</b><span>Thumbs up: slow to 40<br>open palms: full brake</span></div>
           </div>
           <div id="car-options" class="car-options">
             <label><span>YOUR CAR</span><select id="driver-car" aria-label="Choose your car model">${carOptions}</select></label>

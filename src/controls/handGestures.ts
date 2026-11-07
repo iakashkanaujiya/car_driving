@@ -27,6 +27,56 @@ export class SustainedGesture {
   }
 }
 
+/**
+ * Fires once a gesture has been held for `holdMs`, then every `repeatMs` for
+ * as long as it stays held (or never again, without `repeatMs`). Releasing
+ * the gesture re-arms it.
+ */
+export class GestureTrigger {
+  private nextFireAt: number | null = null;
+
+  constructor(
+    private readonly holdMs: number,
+    private readonly repeatMs?: number,
+  ) {}
+
+  update(detected: boolean, now: number): boolean {
+    if (!detected) {
+      this.reset();
+      return false;
+    }
+    this.nextFireAt ??= now + this.holdMs;
+    if (now < this.nextFireAt) return false;
+    this.nextFireAt = this.repeatMs === undefined ? Number.POSITIVE_INFINITY : now + this.repeatMs;
+    return true;
+  }
+
+  reset(): void {
+    this.nextFireAt = null;
+  }
+}
+
+const FINGER_TIPS = [8, 12, 16, 20] as const;
+const FINGER_KNUCKLES = [5, 9, 13, 17] as const;
+
+/** Whether each finger (index, middle, ring, little) is stretched out, folded, or neither. */
+function fingerStates(landmarks: HandPoint[]): ('extended' | 'folded' | 'between')[] {
+  const wrist = landmarks[0];
+  return FINGER_TIPS.map((tip, index) => {
+    const ratio =
+      pointDistance(landmarks[tip], wrist) /
+      Math.max(pointDistance(landmarks[FINGER_KNUCKLES[index]], wrist), 1e-6);
+    return ratio > 1.65 ? 'extended' : ratio < 1.58 ? 'folded' : 'between';
+  });
+}
+
+/** The V sign: index and middle fingers up, ring and little fingers folded. */
+export function isVictorySign(landmarks: HandPoint[]): boolean {
+  if (landmarks.length < 21) return false;
+  const [index, middle, ring, little] = fingerStates(landmarks);
+  return index === 'extended' && middle === 'extended' && ring === 'folded' && little === 'folded';
+}
+
 export function isClosedHand(landmarks: HandPoint[]): boolean {
   if (landmarks.length < 21) return false;
   const wrist = landmarks[0];

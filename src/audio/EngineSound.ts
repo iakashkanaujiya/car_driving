@@ -4,6 +4,27 @@ const HORN_VOLUME = 0.055;
 /** A quick tap still honks for at least this long, in seconds. */
 const HORN_MIN_SECONDS = 0.14;
 
+/** Upshift points (km/h) of a six-speed gearbox; the last gear runs to top speed. */
+const GEAR_TOP_KPH = [32, 58, 84, 108, 132, 155] as const;
+const IDLE_HZ = 46;
+const REDLINE_HZ = 172;
+
+/**
+ * Engine note for a road speed. The pitch climbs through each gear and drops
+ * on every upshift, as a real engine's revs do, instead of one long siren.
+ */
+export function engineFrequency(speedKph: number): number {
+  const kph = Math.max(0, speedKph);
+  const gear = GEAR_TOP_KPH.findIndex((top) => kph < top);
+  const index = gear < 0 ? GEAR_TOP_KPH.length - 1 : gear;
+  const low = index === 0 ? 0 : GEAR_TOP_KPH[index - 1];
+  const high = GEAR_TOP_KPH[index];
+  // Each upshift lands at about 55% of the revs it left; first gear starts at idle.
+  const startRevs = index === 0 ? 0 : 0.55;
+  const revs = startRevs + (1 - startRevs) * Math.min(1, (kph - low) / (high - low));
+  return IDLE_HZ + (REDLINE_HZ - IDLE_HZ) * revs;
+}
+
 interface HornVoice {
   envelope: GainNode;
   tones: OscillatorNode[];
@@ -56,8 +77,12 @@ export class EngineSound {
 
   update(speedKph: number): void {
     if (!this.context || !this.oscillator || !this.gain) return;
-    this.oscillator.frequency.setTargetAtTime(48 + speedKph * 1.1, this.context.currentTime, 0.08);
-    const volume = this.enabled && speedKph > 1 ? 0.018 + speedKph / 9000 : 0;
+    this.oscillator.frequency.setTargetAtTime(
+      engineFrequency(speedKph),
+      this.context.currentTime,
+      0.08,
+    );
+    const volume = this.enabled && speedKph > 1 ? 0.018 + speedKph / 11000 : 0;
     this.gain.gain.setTargetAtTime(volume, this.context.currentTime, 0.12);
   }
 
