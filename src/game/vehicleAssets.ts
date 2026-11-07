@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { GAME } from './config';
+import { buildCarLod, carLodReady, whenCarLodReady } from './rendering/carLod';
+import type { CarLodParts } from './rendering/carLod';
 import { selectCarModelIds } from './vehicleCatalog';
 import type { CarModelId } from './vehicleCatalog';
 
@@ -54,6 +56,18 @@ interface AnimatedWheel {
   rollAngle: number;
 }
 
+interface LodState {
+  detailed: THREE.Object3D;
+  simplified: THREE.Object3D;
+  far: boolean;
+}
+
+interface FarModel {
+  parts: CarLodParts;
+  /** Shared by every car of the model; paint and tail lights are per car. */
+  bodyMaterial: THREE.MeshStandardMaterial;
+}
+
 interface WheelAssembly {
   parts: THREE.Object3D[];
   front: boolean;
@@ -89,6 +103,13 @@ const REAL_CAR_SCALE = 2;
 const CONCEPT_CAR_SCALE = 2;
 const MAX_BODY_ROLL = 0.045;
 const MAX_BODY_PITCH = 0.03;
+/** Traffic beyond this many metres switches to the simplified far model... */
+const FAR_MODEL_DISTANCE = 85;
+/** ...and returns to full detail inside this distance, so cars never flicker. */
+const DETAILED_MODEL_DISTANCE = 75;
+const FAR_MODEL_RATIO = 0.1;
+const FAR_MODEL_ERROR = 0.01;
+const FAR_MODEL_NAME = 'car-far-model';
 const BASE_MODEL_SPECS: readonly CarModelSpec[] = [
   {
     id: 'ford-f150-raptor',
@@ -218,7 +239,17 @@ function disableTransmission(root: THREE.Object3D): void {
   });
 }
 
+function createFarMesh(geometry: THREE.BufferGeometry, material: THREE.Material): THREE.Mesh {
+  const mesh = new THREE.Mesh(geometry, material);
+  // Far cars sit outside the shadow camera, so they neither cast nor receive.
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
+  return mesh;
+}
+
 export class VehicleAssets {
+  private readonly farModels = new WeakMap<THREE.Group, FarModel | null>();
+
   randomColor(): number {
     return CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)];
   }
@@ -258,6 +289,9 @@ export class VehicleAssets {
       if (!spec) throw new Error(`Missing specification for car model: ${id}`);
       return spec;
     });
+    // Far models are built lazily per traffic car, so the simplifier must be
+    // ready by the time the models are; it loads alongside them.
+    const farModelsReady = whenCarLodReady();
     const loadedModels = await Promise.all(
       selectedSpecs.map(async (spec): Promise<LoadedCarModel | null> => {
         try {
@@ -274,6 +308,7 @@ export class VehicleAssets {
         }
       }),
     );
+    await farModelsReady;
     return loadedModels.filter((model): model is LoadedCarModel => model !== null);
   }
 
@@ -311,6 +346,7 @@ export class VehicleAssets {
     car.userData.modelBrakeLights = modelBrakeLights;
     car.userData.brakeGlow = undefined;
     car.userData.highBrakeOnly = false;
+    car.userData.lod = undefined;
     const shadowMeshes: THREE.Mesh[] = [];
     car.traverse((object) => {
       if (object instanceof THREE.Mesh) shadowMeshes.push(object);
@@ -335,6 +371,9 @@ export class VehicleAssets {
       contactShadow.receiveShadow = false;
       car.add(contactShadow);
     }
+    if (!player && modelSpec) {
+      this.attachFarModel(car, prototype, modelSpec, instance, modelBrakeLights);
+    }
 
     const animatedWheels: AnimatedWheel[] = [];
     instance.traverse((object) => {
@@ -357,6 +396,17 @@ export class VehicleAssets {
     car.userData.frontWheels = animatedWheels
       .filter((wheel) => wheel.front)
       .map((wheel) => wheel.steeringPivot);
+  }
+
+  /** Swaps a traffic car between full detail and its far model by road distance. */
+  setDetail(car: THREE.Group, distance: number): void {
+    const lod = car.userData.lod as LodState | undefined;
+    if (!lod) return;
+    const far = distance > (lod.far ? DETAILED_MODEL_DISTANCE : FAR_MODEL_DISTANCE);
+    if (far === lod.far) return;
+    lod.far = far;
+    lod.detailed.visible = !far;
+    lod.simplified.visible = far;
   }
 
   setBrakeLights(car: THREE.Group, braking: boolean): void {
@@ -406,6 +456,106 @@ export class VehicleAssets {
     const meshes = car.userData.shadowMeshes as THREE.Mesh[] | undefined;
     for (const mesh of meshes ?? []) mesh.castShadow = enabled;
     car.userData.castsShadow = enabled;
+  }
+
+  /**
+   * Builds (once per model) a simplified, texture-free stand-in with one mesh
+   * each for the body, the paint and the tail lights.
+   */
+  private farModel(prototype: THREE.Group, modelSpec: CarModelSpec): FarModel | null {
+    const cached = this.farModels.get(prototype);
+    if (cached !== undefined) return cached;
+    let model: FarModel | null = null;
+    if (carLodReady()) {
+      try {
+        const paintNames = new Set(modelSpec.paintMaterials);
+        const tailNames = new Set(modelSpec.tailMaterials ?? []);
+        const parts = buildCarLod(prototype, {
+          classify: (material) =>
+            paintNames.has(material.name)
+              ? 'paint'
+              : tailNames.has(material.name)
+                ? 'tail'
+                : 'body',
+          paintTexture: modelSpec.removePaintTexture !== true,
+          ratio: FAR_MODEL_RATIO,
+          error: FAR_MODEL_ERROR,
+        });
+        for (const part of Object.values(parts)) part.geometry.userData.sharedResource = true;
+        const bodyMaterial = new THREE.MeshStandardMaterial({
+          vertexColors: true,
+          roughness: 0.5,
+          metalness: 0.2,
+          side: parts.body?.doubleSided ? THREE.DoubleSide : THREE.FrontSide,
+        });
+        bodyMaterial.userData.sharedResource = true;
+        model = { parts, bodyMaterial };
+      } catch (error) {
+        console.warn(`Could not build the far model for ${modelSpec.id}.`, error);
+      }
+    }
+    this.farModels.set(prototype, model);
+    return model;
+  }
+
+  private attachFarModel(
+    car: THREE.Group,
+    prototype: THREE.Group,
+    modelSpec: CarModelSpec,
+    detailed: THREE.Group,
+    modelBrakeLights: ModelBrakeLight[],
+  ): void {
+    const model = this.farModel(prototype, modelSpec);
+    if (!model) return;
+    const { body, paint, tail } = model.parts;
+    const simplified = new THREE.Group();
+    simplified.name = FAR_MODEL_NAME;
+    simplified.visible = false;
+    if (body) simplified.add(createFarMesh(body.geometry, model.bodyMaterial));
+
+    if (paint) {
+      const paintNames = new Set(modelSpec.paintMaterials);
+      let source: THREE.MeshStandardMaterial | undefined;
+      detailed.traverse((object) => {
+        if (source || !(object instanceof THREE.Mesh)) return;
+        const material = object.material as THREE.Material;
+        if (material instanceof THREE.MeshStandardMaterial && paintNames.has(material.name)) {
+          source = material;
+        }
+      });
+      const material = new THREE.MeshStandardMaterial({
+        color: source?.color ?? 0xffffff,
+        vertexColors: true,
+        metalness: source?.metalness ?? 0.5,
+        roughness: source?.roughness ?? 0.3,
+        envMapIntensity: source?.envMapIntensity ?? 1,
+        side: paint.doubleSided ? THREE.DoubleSide : THREE.FrontSide,
+      });
+      simplified.add(createFarMesh(paint.geometry, material));
+    }
+
+    if (tail) {
+      const nearLight = modelBrakeLights[0];
+      if (nearLight) {
+        // Register the far lens as another brake light with the same profile.
+        const material = new THREE.MeshStandardMaterial({
+          roughness: 0.3,
+          metalness: 0,
+          side: tail.doubleSided ? THREE.DoubleSide : THREE.FrontSide,
+        });
+        const light: ModelBrakeLight = { ...nearLight, material };
+        material.color.setHex(light.restColor);
+        material.emissive.setHex(light.restEmissive);
+        material.emissiveIntensity = light.restIntensity;
+        modelBrakeLights.push(light);
+        simplified.add(createFarMesh(tail.geometry, material));
+      } else {
+        simplified.add(createFarMesh(tail.geometry, model.bodyMaterial));
+      }
+    }
+
+    car.add(simplified);
+    car.userData.lod = { detailed, simplified, far: false } satisfies LodState;
   }
 
   private prepareCarModel(

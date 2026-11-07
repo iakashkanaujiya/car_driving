@@ -562,6 +562,7 @@ export class DrivingGame {
       );
       car.mesh.rotation.y = carHeading + (car.direction === -1 ? Math.PI : 0);
       const detailDistance = Math.abs(gap);
+      this.vehicleAssets.setDetail(car.mesh, detailDistance);
       this.vehicleAssets.setShadowCasting(car.mesh, detailDistance < 65);
       if (detailDistance < 70) {
         this.vehicleAssets.updateWheelAnimation(car.mesh, car.speed * dt, 0, dt);
