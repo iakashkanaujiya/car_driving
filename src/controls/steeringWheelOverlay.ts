@@ -312,7 +312,7 @@ function drawCrossbar(
     context.fill();
   }
 
-  // Glossy centre pad with the Driftline emblem.
+  // Glossy centre pad with the game emblem.
   const padWidth = 0.62 * r;
   const padHeight = 0.36 * r;
   const padY = 0.08 * r;

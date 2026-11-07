@@ -96,6 +96,10 @@ button {
   letter-spacing: 0.13em;
 }
 
+.brand-name {
+  white-space: nowrap;
+}
+
 .brand-mark {
   width: 21px;
   height: 21px;
@@ -1423,6 +1427,17 @@ h2 {
   .asset-loader {
     width: 46px;
     height: 46px;
+  }
+}
+
+@media (max-width: 600px) {
+  /* Stack the name into a two-line lockup so it never wraps into the buttons. */
+  .brand-name {
+    font-size: 14px;
+    line-height: 0.95;
+  }
+  .brand-name > span {
+    display: block;
   }
 }
 

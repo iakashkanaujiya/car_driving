@@ -1,12 +1,16 @@
-# Driftline
+# Hands-On Highway
 
-![Driftline game poster](public/images/driftline-poster.png)
+![Hands-On Highway game poster](public/images/hands-on-highway-poster.jpg)
 
-A stylized endless-driving game controlled by a two-hand virtual steering wheel. The browser tracks two closed hands locally, converts their angle into steering, and accelerates automatically; slowing down for curves and traffic is up to you.
+**Steer with your bare hands.** Hands-On Highway is a free browser driving game where your webcam is the controller: hold up two fists like a steering wheel and turn them to steer down a four-lane mountain highway, dodging same-direction and oncoming traffic. No download, no controller, no account.
+
+**[▶ Play in your browser](https://iakashkanaujiya.github.io/car_driving/)** (Chrome or Edge on a computer with a webcam; keyboard controls work too.)
+
+Hand tracking runs entirely on your device with MediaPipe, so camera video is never uploaded. The car accelerates automatically; slowing down for curves and traffic is up to you.
 
 ## Gameplay
 
-![Driftline gameplay](public/images/driftline-gameplay.png)
+![Hands-On Highway gameplay](public/images/hands-on-highway-gameplay.jpg)
 
 ## Run locally
 
@@ -42,7 +46,7 @@ On the first visit, a setup popup keeps the game locked while it downloads appro
 
 ## Controls
 
-![Driftline hand-control guide](public/images/hand-controls.svg)
+![Hands-On Highway hand-control guide](public/images/hand-controls.svg)
 
 - **Hand mode:** hold two closed hands apart, keep them level during calibration, and rotate them like a steering wheel. Raise both thumbs for 50% braking or show both open palms for a full stop.
 - **Keyboard mode:** use `W` or up arrow to accelerate, `S` or down arrow to brake, and `A` / `D` or left / right arrows to steer. Braking stops at zero; there is no reverse gear.
