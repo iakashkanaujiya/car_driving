@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1536" height="640" viewBox="0 0 1536 640" role="img" aria-labelledby="title description">
-  <title id="title">Driftline hand controls</title>
+  <title id="title">Hands-On Highway hand controls</title>
   <desc id="description">Three steps show how to calibrate with two fists, rotate both hands to steer, raise both thumbs for half braking, and show both palms for a full stop.</desc>
   <defs>
     <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
@@ -44,7 +44,7 @@
 
   <rect width="1536" height="640" rx="28" fill="url(#background)"/>
   <path d="M0 0 H1536 V7 H0 Z" fill="url(#acid)"/>
-  <text x="72" y="82" fill="#f2ff52" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="800" letter-spacing="8">DRIFTLINE SYSTEM GUIDE</text>
+  <text x="72" y="82" fill="#f2ff52" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="800" letter-spacing="8">HANDS-ON HIGHWAY SYSTEM GUIDE</text>
   <text x="72" y="132" fill="#f5f8f8" font-family="Arial, Helvetica, sans-serif" font-size="42" font-weight="900" letter-spacing="2">HOW HAND CONTROL WORKS</text>
   <text x="1464" y="111" text-anchor="end" fill="#769099" font-family="Arial, Helvetica, sans-serif" font-size="18" letter-spacing="3">CAMERA PROCESSING STAYS LOCAL</text>
 
