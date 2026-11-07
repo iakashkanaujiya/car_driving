@@ -10,6 +10,7 @@ import {
 } from './atmosphere';
 import { createPineGeometry, forestChunkTrees } from './ForestSystem';
 import { mountainColor, mountainHeight } from './MountainRange';
+import { RoadsideScenerySystem } from './RoadsideScenerySystem';
 import { fbm3, mulberry32, ridged3, valueNoise3 } from './noise';
 
 describe('procedural noise', () => {
@@ -106,5 +107,61 @@ describe('roadside rocks', () => {
     expect(a.getAttribute('color')).toBeDefined();
     expect(a.boundingBox!.min.y).toBeGreaterThan(-0.2);
     expect(a.getAttribute('position').array).not.toEqual(b.getAttribute('position').array);
+  });
+});
+
+describe('roadside scenery', () => {
+  const instanceDistances = (mesh: THREE.InstancedMesh): number[] => {
+    const matrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+    return Array.from({ length: mesh.count }, (_, index) => {
+      mesh.getMatrixAt(index, matrix);
+      return -position.setFromMatrixPosition(matrix).z;
+    });
+  };
+
+  it('draws every pine and rock variant as one instanced mesh each', () => {
+    const scene = new THREE.Scene();
+    const scenery = new RoadsideScenerySystem(scene);
+    const prototype = new THREE.Group();
+    prototype.add(new THREE.Mesh(new THREE.ConeGeometry(1, 3)));
+    prototype.add(new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 1)));
+    scenery.setTreeModel(prototype);
+    scenery.update(0);
+
+    const meshes = scene.children.filter(
+      (child): child is THREE.InstancedMesh => child instanceof THREE.InstancedMesh,
+    );
+    const pines = meshes.filter((mesh) => mesh.name === 'roadside-pine');
+    const rocks = meshes.filter((mesh) => mesh.name.startsWith('roadside-rock-'));
+    expect(scene.children).toHaveLength(6);
+    expect(pines.map((mesh) => mesh.count)).toEqual([36, 36]);
+    // Eight boulder clusters of three stones each.
+    expect(rocks.reduce((sum, mesh) => sum + mesh.count, 0)).toBe(24);
+    expect(meshes.every((mesh) => mesh.castShadow)).toBe(true);
+    scenery.dispose();
+    expect(scene.children).toHaveLength(0);
+  });
+
+  it('recycles slots ahead of the player and restores them on reset', () => {
+    const scene = new THREE.Scene();
+    const scenery = new RoadsideScenerySystem(scene);
+    const prototype = new THREE.Group();
+    prototype.add(new THREE.Mesh(new THREE.ConeGeometry(1, 3)));
+    scenery.setTreeModel(prototype);
+    const pine = scene.getObjectByName('roadside-pine') as THREE.InstancedMesh;
+    scenery.update(0);
+    const start = instanceDistances(pine);
+    expect(Math.min(...start)).toBeLessThan(0);
+
+    scenery.update(100);
+    // Lateral offsets on the curving road shift z by at most the verge width.
+    const margin = GAME.roadWidth / 2 + 16;
+    expect(Math.min(...instanceDistances(pine))).toBeGreaterThan(100 - 70 - margin);
+
+    scenery.reset();
+    scenery.update(0);
+    expect(instanceDistances(pine)).toEqual(start);
+    scenery.dispose();
   });
 });

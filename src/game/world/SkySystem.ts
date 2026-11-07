@@ -91,7 +91,10 @@ export class SkySystem {
     this.mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), SkySystem.createMaterial(0));
     this.mesh.scale.setScalar(1000);
     this.mesh.frustumCulled = false;
-    this.mesh.renderOrder = -10;
+    // The vertex shader pins the sky to the far plane. Drawing it after the
+    // other opaque geometry lets the depth test skip every pixel the terrain
+    // already covers, so the cloud shader runs only where sky is visible.
+    this.mesh.renderOrder = 10;
     this.mesh.name = 'sky';
   }
 

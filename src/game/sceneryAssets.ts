@@ -11,7 +11,6 @@ interface NatureModelOptions {
 }
 
 export const PINE_TREE_MODEL_PATH = 'tree/pine_tree_1.glb';
-const ROCK_VARIANTS = 4;
 
 /**
  * Builds a weathered boulder: an icosphere displaced by fractal noise, with
@@ -49,59 +48,25 @@ export function createRockGeometry(seed: number): THREE.BufferGeometry {
   return geometry;
 }
 
+/** Loads and normalizes the nature models shared by the roadside and forest systems. */
 export class SceneryAssets {
   private pineTreePrototype?: THREE.Group;
-  private readonly rockGeometries: THREE.BufferGeometry[] = [];
-  private rockCounter = 0;
-
-  constructor(private readonly rockMaterial: THREE.MeshStandardMaterial) {
-    for (let variant = 0; variant < ROCK_VARIANTS; variant += 1) {
-      this.rockGeometries.push(createRockGeometry(variant + 1));
-    }
-  }
 
   /** The normalized pine model, available once loadNature() resolves. */
   getPineTreePrototype(): THREE.Group | undefined {
     return this.pineTreePrototype;
   }
 
-  createTree(): THREE.Group {
-    const group = new THREE.Group();
-    group.userData.kind = 'pine-tree';
-    if (this.pineTreePrototype) group.add(this.pineTreePrototype.clone(true));
-    return group;
-  }
-
-  createRock(): THREE.Group {
-    const group = new THREE.Group();
-    const geometry = this.rockGeometries[this.rockCounter % this.rockGeometries.length];
-    this.rockCounter += 1;
-    const rock = new THREE.Mesh(geometry, this.rockMaterial);
-    rock.scale.setScalar(1.35);
-    rock.castShadow = true;
-    rock.receiveShadow = true;
-    group.add(rock);
-    // A couple of smaller stones around the boulder.
-    for (let index = 0; index < 2; index += 1) {
-      const pebble = new THREE.Mesh(
-        this.rockGeometries[(this.rockCounter + index + 1) % this.rockGeometries.length],
-        this.rockMaterial,
-      );
-      const angle = this.rockCounter * 1.7 + index * 2.4;
-      pebble.position.set(Math.cos(angle) * 2.1, -0.05, Math.sin(angle) * 1.8);
-      pebble.scale.setScalar(0.38 + index * 0.16);
-      pebble.castShadow = true;
-      group.add(pebble);
-    }
-    return group;
-  }
-
   dispose(): void {
-    this.rockGeometries.forEach((geometry) => geometry.dispose());
+    this.pineTreePrototype?.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      object.geometry.dispose();
+      (object.material as THREE.Material).dispose();
+    });
   }
 
-  loadNature(targets: readonly THREE.Group[]): Promise<void> {
-    return this.loadNatureModel(targets, {
+  loadNature(): Promise<void> {
+    return this.loadNatureModel({
       kind: 'pine-tree',
       path: PINE_TREE_MODEL_PATH,
       targetHeight: 11,
@@ -109,21 +74,11 @@ export class SceneryAssets {
     });
   }
 
-  private async loadNatureModel(
-    targets: readonly THREE.Group[],
-    options: NatureModelOptions,
-  ): Promise<void> {
+  private async loadNatureModel(options: NatureModelOptions): Promise<void> {
     const loader = new GLTFLoader();
     const gltf = await loader.loadAsync(`${import.meta.env.BASE_URL}${options.path}`);
     const prototype = this.prepareNatureModel(gltf.scene, options);
     if (options.kind === 'pine-tree') this.pineTreePrototype = prototype;
-
-    for (const object of targets) {
-      if (object.userData.kind === options.kind) {
-        object.clear();
-        object.add(prototype.clone(true));
-      }
-    }
   }
 
   private prepareNatureModel(source: THREE.Group, options: NatureModelOptions): THREE.Group {

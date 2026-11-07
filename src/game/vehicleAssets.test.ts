@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
+import { whenCarLodReady } from './rendering/carLod';
 import {
   CAR_MODEL_OPTIONS,
   CAR_MODEL_VARIETY_OPTIONS,
@@ -270,6 +271,83 @@ describe('VehicleAssets wheel animation', () => {
     assets.setBrakeLights(car, false);
     expect(material.emissiveIntensity).toBeCloseTo(restingIntensity);
     expect(material.emissive.getHex()).toBe(0x400000);
+  });
+
+  it('replaces transmissive glass with blended tint so no refraction pass runs', () => {
+    const assets = new VehicleAssets();
+    const source = new THREE.Group();
+    const blendedGlass = new THREE.MeshPhysicalMaterial({
+      transmission: 1,
+      transparent: true,
+      opacity: 0.25,
+    });
+    const opaqueGlass = new THREE.MeshPhysicalMaterial({ transmission: 1 });
+    source.add(new THREE.Mesh(new THREE.BoxGeometry(4, 1, 8), blendedGlass));
+    source.add(new THREE.Mesh(new THREE.BoxGeometry(4, 1, 8), opaqueGlass));
+
+    const prepareCarModel = (
+      assets as unknown as {
+        prepareCarModel: (
+          source: THREE.Group,
+          rotationY: number,
+          optimize: boolean,
+          modelId: 'ford-f150-raptor',
+        ) => THREE.Group;
+      }
+    ).prepareCarModel.bind(assets);
+    const prototype = prepareCarModel(source, Math.PI, true, 'ford-f150-raptor');
+    const materials: THREE.MeshPhysicalMaterial[] = [];
+    prototype.traverse((object) => {
+      if (object instanceof THREE.Mesh) materials.push(object.material);
+    });
+
+    expect(materials).toHaveLength(2);
+    expect(materials.every((material) => material.transmission === 0)).toBe(true);
+    expect(materials.every((material) => material.transparent)).toBe(true);
+    expect(blendedGlass.opacity).toBe(0.25);
+    expect(opaqueGlass.opacity).toBe(0.35);
+  });
+
+  it('gives traffic a far model with its own paint and working brake lights', async () => {
+    expect(await whenCarLodReady()).toBe(true);
+    const assets = new VehicleAssets();
+    const prototype = new THREE.Group();
+    const paint = new THREE.MeshStandardMaterial({ name: 'CarPaint' });
+    const tail = new THREE.MeshStandardMaterial({ name: 'Emiss' });
+    prototype.add(new THREE.Mesh(new THREE.SphereGeometry(2, 48, 32), paint));
+    const lens = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.2, 0.1), tail);
+    lens.position.z = 2;
+    prototype.add(lens);
+    const traffic = new THREE.Group();
+    const player = new THREE.Group();
+    assets.replaceVisual(traffic, prototype, false, 'luxury-concept');
+    assets.replaceVisual(player, prototype, true, 'luxury-concept');
+
+    const far = traffic.getObjectByName('car-far-model')!;
+    const detailed = traffic.children[0];
+    expect(player.getObjectByName('car-far-model')).toBeUndefined();
+    expect(far.visible).toBe(false);
+    const farMaterials = far.children.map((mesh) => (mesh as THREE.Mesh).material);
+    const farPaint = farMaterials.find(
+      (material) => (material as THREE.MeshStandardMaterial).vertexColors,
+    ) as THREE.MeshStandardMaterial;
+    const detailedPaint = (detailed.getObjectByProperty('isMesh', true) as THREE.Mesh)
+      .material as THREE.MeshStandardMaterial;
+    expect(farPaint.color.getHex()).toBe(detailedPaint.color.getHex());
+
+    assets.setDetail(traffic, 100);
+    expect([far.visible, detailed.visible]).toEqual([true, false]);
+    // Hysteresis keeps the far model until the car is clearly closer.
+    assets.setDetail(traffic, 80);
+    expect(far.visible).toBe(true);
+    assets.setDetail(traffic, 70);
+    expect([far.visible, detailed.visible]).toEqual([false, true]);
+
+    assets.setBrakeLights(traffic, true);
+    const farTail = farMaterials.find(
+      (material) => material !== farPaint,
+    ) as THREE.MeshStandardMaterial;
+    expect(farTail.emissiveIntensity).toBe(8.5);
   });
 
   it('uses the Ford red-glass material as a working brake light', () => {
