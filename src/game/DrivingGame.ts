@@ -1,29 +1,53 @@
 import * as THREE from 'three';
 import { PerformanceMonitor } from '../diagnostics/PerformanceMonitor';
 import type { PerformanceSnapshot } from '../diagnostics/PerformanceMonitor';
-import { GAME, laneOffsets } from './config';
-import { clamp, constrainToRoad, damp, roadCenter, roadHeading } from './math';
+import { fromKph, GAME, laneOffsets, toKph, toMeters } from './config';
+import {
+  clamp,
+  constrainToRoad,
+  damp,
+  roadCenter,
+  roadHeading,
+  roadWindowStart,
+  steeringYawRate,
+} from './math';
 import { createRoadStrip, updateRoadStrip } from './roadSurface';
 import { AdaptiveQuality, chooseInitialQuality } from './rendering/AdaptiveQuality';
 import type { GraphicsQualityMode, RenderQualitySettings } from './rendering/AdaptiveQuality';
+import { installKeyLightGlintControl, setKeyLightGlint } from './rendering/keyLightGlint';
 import { PostProcessing } from './rendering/PostProcessing';
 import { applyGroundVariation } from './rendering/groundVariation';
 import { SceneryAssets } from './sceneryAssets';
-import { createSpeedPlan } from './simulation/drivingAssist';
-import { addSceneLighting, SurfaceTextureStore, updateSceneShadow } from './sceneAssets';
+import {
+  adjustCruise,
+  CRUISE_DEFAULT_KPH,
+  cruiseStaysEngaged,
+  findLeadVehicle,
+} from './simulation/cruiseControl';
+import { createSpeedPlan, updateReverseHold } from './simulation/drivingAssist';
+import {
+  addSceneLighting,
+  applySceneLighting,
+  SurfaceTextureStore,
+  updateSceneShadow,
+} from './sceneAssets';
 import type { SceneLighting } from './sceneAssets';
-import type { ControlInput, GamePhase, GameSnapshot } from './types';
+import type { ControlInput, CruiseStatus, GamePhase, GameSnapshot } from './types';
 import { VehicleAssets } from './vehicleAssets';
 import type { LoadedCarModel } from './vehicleAssets';
 import { DEFAULT_CAR_MODEL_ID, selectCarModelIds } from './vehicleCatalog';
 import type { CarModelId } from './vehicleCatalog';
-import { ATMOSPHERE, installAtmosphericFog } from './world/atmosphere';
+import { installAtmosphericFog, setAtmosphericScattering } from './world/atmosphere';
+import { createEnvironmentLook, DEFAULT_CONDITIONS } from './world/conditions';
+import type { DrivingConditions, EnvironmentLook } from './world/conditions';
 import { ForestSystem } from './world/ForestSystem';
 import { LaneMarkings } from './world/LaneMarkings';
 import { MountainRange } from './world/MountainRange';
 import { RoadsideFenceSystem } from './world/RoadsideFenceSystem';
+import { RainSystem } from './world/RainSystem';
 import { RoadsideScenerySystem } from './world/RoadsideScenerySystem';
 import { SkySystem } from './world/SkySystem';
+import { VehicleLightSystem } from './world/VehicleLightSystem';
 
 interface TrafficCar {
   mesh: THREE.Group;
@@ -35,7 +59,6 @@ interface TrafficCar {
   speedChangeTimer: number;
   direction: 1 | -1;
   counted: boolean;
-  horned: boolean;
 }
 
 const GROUND_SIZE = 1200;
@@ -45,6 +68,21 @@ const ROAD_UPDATE_INTERVAL = 1 / 30;
 const IDLE_RENDER_INTERVAL_MS = 200;
 const BASE_FOV = 56;
 const SPEED_FOV_BOOST = 9;
+const CAMERA_DISTANCE = 8.5;
+/** The chase camera eases back this much further at top speed. */
+const CAMERA_SPEED_PULLBACK = 3;
+/** Road texture vibration felt through the camera at top speed, in world units. */
+const CAMERA_SHAKE = 0.05;
+/** Spawn queues start at least this far ahead: about four seconds of warning at top speed. */
+const TRAFFIC_SPAWN_AHEAD = 260;
+/** The view must turn this far past side-on before traffic treats it as the new way ahead. */
+const FACING_HYSTERESIS = 0.2;
+/** Dry and fully wet values for the road, verge and meadow surfaces. */
+const SURFACE_WETNESS = {
+  road: { roughness: [0.96, 0.36], brightness: [1, 0.64], reflection: [1, 1.5] },
+  shoulder: { roughness: [0.96, 0.48], brightness: [1, 0.74], reflection: [1, 1.3] },
+  ground: { roughness: [0.96, 0.8], brightness: [1, 0.84], reflection: [1, 1.1] },
+} as const;
 
 export class DrivingGame {
   private readonly scene = new THREE.Scene();
@@ -57,6 +95,11 @@ export class DrivingGame {
   private readonly player = new THREE.Group();
   private readonly traffic: TrafficCar[] = [];
   private readonly sky: SkySystem;
+  private readonly fog: THREE.FogExp2;
+  private readonly vehicleLights: VehicleLightSystem;
+  private readonly rain: RainSystem;
+  private readonly drawingBufferSize = new THREE.Vector2();
+  private look?: EnvironmentLook;
   private readonly mountainRange: MountainRange;
   private readonly forest: ForestSystem;
   private postProcessing?: PostProcessing;
@@ -84,9 +127,25 @@ export class DrivingGame {
   private vehicleHeading = roadHeading(0);
   private steeringVisual = 0;
   private longitudinalAcceleration = 0;
+  /** Seconds the full brake has been held at a standstill; engages reverse. */
+  private reverseHoldSeconds = 0;
+  /** Which way along the road the car points: 1 the original way, -1 after a U-turn. */
+  private facing: 1 | -1 = 1;
+  /** Cosine between the camera's view and the road's forward direction. */
+  private viewAlong = 1;
+  /** Distance driven in forward gear; the score counts this, not the position. */
+  private odometer = 0;
+  /** Adaptive cruise: on/off, its set speed (kept while off) and what it is doing. */
+  private cruiseOn = false;
+  private cruiseSetKph = CRUISE_DEFAULT_KPH;
+  private cruiseStatus: CruiseStatus = 'off';
+  /** A short-lived HUD message, such as a refused cruise request. */
+  private notice = { message: '', seconds: 0 };
+  private readonly viewDirection = new THREE.Vector3();
+  private readonly lastPlayerPosition = new THREE.Vector3();
+  private hasLastPlayerPosition = false;
   private overtakes = 0;
   private assistMessage = 'READY';
-  private hornCooldown = 0;
   private driverCar: CarModelId = DEFAULT_CAR_MODEL_ID;
   private carModelsPromise?: Promise<LoadedCarModel[]>;
   private carModelsApplied = false;
@@ -105,13 +164,15 @@ export class DrivingGame {
     private readonly getControl: () => ControlInput,
     private readonly onUpdate: (snapshot: GameSnapshot) => void,
     private readonly onCrash: () => void,
-    private readonly onHorn: () => void,
     private readonly onPerformanceUpdate: (snapshot: PerformanceSnapshot) => void,
   ) {
-    // Aerial-perspective fog must be installed before any material compiles.
+    // Aerial-perspective fog and the key-light glint control must be installed
+    // before any material compiles.
     installAtmosphericFog();
-    this.scene.background = ATMOSPHERE.fogColor.clone();
-    this.scene.fog = new THREE.FogExp2(ATMOSPHERE.fogColor.getHex(), ATMOSPHERE.fogDensity);
+    installKeyLightGlintControl();
+    this.fog = new THREE.FogExp2(0xffffff);
+    this.scene.fog = this.fog;
+    this.scene.background = new THREE.Color();
 
     const deviceMemory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
     this.adaptiveQuality = new AdaptiveQuality(
@@ -138,8 +199,6 @@ export class DrivingGame {
     // car paint, glass and chrome reflect the same clouds the player sees.
     this.sky = new SkySystem();
     this.scene.add(this.sky.mesh);
-    this.scene.environment = this.sky.createEnvironment(this.renderer);
-    this.scene.environmentIntensity = 0.75;
     this.mountainRange = new MountainRange();
     this.scene.add(this.mountainRange.mesh);
     this.forest = new ForestSystem(this.scene);
@@ -184,12 +243,12 @@ export class DrivingGame {
     applyGroundVariation(groundMaterial);
     this.sceneryAssets = new SceneryAssets();
 
-    this.roadGeometry = createRoadStrip(GAME.roadWidth, 220, 0, 1, GAME.roadWidth);
+    this.roadGeometry = createRoadStrip(GAME.roadWidth, 320, 0, 1, GAME.roadWidth);
     this.roadMesh = new THREE.Mesh(this.roadGeometry, roadMaterial);
     this.roadMesh.receiveShadow = true;
     this.scene.add(this.roadMesh);
 
-    this.shoulderGeometry = createRoadStrip(GAME.roadWidth + 5.5, 220);
+    this.shoulderGeometry = createRoadStrip(GAME.roadWidth + 5.5, 320);
     this.shoulderMesh = new THREE.Mesh(this.shoulderGeometry, shoulderMaterial);
     this.shoulderMesh.position.y = -0.055;
     this.shoulderMesh.receiveShadow = true;
@@ -206,7 +265,10 @@ export class DrivingGame {
     this.roadsideScenery = new RoadsideScenerySystem(this.scene);
 
     this.lighting = addSceneLighting(this.scene, this.adaptiveQuality.settings.shadowMapSize);
+    this.vehicleLights = new VehicleLightSystem(this.scene);
+    this.rain = new RainSystem(this.scene);
     this.setupTraffic();
+    this.setConditions(DEFAULT_CONDITIONS);
     const natureReady = this.sceneryAssets.loadNature().then(() => {
       const pine = this.sceneryAssets.getPineTreePrototype();
       if (!pine) return;
@@ -253,7 +315,13 @@ export class DrivingGame {
     this.vehicleHeading = roadHeading(0);
     this.overtakes = 0;
     this.assistMessage = 'READY';
-    this.hornCooldown = 0;
+    this.reverseHoldSeconds = 0;
+    this.facing = 1;
+    this.viewAlong = 1;
+    this.odometer = 0;
+    this.cruiseOn = false;
+    this.cruiseStatus = 'off';
+    this.notice.seconds = 0;
     this.phase = 'ready';
     this.vehicleAssets.setBrakeLights(this.player, false);
     let ongoingCursor = 45;
@@ -296,6 +364,57 @@ export class DrivingGame {
     if (mode !== 'auto') this.pendingRenderQuality = settings;
   }
 
+  /** Switches the time of day and weather; repaints immediately, even on menus. */
+  setConditions(conditions: DrivingConditions): void {
+    const current = this.look?.conditions;
+    if (current?.timeOfDay === conditions.timeOfDay && current.weather === conditions.weather) {
+      return;
+    }
+    const look = createEnvironmentLook(conditions);
+    this.look = look;
+    setAtmosphericScattering(look.lightDirection, look.scatterColor);
+    setKeyLightGlint(look.keyLightGlint);
+    this.fog.color.copy(look.fogColor);
+    this.fog.density = look.fogDensity;
+    (this.scene.background as THREE.Color).copy(look.fogColor);
+    this.sky.setLook(look);
+    this.scene.environment = this.sky.createEnvironment(this.renderer);
+    this.scene.environmentIntensity = look.environmentIntensity;
+    this.renderer.toneMappingExposure = look.exposure;
+    applySceneLighting(this.lighting, look);
+    this.vehicleLights.setLook(look);
+    this.vehicleAssets.setRunningLights(look.vehicleLights);
+    for (const car of [this.player, ...this.traffic.map((traffic) => traffic.mesh)]) {
+      this.vehicleAssets.setBrakeLights(car, this.vehicleAssets.isBraking(car));
+    }
+    this.rain.setRain(look.rain, look.rainColor);
+    this.applyWetness(look.wetness);
+    this.lastIdleRender = 0;
+  }
+
+  /**
+   * Turns adaptive cruise on (it drives toward the set speed, even from a
+   * standstill) or off. Only while driving forward.
+   */
+  toggleCruise(): void {
+    if (this.phase !== 'playing') return;
+    if (this.cruiseOn) {
+      this.cruiseOn = false;
+      this.cruiseStatus = 'off';
+      this.showNotice('CRUISE OFF');
+    } else if (this.speed < -0.3) {
+      this.showNotice('STOP BEFORE CRUISE');
+    } else {
+      this.cruiseOn = true;
+      this.cruiseStatus = 'cruising';
+    }
+  }
+
+  /** Raises (+1) or lowers (−1) the cruise set speed in 5 km/h steps, on or off. */
+  adjustCruise(direction: 1 | -1): void {
+    this.cruiseSetKph = adjustCruise(this.cruiseSetKph, direction);
+  }
+
   whenReady(): Promise<void> {
     return this.sceneAssetsReady;
   }
@@ -315,6 +434,8 @@ export class DrivingGame {
     window.removeEventListener('resize', this.resize);
     this.roadsideFences.dispose();
     this.roadsideScenery.dispose();
+    this.vehicleLights.dispose();
+    this.rain.dispose();
     this.laneMarkings.dispose();
     this.forest.dispose();
     this.mountainRange.dispose();
@@ -340,7 +461,6 @@ export class DrivingGame {
         speedChangeTimer: 0,
         direction,
         counted: false,
-        horned: false,
       };
       if (direction === 1) {
         ongoingSpawnCursor += 34 + Math.random() * 48;
@@ -390,20 +510,32 @@ export class DrivingGame {
     this.carModelsApplied = true;
   }
 
+  /**
+   * Places a car `ahead` units in front of the player along the way the player
+   * faces (or behind the furthest car going the same way). Slightly more cars
+   * travel with the player, and they drive a little slower so they can be overtaken.
+   */
   private spawnTraffic(car: TrafficCar, ahead?: number, randomizeDirection = false): void {
-    if (randomizeDirection) car.direction = Math.random() < 0.56 ? 1 : -1;
+    const facing = this.facing;
+    if (randomizeDirection) car.direction = Math.random() < 0.56 ? facing : (-facing as 1 | -1);
     const furthest = this.traffic
       .filter((other) => other !== car && other.direction === car.direction)
-      .reduce((max, other) => Math.max(max, other.distance), this.distance + 120);
-    car.distance = ahead ?? furthest + 48 + Math.random() * 95;
-    // Two lanes each way: 0-1 carry same-direction traffic, 2-3 oncoming.
+      .reduce(
+        (max, other) => Math.max(max, (other.distance - this.distance) * facing),
+        TRAFFIC_SPAWN_AHEAD,
+      );
+    car.distance = this.distance + facing * (ahead ?? furthest + 48 + Math.random() * 95);
+    // Traffic keeps left: lanes 0-1 run toward increasing distance, 2-3 the other way.
     car.lane = (car.direction === 1 ? 0 : 2) + (Math.random() < 0.5 ? 0 : 1);
     car.laneOffset = (Math.random() * 2 - 1) * GAME.trafficLaneJitter;
-    car.speed = car.direction === 1 ? 20 + Math.random() * 16 : 24 + Math.random() * 12;
+    // Highway speeds: 80–120 km/h with the player, 90–130 km/h oncoming.
+    car.speed =
+      car.direction === facing
+        ? fromKph(80 + Math.random() * 40)
+        : fromKph(90 + Math.random() * 40);
     car.targetSpeed = car.speed;
     car.speedChangeTimer = 2.5 + Math.random() * 6;
     car.counted = false;
-    car.horned = false;
     this.vehicleAssets.setBrakeLights(car.mesh, false);
   }
 
@@ -412,36 +544,35 @@ export class DrivingGame {
     const { length: collisionLength, width: collisionWidth } = this.vehicleAssets.collisionSize(
       this.driverCar,
     );
-    this.hornCooldown = Math.max(0, this.hornCooldown - dt);
 
-    // Horn state is an audiovisual side effect; speed planning stays pure and testable.
-    for (const car of this.traffic) {
-      const gap = car.distance - this.distance;
-      const laneGap = Math.abs(laneOffsets[car.lane] + car.laneOffset - this.lateral);
-      if (!car.horned && gap > collisionLength && gap < 32 && laneGap < collisionWidth + 0.8) {
-        car.horned = true;
-        if (this.hornCooldown === 0) {
-          this.hornCooldown = 3.5;
-          this.onHorn();
-        }
-      }
-    }
-
-    const speedPlan = createSpeedPlan(control, this.speed);
+    this.reverseHoldSeconds = updateReverseHold(this.reverseHoldSeconds, control, this.speed, dt);
+    if (this.cruiseOn && !cruiseStaysEngaged(control)) this.cruiseOn = false;
+    const lead = this.cruiseOn
+      ? findLeadVehicle(this.distance, this.lateral, this.facing, collisionLength, this.traffic)
+      : null;
+    const speedPlan = createSpeedPlan(control, this.speed, {
+      reverseHoldSeconds: this.reverseHoldSeconds,
+      cruiseKph: this.cruiseOn ? this.cruiseSetKph : null,
+      lead,
+    });
+    // A keyboard driver overtaking on the accelerator keeps cruise armed.
+    this.cruiseStatus = this.cruiseOn ? (speedPlan.cruiseStatus ?? 'cruising') : 'off';
     const { targetSpeed, acceleration, autoBraking } = speedPlan;
     this.assistMessage = speedPlan.assistMessage;
+    if (this.notice.seconds > 0) {
+      this.notice.seconds -= dt;
+      this.assistMessage = this.notice.message;
+    }
     const previousSpeed = this.speed;
-    this.vehicleAssets.setBrakeLights(this.player, autoBraking || control.braking === true);
-    this.speed = Math.max(
-      0,
-      damp(
-        this.speed,
-        targetSpeed,
-        acceleration / Math.max(8, Math.abs(targetSpeed - this.speed)),
-        dt,
-      ),
+    this.vehicleAssets.setBrakeLights(this.player, autoBraking || speedPlan.braking);
+    // Speed is signed: negative while reversing.
+    this.speed = damp(
+      this.speed,
+      targetSpeed,
+      acceleration / Math.max(8, Math.abs(targetSpeed - this.speed)),
+      dt,
     );
-    if (targetSpeed === 0 && this.speed < 0.3) this.speed = 0;
+    if (targetSpeed === 0 && Math.abs(this.speed) < 0.3) this.speed = 0;
     this.longitudinalAcceleration = damp(
       this.longitudinalAcceleration,
       (this.speed - previousSpeed) / Math.max(dt, 1e-3),
@@ -450,10 +581,12 @@ export class DrivingGame {
     );
 
     this.steeringVisual = damp(this.steeringVisual, control.steering, 10, dt);
-    const steeringAuthority = 0.28 + 0.72 * clamp(this.speed / 18, 0, 1);
-    this.vehicleHeading -= this.steeringVisual * 0.82 * steeringAuthority * dt;
+    const reversing = this.speed < 0;
+    this.vehicleHeading -= steeringYawRate(this.steeringVisual, this.speed) * dt;
+    // Plain planar motion: the car can turn around and drive back down the road.
     this.worldX += -Math.sin(this.vehicleHeading) * this.speed * dt;
-    this.distance += Math.max(0.12, Math.cos(this.vehicleHeading)) * this.speed * dt;
+    this.distance += Math.cos(this.vehicleHeading) * this.speed * dt;
+    if (this.speed > 0) this.odometer += this.speed * dt;
 
     const currentRoadHeading = roadHeading(this.distance);
     const currentRoadCenter = roadCenter(this.distance);
@@ -473,31 +606,41 @@ export class DrivingGame {
         Math.sin(this.vehicleHeading - currentRoadHeading),
         Math.cos(this.vehicleHeading - currentRoadHeading),
       );
-      const pointsOutward =
-        (this.lateral > 0 && relativeHeading < 0) || (this.lateral < 0 && relativeHeading > 0);
-      if (pointsOutward) {
-        const softenedHeading = damp(relativeHeading, 0, 2.5 + edgeProximity * 5.5, dt);
+      // Sideways drift across the road; positive moves toward positive lateral.
+      const drift = -Math.sin(relativeHeading) * this.speed;
+      if (drift * this.lateral > 0) {
+        // Straighten toward whichever way along the road the nose is nearer,
+        // so a U-turn that reaches the verge completes instead of unwinding.
+        const along =
+          Math.abs(relativeHeading) > Math.PI / 2 ? Math.sign(relativeHeading) * Math.PI : 0;
+        const softenedHeading = damp(relativeHeading, along, 2.5 + edgeProximity * 5.5, dt);
         this.vehicleHeading = currentRoadHeading + softenedHeading;
-        this.speed = Math.max(0, this.speed - (2 + edgeProximity * 5) * dt);
+        const scrub = (2 + edgeProximity * 5) * dt;
+        this.speed = reversing ? Math.min(0, this.speed + scrub) : Math.max(0, this.speed - scrub);
       }
       this.assistMessage = 'ROAD EDGE';
       if (edgeProximity > 0.55) this.vehicleAssets.setBrakeLights(this.player, true);
     }
 
+    this.updateFacing(currentRoadHeading);
+    const facing = this.facing;
     for (const car of this.traffic) {
       car.speedChangeTimer -= dt;
       if (car.speedChangeTimer <= 0) {
-        car.targetSpeed = car.direction === 1 ? 19 + Math.random() * 18 : 23 + Math.random() * 14;
+        car.targetSpeed =
+          car.direction === facing
+            ? fromKph(75 + Math.random() * 50)
+            : fromKph(85 + Math.random() * 45);
         car.speedChangeTimer = 2.5 + Math.random() * 7;
       }
       let trafficTargetSpeed = car.targetSpeed;
       for (const other of this.traffic) {
         if (other === car || other.direction !== car.direction || other.lane !== car.lane) continue;
         const forwardGap = (other.distance - car.distance) * car.direction;
-        if (forwardGap > 0 && forwardGap < 22) {
+        if (forwardGap > 0 && forwardGap < 60) {
           trafficTargetSpeed = Math.min(
             trafficTargetSpeed,
-            other.speed * clamp((forwardGap - 5) / 12, 0, 1),
+            other.speed * clamp((forwardGap - 14) / 32, 0, 1),
           );
         }
       }
@@ -505,8 +648,10 @@ export class DrivingGame {
       car.speed = damp(car.speed, trafficTargetSpeed, 1.25, dt);
       car.distance += car.speed * car.direction * dt;
       const gap = car.distance - this.distance;
+      // How far ahead the car is along the way the player faces.
+      const aheadGap = gap * facing;
       const laneGap = Math.abs(laneOffsets[car.lane] + car.laneOffset - this.lateral);
-      if (car.direction === 1 && !car.counted && gap < -collisionLength) {
+      if (car.direction === facing && !car.counted && aheadGap < -collisionLength) {
         car.counted = true;
         this.overtakes += 1;
       }
@@ -518,32 +663,62 @@ export class DrivingGame {
         this.onCrash();
         break;
       }
-      if (gap < (car.direction === -1 ? -45 : -70)) this.spawnTraffic(car, undefined, true);
+      if (aheadGap < (car.direction === facing ? -70 : -45)) {
+        this.spawnTraffic(car, undefined, true);
+      }
     }
   }
 
-  private updateWorld(dt: number): void {
+  /**
+   * Flips which way traffic treats as ahead once the car has clearly turned
+   * around. Cars already behind in the new direction cannot count as overtakes.
+   */
+  private updateFacing(currentRoadHeading: number): void {
+    const along = Math.cos(this.vehicleHeading - currentRoadHeading);
+    const flipped =
+      (this.facing === 1 && along < -FACING_HYSTERESIS) ||
+      (this.facing === -1 && along > FACING_HYSTERESIS);
+    if (!flipped) return;
+    this.facing = this.facing === 1 ? -1 : 1;
+    for (const car of this.traffic) {
+      car.counted = (car.distance - this.distance) * this.facing < 0;
+    }
+  }
+
+  private updateWorld(dt: number, rainSeconds: number): void {
+    // Scenery follows the way the camera looks, so a U-turn finds road ahead.
+    this.camera.getWorldDirection(this.viewDirection);
+    const viewHeading = roadHeading(this.distance);
+    const viewLength = Math.hypot(this.viewDirection.x, this.viewDirection.z);
+    if (viewLength > 1e-3) {
+      this.viewAlong =
+        (-Math.sin(viewHeading) * this.viewDirection.x -
+          Math.cos(viewHeading) * this.viewDirection.z) /
+        viewLength;
+    }
+    const viewAlong = this.viewAlong;
     this.roadUpdateElapsed += dt;
     const roadJumped =
       !Number.isFinite(this.lastRoadUpdateDistance) ||
       Math.abs(this.distance - this.lastRoadUpdateDistance) > 5;
     if (roadJumped || this.roadUpdateElapsed >= ROAD_UPDATE_INTERVAL) {
-      const start = Math.max(-40, this.distance - GAME.lookBehind);
       const length = GAME.lookAhead + GAME.lookBehind + 150;
+      const start = roadWindowStart(this.distance, viewAlong, length, GAME.lookBehind);
       updateRoadStrip(this.shoulderGeometry, start, length);
       updateRoadStrip(this.roadGeometry, start, length);
       this.laneMarkings.update(start, length);
       this.lastRoadUpdateDistance = this.distance;
       this.roadUpdateElapsed = 0;
     }
-    this.roadsideFences.update(this.distance);
+    this.roadsideFences.update(this.distance, viewAlong);
 
     const centerX = roadCenter(this.distance);
     this.player.position.set(this.worldX, 0.02, -this.distance);
     this.player.rotation.y = this.vehicleHeading;
     // Body roll leans away from the turn and pitch follows braking/acceleration;
     // both act on the sprung body only so the tyres stay on the road.
-    const lateralLoad = this.steeringVisual * clamp(this.speed / 30, 0, 1);
+    const lateralLoad =
+      this.steeringVisual * clamp(Math.abs(this.speed) / 30, 0, 1) * Math.sign(this.speed);
     this.vehicleAssets.updateSuspension(
       this.player,
       lateralLoad * 0.04,
@@ -554,7 +729,8 @@ export class DrivingGame {
 
     for (const car of this.traffic) {
       const gap = car.distance - this.distance;
-      const visible = gap > -90 && gap < GAME.lookAhead + 80;
+      const aheadGap = gap * this.facing;
+      const visible = aheadGap > -90 && aheadGap < GAME.lookAhead + 80;
       car.mesh.visible = visible;
       if (!visible) continue;
       const carHeading = roadHeading(car.distance);
@@ -573,9 +749,9 @@ export class DrivingGame {
       }
     }
 
-    this.roadsideScenery.update(this.distance);
+    this.roadsideScenery.update(this.distance, viewAlong);
 
-    this.ground.position.set(centerX, -0.09, -this.distance - 180);
+    this.ground.position.set(centerX, -0.09, -this.distance - 180 * viewAlong);
     const groundMaterial = this.ground.material as THREE.MeshStandardMaterial;
     // PlaneGeometry's V axis points toward negative world Z after the ground is
     // rotated flat. Offset from the plane's world position so recentering the
@@ -589,11 +765,27 @@ export class DrivingGame {
     this.forward.set(-Math.sin(this.vehicleHeading), 0, -Math.cos(this.vehicleHeading));
     this.shadowCenter.copy(this.player.position).addScaledVector(this.forward, 32);
     updateSceneShadow(this.lighting, this.shadowCenter);
-    this.desiredCamera.copy(this.player.position).addScaledVector(this.forward, -8.5);
+    // Carry the camera with the car so it never trails further behind at
+    // speed; the lerp below only smooths turns and the speed pull-back.
+    if (this.hasLastPlayerPosition) {
+      const moved = this.player.position.distanceTo(this.lastPlayerPosition);
+      if (moved < 40) {
+        this.camera.position.add(this.lastPlayerPosition.sub(this.player.position).negate());
+      }
+    }
+    this.lastPlayerPosition.copy(this.player.position);
+    this.hasLastPlayerPosition = true;
+    const speedFraction = clamp(Math.abs(this.speed) / GAME.maxSpeed, 0, 1);
+    this.desiredCamera
+      .copy(this.player.position)
+      .addScaledVector(this.forward, -(CAMERA_DISTANCE + CAMERA_SPEED_PULLBACK * speedFraction));
     this.desiredCamera.y += 4.3;
     this.camera.position.lerp(this.desiredCamera, 1 - Math.exp(-5 * dt));
     this.cameraTarget.copy(this.player.position).addScaledVector(this.forward, 12);
-    this.cameraTarget.y += 1;
+    // A faint high-frequency judder from the road surface grows with speed.
+    const time = performance.now() * 0.001;
+    const judder = Math.sin(time * 37) * 0.6 + Math.sin(time * 23.7 + 1.3) * 0.4;
+    this.cameraTarget.y += 1 + judder * CAMERA_SHAKE * speedFraction * speedFraction;
     this.camera.lookAt(this.cameraTarget);
     // Widen the lens with speed for a stronger sense of velocity.
     const fov = BASE_FOV + SPEED_FOV_BOOST * clamp(this.speed / GAME.maxSpeed, 0, 1) ** 1.5;
@@ -604,7 +796,44 @@ export class DrivingGame {
 
     this.sky.update(this.camera, performance.now() * 0.001);
     this.mountainRange.update(this.camera.position);
-    this.forest.update(this.distance);
+    this.forest.update(this.distance, viewAlong);
+    this.rain.update(this.camera, rainSeconds, this.vehicleLights.headlight);
+    this.updateVehicleLights();
+  }
+
+  private showNotice(message: string): void {
+    this.notice.message = message;
+    this.notice.seconds = 1.6;
+  }
+
+  private updateVehicleLights(): void {
+    const bufferHeight = this.renderer.getDrawingBufferSize(this.drawingBufferSize).y;
+    if (!this.vehicleLights.beginFrame(this.camera, bufferHeight)) return;
+    const playerRig = this.vehicleAssets.lightRig(this.player);
+    if (playerRig) this.vehicleLights.placeHeadlight(this.player, playerRig);
+    for (const car of this.traffic) {
+      if (!car.mesh.visible) continue;
+      const rig = this.vehicleAssets.lightRig(car.mesh);
+      if (!rig) continue;
+      this.vehicleLights.addVehicle(car.mesh, rig, this.vehicleAssets.isBraking(car.mesh));
+    }
+    this.vehicleLights.endFrame();
+  }
+
+  private applyWetness(wetness: number): void {
+    const surfaces = [
+      [this.roadMesh, SURFACE_WETNESS.road],
+      [this.shoulderMesh, SURFACE_WETNESS.shoulder],
+      [this.ground, SURFACE_WETNESS.ground],
+    ] as const;
+    for (const [mesh, response] of surfaces) {
+      const material = mesh.material as THREE.MeshStandardMaterial;
+      const mix = (range: readonly [number, number]): number =>
+        THREE.MathUtils.lerp(range[0], range[1], wetness);
+      material.roughness = mix(response.roughness);
+      material.color.setScalar(mix(response.brightness));
+      material.envMapIntensity = mix(response.reflection);
+    }
   }
 
   private animate = (): void => {
@@ -615,7 +844,8 @@ export class DrivingGame {
     const playing = this.phase === 'playing';
     if (!playing && now - this.lastIdleRender < IDLE_RENDER_INTERVAL_MS) return;
     if (playing) this.updateSimulation(dt);
-    this.updateWorld(dt);
+    // Rain keeps real time on menus, where the world only repaints a few times a second.
+    this.updateWorld(dt, Math.min(frameSeconds, 0.25));
     let qualitySettings = this.pendingRenderQuality;
     this.pendingRenderQuality = undefined;
     if (playing && this.graphicsQualityMode === 'auto') {
@@ -651,10 +881,11 @@ export class DrivingGame {
     if (now - this.lastSnapshot > 80) {
       this.lastSnapshot = now;
       this.onUpdate({
-        speedKph: this.speed * 3.6,
-        distance: this.distance,
+        speedKph: toKph(Math.abs(this.speed)),
+        distance: toMeters(this.odometer),
         overtakes: this.overtakes,
-        score: Math.floor(this.distance + this.overtakes * 250),
+        score: Math.floor(toMeters(this.odometer) + this.overtakes * 250),
+        cruise: { status: this.cruiseStatus, setKph: this.cruiseSetKph },
         phase: this.phase,
         assistMessage: this.assistMessage,
       });

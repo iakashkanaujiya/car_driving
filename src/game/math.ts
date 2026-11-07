@@ -34,6 +34,53 @@ export function steeringFromHands(
   return clamp(delta / steeringRange, -1, 1);
 }
 
+/** Full-lock yaw rate at speed, in radians per second. */
+const MAX_YAW_RATE = 0.82;
+/** Tightest turning circle radius in world units, so the car can never pivot in place. */
+export const MIN_TURN_RADIUS = 13;
+/**
+ * Grip limit on cornering, in world units per second squared (about 1.8 g):
+ * enough for the road's tightest bend at top speed, but no snap turns at speed.
+ */
+export const MAX_LATERAL_ACCELERATION = 36;
+
+/**
+ * Yaw rate (radians per second, positive turns left) for a steering input.
+ * Like a real car it scales with speed: a stopped car only turns its wheels,
+ * slow turns never get tighter than MIN_TURN_RADIUS, grip caps fast turns,
+ * and steering swings the nose the other way in reverse.
+ */
+export function steeringYawRate(steering: number, speed: number): number {
+  const absoluteSpeed = Math.abs(speed);
+  const authority = Math.min(
+    0.28 + 0.72 * clamp(absoluteSpeed / 18, 0, 1),
+    absoluteSpeed / (MAX_YAW_RATE * MIN_TURN_RADIUS),
+    MAX_LATERAL_ACCELERATION / (MAX_YAW_RATE * Math.max(absoluteSpeed, 1e-6)),
+  );
+  return steering * MAX_YAW_RATE * authority * (speed < 0 ? -1 : 1);
+}
+
+/**
+ * Start of the stretch of road a scene system keeps built: `length` long, with
+ * `behind` of it behind the view. `viewAlong` is the cosine between the view
+ * and the road's forward direction, so turning around slides the stretch
+ * smoothly until it sits ahead in the new direction.
+ */
+export function roadWindowStart(
+  playerDistance: number,
+  viewAlong: number,
+  length: number,
+  behind: number,
+): number {
+  return playerDistance + (length / 2 - behind) * clamp(viewAlong, -1, 1) - length / 2;
+}
+
+/** Shifts `distance` by whole rings into `[start, start + ringLength)`; recycled slots keep their layout. */
+export function wrapIntoWindow(distance: number, start: number, ringLength: number): number {
+  if (distance >= start && distance < start + ringLength) return distance;
+  return start + ((((distance - start) % ringLength) + ringLength) % ringLength);
+}
+
 export function constrainToRoad(
   worldX: number,
   centerX: number,

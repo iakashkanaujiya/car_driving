@@ -8,8 +8,9 @@ import {
   atmosphericFogFactor,
   createAtmosphericFogChunks,
   installAtmosphericFog,
+  setAtmosphericScattering,
 } from './atmosphere';
-import { createPineGeometry, forestChunkTrees } from './ForestSystem';
+import { createPineGeometry, forestChunkTrees, ForestSystem } from './ForestSystem';
 import { createDashTexture, DASH_FRACTION, LaneMarkings } from './LaneMarkings';
 import { mountainColor, mountainHeight } from './MountainRange';
 import { RoadsideScenerySystem } from './RoadsideScenerySystem';
@@ -42,14 +43,41 @@ describe('aerial perspective fog', () => {
     expect(far).toBeLessThan(1);
   });
 
-  it('replaces three.js fog chunks with the shared sun direction', () => {
+  it('replaces three.js fog chunks with a shared sun-scatter direction', () => {
     const chunks = createAtmosphericFogChunks();
-    const sun = ATMOSPHERE.sunDirection;
-    expect(chunks.fog_fragment).toContain(sun.x.toFixed(6));
+    expect(chunks.fog_pars_fragment).toContain('uniform vec3 fogScatterDirection');
+    expect(chunks.fog_fragment).toContain('dot( fogRay, fogScatterDirection )');
     expect(chunks.fog_vertex).toContain('vFogViewPosition = mvPosition.xyz');
     installAtmosphericFog();
     installAtmosphericFog();
     expect(THREE.ShaderChunk.fog_fragment).toBe(chunks.fog_fragment);
+  });
+
+  it('shares one scatter uniform across every material, even after cloning', () => {
+    installAtmosphericFog();
+    const standard = THREE.UniformsUtils.clone(THREE.ShaderLib.standard.uniforms);
+    const basic = THREE.UniformsUtils.clone(THREE.ShaderLib.basic.uniforms);
+    expect(standard.fogScatterDirection.value).toBe(basic.fogScatterDirection.value);
+    expect(THREE.ShaderLib.physical.uniforms.fogScatterColor).toBeDefined();
+    expect(THREE.ShaderLib.depth.uniforms.fogScatterDirection).toBeUndefined();
+
+    const moon = new THREE.Vector3(0.46, 0.25, -0.85).normalize();
+    setAtmosphericScattering(moon, new THREE.Color(0.2, 0.3, 0.4));
+    expect(Array.from(standard.fogScatterDirection.value as Float32Array)).toEqual(
+      Array.from(new Float32Array(moon.toArray())),
+    );
+    setAtmosphericScattering(ATMOSPHERE.sunDirection, ATMOSPHERE.sunScatterColor);
+    expect((basic.fogScatterColor.value as Float32Array)[0]).toBeCloseTo(
+      ATMOSPHERE.sunScatterColor.r,
+      6,
+    );
+  });
+
+  it('closes in when the density rises for fog', () => {
+    const clear = atmosphericFogFactor(200, 0, 4);
+    const foggy = atmosphericFogFactor(200, 0, 4, ATMOSPHERE.fogDensity * 8.5);
+    expect(foggy).toBeGreaterThan(0.75);
+    expect(clear).toBeLessThan(0.25);
   });
 });
 
@@ -78,6 +106,39 @@ describe('mountain range', () => {
     expect(snow.r).toBeGreaterThan(0.5);
     expect(forest.g).toBeGreaterThan(forest.r);
     expect(forest.r).toBeLessThan(0.1);
+  });
+});
+
+describe('forest recycling', () => {
+  it('keeps chunks around the view and regenerates identical trees on the way back', () => {
+    const scene = new THREE.Scene();
+    const forest = new ForestSystem(scene);
+    const far = scene.getObjectByName('forest-far') as THREE.InstancedMesh;
+    const snapshot = () => Array.from(far.instanceMatrix.array);
+    const start = snapshot();
+
+    forest.update(2000, -1);
+    const matrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+    const distances = Array.from({ length: far.count }, (_, index) => {
+      far.getMatrixAt(index, matrix);
+      return -position.setFromMatrixPosition(matrix).z;
+    });
+    expect(Math.max(...distances)).toBeLessThan(2000 + 70 + 40 + 100);
+    // Fourteen 40-unit chunks, 70 units of them behind the view. The far band
+    // stands up to 300 units off the curving road, skewing trees by up to ~100.
+    expect(Math.min(...distances)).toBeGreaterThan(2000 - 560 + 70 - 100);
+    expect(Math.min(...distances)).toBeLessThan(2000 - 400);
+
+    // Back at the start facing forward, every chunk is rebuilt from its index.
+    forest.update(0, 1);
+    const restored = snapshot();
+    const sortedRows = (values: number[]) =>
+      Array.from({ length: values.length / 16 }, (_, row) =>
+        values.slice(row * 16, row * 16 + 16).join(','),
+      ).sort();
+    expect(sortedRows(restored)).toEqual(sortedRows(start));
+    forest.dispose();
   });
 });
 
@@ -143,6 +204,29 @@ describe('roadside scenery', () => {
     expect(meshes.every((mesh) => mesh.castShadow)).toBe(true);
     scenery.dispose();
     expect(scene.children).toHaveLength(0);
+  });
+
+  it('rebuilds the same roadside ahead after a U-turn', () => {
+    const scene = new THREE.Scene();
+    const scenery = new RoadsideScenerySystem(scene);
+    const prototype = new THREE.Group();
+    prototype.add(new THREE.Mesh(new THREE.ConeGeometry(1, 3)));
+    scenery.setTreeModel(prototype);
+    const pine = scene.getObjectByName('roadside-pine') as THREE.InstancedMesh;
+    scenery.update(1000);
+    const forward = instanceDistances(pine).sort((a, b) => a - b);
+    expect(Math.min(...forward)).toBeGreaterThan(1000 - 70 - 30);
+
+    // Facing back down the road, the slots move to lower distances.
+    scenery.update(1000, -1);
+    const backward = instanceDistances(pine);
+    expect(Math.max(...backward)).toBeLessThan(1000 + 70 + 30);
+    expect(Math.min(...backward)).toBeLessThan(600);
+
+    // Turning forward again restores the original layout exactly.
+    scenery.update(1000, 1);
+    expect(instanceDistances(pine).sort((a, b) => a - b)).toEqual(forward);
+    scenery.dispose();
   });
 
   it('recycles slots ahead of the player and restores them on reset', () => {

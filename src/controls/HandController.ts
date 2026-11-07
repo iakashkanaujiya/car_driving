@@ -3,9 +3,17 @@ import {
   HandLandmarker,
   type HandLandmarkerResult,
 } from '@mediapipe/tasks-vision';
+import { HAND_REVERSE } from '../game/config';
 import { damp, steeringFromHands } from '../game/math';
 import type { ControlInput } from '../game/types';
-import { isClosedHand, isOpenPalm, isThumbUp, SustainedGesture } from './handGestures';
+import {
+  GestureTrigger,
+  isClosedHand,
+  isOpenPalm,
+  isThumbUp,
+  isVictorySign,
+  SustainedGesture,
+} from './handGestures';
 import type { HandTrackingResult, HandWorkerInput, HandWorkerOutput } from './handWorkerTypes';
 import {
   defaultWheelPose,
@@ -16,6 +24,9 @@ import {
 import type { WheelPose, WheelState } from './steeringWheelOverlay';
 
 type TrackingStatus = 'idle' | 'loading' | 'ready' | 'calibrating' | 'tracking' | 'lost' | 'error';
+
+/** One-off requests made by holding a gesture, for features beyond driving. */
+export type HandCommand = 'cruise-toggle' | 'cruise-faster' | 'cruise-slower';
 const INFERENCE_INTERVAL_MS = 1000 / 20;
 // The wheel animates every camera frame (capped) for smooth motion between
 // 20 Hz tracking results.
@@ -24,6 +35,11 @@ const CALIBRATION_SAMPLES = 45;
 /** After losing the hands for this long, the ghost wheel drifts back to centre. */
 const WHEEL_RETURN_MS = 1500;
 const BRAKE_GESTURE_HOLD_MS = 180;
+/** A deliberate V sign with both hands toggles adaptive cruise. */
+const CRUISE_TOGGLE_HOLD_MS = 800;
+/** One raised thumb nudges the cruise set speed, repeating while held. */
+const CRUISE_STEP_HOLD_MS = 450;
+const CRUISE_STEP_REPEAT_MS = 550;
 
 export class HandController {
   private landmarker: HandLandmarker | null = null;
@@ -40,6 +56,15 @@ export class HandController {
   private calibrationAngles: number[] = [];
   private input: ControlInput = { steering: 0, confidence: 0, active: false };
   private readonly brakeGesture = new SustainedGesture(BRAKE_GESTURE_HOLD_MS);
+  private readonly cruiseToggleGesture = new GestureTrigger(CRUISE_TOGGLE_HOLD_MS);
+  private readonly cruiseFasterGesture = new GestureTrigger(
+    CRUISE_STEP_HOLD_MS,
+    CRUISE_STEP_REPEAT_MS,
+  );
+  private readonly cruiseSlowerGesture = new GestureTrigger(
+    CRUISE_STEP_HOLD_MS,
+    CRUISE_STEP_REPEAT_MS,
+  );
   private status: TrackingStatus = 'idle';
   private lastSeen = 0;
   private previewVisible = true;
@@ -57,6 +82,7 @@ export class HandController {
     private readonly video: HTMLVideoElement,
     private readonly canvas: HTMLCanvasElement,
     private readonly onStatus: (status: TrackingStatus, progress?: number) => void,
+    private readonly onCommand: (command: HandCommand) => void = () => undefined,
   ) {}
 
   async start(): Promise<void> {
@@ -191,13 +217,13 @@ export class HandController {
   beginCalibration(): void {
     this.calibrationAngles = [];
     this.input = { steering: 0, confidence: 0, active: false };
-    this.resetBrakeGesture();
+    this.resetGestures();
     this.setStatus('calibrating', 0);
   }
 
   getInput(): ControlInput {
     if (performance.now() - this.lastSeen > 420) {
-      this.resetBrakeGesture();
+      this.resetGestures();
       return { steering: 0, confidence: 0, active: false };
     }
     return { ...this.input };
@@ -216,7 +242,7 @@ export class HandController {
 
   stop(): void {
     this.stopped = true;
-    this.resetBrakeGesture();
+    this.resetGestures();
     this.cancelWorkerInitialization?.();
     this.cancelWorkerInitialization = null;
     cancelAnimationFrame(this.raf);
@@ -233,7 +259,7 @@ export class HandController {
     if (this.paused === paused || this.stopped) return;
     this.paused = paused;
     if (paused) {
-      this.resetBrakeGesture();
+      this.resetGestures();
       cancelAnimationFrame(this.raf);
       if (this.videoFrameCallback) {
         this.video.cancelVideoFrameCallback(this.videoFrameCallback);
@@ -356,7 +382,7 @@ export class HandController {
   private consumeResult(result: HandTrackingResult): void {
     this.wheelGrip = false;
     if (result.landmarks.length !== 2) {
-      this.resetBrakeGesture();
+      this.resetGestures();
       this.input.active = false;
       if (this.status === 'tracking') this.setStatus('lost');
       return;
@@ -369,6 +395,7 @@ export class HandController {
         closed: isClosedHand(landmarks),
         openPalm: isOpenPalm(landmarks),
         thumbUp: isThumbUp(landmarks),
+        victory: isVictorySign(landmarks),
         score: result.handednessScores[index] ?? 0.7,
       }))
       .sort((a, b) => a.wrist.x - b.wrist.x);
@@ -379,8 +406,10 @@ export class HandController {
     );
     const fistsClosed = hands.every((hand) => hand.closed);
     const palmsOpen = hands.every((hand) => hand.openPalm);
-    if ((!fistsClosed && !palmsOpen) || separation < 0.14) {
-      this.resetBrakeGesture();
+    // Both hands showing a V keep steering while they toggle adaptive cruise.
+    const victory = hands.every((hand) => hand.victory);
+    if ((!fistsClosed && !palmsOpen && !victory) || separation < 0.14) {
+      this.resetGestures();
       this.input.active = false;
       if (this.status === 'tracking') this.setStatus('lost');
       return;
@@ -395,7 +424,7 @@ export class HandController {
     this.wheelGrip = true;
 
     if (this.status === 'calibrating') {
-      this.resetBrakeGesture();
+      this.resetGestures();
       if (!fistsClosed) {
         this.input.active = false;
         return;
@@ -410,6 +439,7 @@ export class HandController {
       return;
     }
 
+    this.updateCruiseGestures(hands, victory, this.lastSeen);
     const raw = -steeringFromHands(hands[0].wrist, hands[1].wrist, this.neutralAngle);
     // Two explicit gestures keep braking predictable: thumbs-up is a fixed
     // half brake, while showing both open palms requests a complete stop.
@@ -421,12 +451,34 @@ export class HandController {
       active: true,
       braking: braking ? true : undefined,
       brakePressure: braking ? rawBrakePressure : undefined,
+      reverseGear: HAND_REVERSE,
     };
     if (this.status !== 'tracking') this.setStatus('tracking');
   }
 
-  private resetBrakeGesture(): void {
+  private resetGestures(): void {
     this.brakeGesture.reset();
+    this.cruiseToggleGesture.reset();
+    this.cruiseFasterGesture.reset();
+    this.cruiseSlowerGesture.reset();
+  }
+
+  /**
+   * Adaptive cruise without letting go of the wheel: a held V sign toggles it,
+   * and one raised thumb (the other hand still gripping) nudges the set speed.
+   * Landmarks are in camera space, where the player's right hand is on the left.
+   */
+  private updateCruiseGestures(
+    hands: readonly { closed: boolean; thumbUp: boolean }[],
+    victory: boolean,
+    now: number,
+  ): void {
+    const [right, left] = hands;
+    const rightThumbOnly = right.thumbUp && !left.thumbUp && left.closed;
+    const leftThumbOnly = left.thumbUp && !right.thumbUp && right.closed;
+    if (this.cruiseToggleGesture.update(victory, now)) this.onCommand('cruise-toggle');
+    if (this.cruiseFasterGesture.update(rightThumbOnly, now)) this.onCommand('cruise-faster');
+    if (this.cruiseSlowerGesture.update(leftThumbOnly, now)) this.onCommand('cruise-slower');
   }
 
   private circularAverage(values: number[]): number {

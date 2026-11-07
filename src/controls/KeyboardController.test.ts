@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { KEYBOARD_REVERSE } from '../game/config';
 import { KeyboardController } from './KeyboardController';
 
 class FakeKeyboardTarget {
@@ -39,6 +40,8 @@ describe('KeyboardController', () => {
 
     target.dispatch('keydown', 'KeyS');
     expect(keyboard.getInput().braking).toBe(true);
+    // Holding the brake at a standstill is how keyboard drivers reverse.
+    expect(keyboard.getInput().reverseGear).toBe(KEYBOARD_REVERSE);
 
     target.dispatch('keyup', 'KeyW');
     target.dispatch('keyup', 'ArrowLeft');

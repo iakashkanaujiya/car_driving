@@ -1,3 +1,4 @@
+import { KEYBOARD_REVERSE } from '../game/config';
 import type { ControlInput } from '../game/types';
 
 export class KeyboardController {
@@ -21,6 +22,8 @@ export class KeyboardController {
       active: this.left || this.right || this.accelerating || this.braking,
       accelerating: this.accelerating,
       braking: this.braking,
+      reverseGear: KEYBOARD_REVERSE,
+      brakeCancelsCruise: true,
     };
   }
 

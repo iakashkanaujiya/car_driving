@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { GAME } from '../config';
-import { roadCenter, roadHeading } from '../math';
+import { roadCenter, roadHeading, roadWindowStart } from '../math';
 import { mulberry32 } from './noise';
 
 const CHUNK_LENGTH = 40;
-const CHUNK_COUNT = 11;
+const CHUNK_COUNT = 14;
 const FAR_TREES_PER_CHUNK = 54;
 const NEAR_TREES_PER_CHUNK = 12;
 /** The photoreal pine band sits just behind the roadside trees. */
@@ -196,17 +196,27 @@ export class ForestSystem {
     for (const mesh of this.nearLayer?.meshes ?? []) mesh.visible = dense;
   }
 
-  update(playerDistance: number): void {
-    const firstWanted = Math.floor((playerDistance - 70) / CHUNK_LENGTH);
-    let changed = false;
+  update(playerDistance: number, viewAlong = 1): void {
+    const start = roadWindowStart(playerDistance, viewAlong, CHUNK_COUNT * CHUNK_LENGTH, 70);
+    const firstWanted = Math.floor(start / CHUNK_LENGTH);
+    const lastWanted = firstWanted + CHUNK_COUNT - 1;
+    const outside = (chunkIndex: number): boolean =>
+      chunkIndex < firstWanted || chunkIndex > lastWanted;
+    if (!this.chunkIndices.some(outside)) return;
+    // Chunks are generated from their index, so reusing a slot for any missing
+    // chunk keeps the forest identical whichever way the player drives.
+    const missing: number[] = [];
+    for (let chunkIndex = firstWanted; chunkIndex <= lastWanted; chunkIndex += 1) {
+      if (!this.chunkIndices.includes(chunkIndex)) missing.push(chunkIndex);
+    }
     this.chunkIndices.forEach((chunkIndex, slot) => {
-      if (chunkIndex >= firstWanted) return;
-      const newest = Math.max(...this.chunkIndices);
-      this.chunkIndices[slot] = newest + 1;
-      this.writeChunk(slot, newest + 1);
-      changed = true;
+      if (!outside(chunkIndex)) return;
+      const next = missing.pop();
+      if (next === undefined) return;
+      this.chunkIndices[slot] = next;
+      this.writeChunk(slot, next);
     });
-    if (changed) this.markDirty();
+    this.markDirty();
   }
 
   reset(): void {
