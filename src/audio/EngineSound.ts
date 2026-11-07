@@ -1,5 +1,14 @@
 /** Rain sits under the engine and music as a soft background patter. */
 const RAIN_VOLUME = 0.014;
+const HORN_VOLUME = 0.055;
+/** A quick tap still honks for at least this long, in seconds. */
+const HORN_MIN_SECONDS = 0.14;
+
+interface HornVoice {
+  envelope: GainNode;
+  tones: OscillatorNode[];
+  startedAt: number;
+}
 
 /**
  * Owns all procedural game audio. Keeping Web Audio nodes behind this class
@@ -11,6 +20,7 @@ export class EngineSound {
   private gain: GainNode | null = null;
   private musicGain: GainNode | null = null;
   private rainGain: GainNode | null = null;
+  private horn: HornVoice | null = null;
   private musicTimer: number | null = null;
   private beat = 0;
   private playing = false;
@@ -54,6 +64,7 @@ export class EngineSound {
   setPlaying(playing: boolean): void {
     this.playing = playing;
     if (playing) void this.context?.resume();
+    else this.setHorn(false);
     this.refreshRain();
   }
 
@@ -62,20 +73,20 @@ export class EngineSound {
     if (!enabled && this.context && this.gain) {
       this.gain.gain.setTargetAtTime(0, this.context.currentTime, 0.04);
     }
+    if (!enabled) this.setHorn(false);
     this.refreshRain();
   }
 
-  hornThreeTimes(): void {
-    if (!this.context || !this.playing || !this.enabled) return;
-    const start = this.context.currentTime + 0.025;
-    for (let index = 0; index < 3; index += 1) {
-      this.playHornPulse(start + index * 0.34);
-    }
+  /** Sounds the horn for as long as the player holds it down. */
+  setHorn(pressed: boolean): void {
+    if (pressed) this.startHorn();
+    else this.releaseHorn();
   }
 
   stop(): void {
     if (this.musicTimer !== null) window.clearInterval(this.musicTimer);
     this.musicTimer = null;
+    this.horn = null;
     void this.context?.close();
     this.context = null;
   }
@@ -132,29 +143,36 @@ export class EngineSound {
     this.beat += 1;
   }
 
-  private playHornPulse(start: number): void {
-    if (!this.context) return;
+  private startHorn(): void {
+    if (!this.context || this.horn || !this.playing || !this.enabled) return;
+    const start = this.context.currentTime;
     const envelope = this.context.createGain();
     const filter = this.context.createBiquadFilter();
-    const lowTone = this.context.createOscillator();
-    const highTone = this.context.createOscillator();
-    lowTone.type = 'sawtooth';
-    highTone.type = 'square';
-    lowTone.frequency.setValueAtTime(370, start);
-    highTone.frequency.setValueAtTime(466, start);
+    // Two detuned tones a major third apart, like a dual-note car horn.
+    const tones = [370, 466].map((frequency, index) => {
+      const tone = this.context!.createOscillator();
+      tone.type = index === 0 ? 'sawtooth' : 'square';
+      tone.frequency.setValueAtTime(frequency, start);
+      tone.connect(filter);
+      tone.start(start);
+      return tone;
+    });
     filter.type = 'lowpass';
     filter.frequency.value = 1350;
     envelope.gain.setValueAtTime(0.0001, start);
-    envelope.gain.exponentialRampToValueAtTime(0.055, start + 0.018);
-    envelope.gain.setValueAtTime(0.055, start + 0.13);
-    envelope.gain.exponentialRampToValueAtTime(0.0001, start + 0.21);
-    lowTone.connect(filter);
-    highTone.connect(filter);
+    envelope.gain.exponentialRampToValueAtTime(HORN_VOLUME, start + 0.018);
     filter.connect(envelope).connect(this.context.destination);
-    lowTone.start(start);
-    highTone.start(start);
-    lowTone.stop(start + 0.23);
-    highTone.stop(start + 0.23);
+    this.horn = { envelope, tones, startedAt: start };
+  }
+
+  private releaseHorn(): void {
+    if (!this.context || !this.horn) return;
+    const { envelope, tones, startedAt } = this.horn;
+    this.horn = null;
+    const release = Math.max(this.context.currentTime, startedAt + HORN_MIN_SECONDS);
+    envelope.gain.setValueAtTime(HORN_VOLUME, release);
+    envelope.gain.exponentialRampToValueAtTime(0.0001, release + 0.08);
+    for (const tone of tones) tone.stop(release + 0.1);
   }
 
   private playNote(

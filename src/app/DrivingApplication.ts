@@ -143,6 +143,14 @@ export class DrivingApplication {
       options,
     );
     window.addEventListener('keydown', (event) => this.onGlobalKeyDown(event), options);
+    window.addEventListener(
+      'keyup',
+      (event) => {
+        if (event.code === 'KeyH') this.audio.setHorn(false);
+      },
+      options,
+    );
+    window.addEventListener('blur', () => this.audio.setHorn(false), options);
     window.addEventListener('beforeunload', () => this.dispose(), { once: true });
   }
 
@@ -187,7 +195,6 @@ export class DrivingApplication {
         this.audio.update(snapshot.speedKph);
       },
       () => this.showCrash(),
-      () => this.audio.hornThreeTimes(),
       (snapshot) => this.performanceHud.update(snapshot),
     );
     game.setPerformanceMonitoring(this.performanceHud.isVisible());
@@ -289,7 +296,7 @@ export class DrivingApplication {
       if (this.game?.getPhase() !== 'playing' && !document.getElementById('begin-run')) {
         this.showDriveReady(
           'CALIBRATION LOCKED.',
-          'Turn your hands like a wheel. Raise both thumbs for half brake, or show both open palms for a full stop.',
+          'Turn your hands like a wheel. Raise both thumbs for half brake, or show both open palms for a full stop; keep them open a second longer to reverse. Press H for the horn.',
         );
       }
     } else if (status === 'lost') {
@@ -319,7 +326,7 @@ export class DrivingApplication {
   private showKeyboardReady(): void {
     this.showDriveReady(
       'KEYBOARD READY.',
-      'Use W or ↑ to accelerate, S or ↓ to brake, and A / D or ← / → to steer. Braking stops the car without reversing.',
+      'Use W or ↑ to accelerate, S or ↓ to brake, and A / D or ← / → to steer. Keep holding S at a stop to reverse. Hold H for the horn.',
     );
   }
 
@@ -435,6 +442,11 @@ export class DrivingApplication {
   }
 
   private onGlobalKeyDown(event: KeyboardEvent): void {
+    if (event.code === 'KeyH') {
+      // The horn is manual, in hand and keyboard modes alike.
+      if (this.game?.getPhase() === 'playing') this.audio.setHorn(true);
+      return;
+    }
     if (event.code === 'Escape' && this.graphicsSettings.isOpen()) {
       event.preventDefault();
       this.closeGraphicsSettings();

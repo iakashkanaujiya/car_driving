@@ -10,7 +10,7 @@ import { installKeyLightGlintControl, setKeyLightGlint } from './rendering/keyLi
 import { PostProcessing } from './rendering/PostProcessing';
 import { applyGroundVariation } from './rendering/groundVariation';
 import { SceneryAssets } from './sceneryAssets';
-import { createSpeedPlan } from './simulation/drivingAssist';
+import { createSpeedPlan, updateReverseHold } from './simulation/drivingAssist';
 import {
   addSceneLighting,
   applySceneLighting,
@@ -45,7 +45,6 @@ interface TrafficCar {
   speedChangeTimer: number;
   direction: 1 | -1;
   counted: boolean;
-  horned: boolean;
 }
 
 const GROUND_SIZE = 1200;
@@ -105,9 +104,10 @@ export class DrivingGame {
   private vehicleHeading = roadHeading(0);
   private steeringVisual = 0;
   private longitudinalAcceleration = 0;
+  /** Seconds the full brake has been held at a standstill; engages reverse. */
+  private reverseHoldSeconds = 0;
   private overtakes = 0;
   private assistMessage = 'READY';
-  private hornCooldown = 0;
   private driverCar: CarModelId = DEFAULT_CAR_MODEL_ID;
   private carModelsPromise?: Promise<LoadedCarModel[]>;
   private carModelsApplied = false;
@@ -126,7 +126,6 @@ export class DrivingGame {
     private readonly getControl: () => ControlInput,
     private readonly onUpdate: (snapshot: GameSnapshot) => void,
     private readonly onCrash: () => void,
-    private readonly onHorn: () => void,
     private readonly onPerformanceUpdate: (snapshot: PerformanceSnapshot) => void,
   ) {
     // Aerial-perspective fog and the key-light glint control must be installed
@@ -278,7 +277,7 @@ export class DrivingGame {
     this.vehicleHeading = roadHeading(0);
     this.overtakes = 0;
     this.assistMessage = 'READY';
-    this.hornCooldown = 0;
+    this.reverseHoldSeconds = 0;
     this.phase = 'ready';
     this.vehicleAssets.setBrakeLights(this.player, false);
     let ongoingCursor = 45;
@@ -395,7 +394,6 @@ export class DrivingGame {
         speedChangeTimer: 0,
         direction,
         counted: false,
-        horned: false,
       };
       if (direction === 1) {
         ongoingSpawnCursor += 34 + Math.random() * 48;
@@ -458,7 +456,6 @@ export class DrivingGame {
     car.targetSpeed = car.speed;
     car.speedChangeTimer = 2.5 + Math.random() * 6;
     car.counted = false;
-    car.horned = false;
     this.vehicleAssets.setBrakeLights(car.mesh, false);
   }
 
@@ -467,36 +464,21 @@ export class DrivingGame {
     const { length: collisionLength, width: collisionWidth } = this.vehicleAssets.collisionSize(
       this.driverCar,
     );
-    this.hornCooldown = Math.max(0, this.hornCooldown - dt);
 
-    // Horn state is an audiovisual side effect; speed planning stays pure and testable.
-    for (const car of this.traffic) {
-      const gap = car.distance - this.distance;
-      const laneGap = Math.abs(laneOffsets[car.lane] + car.laneOffset - this.lateral);
-      if (!car.horned && gap > collisionLength && gap < 32 && laneGap < collisionWidth + 0.8) {
-        car.horned = true;
-        if (this.hornCooldown === 0) {
-          this.hornCooldown = 3.5;
-          this.onHorn();
-        }
-      }
-    }
-
-    const speedPlan = createSpeedPlan(control, this.speed);
+    this.reverseHoldSeconds = updateReverseHold(this.reverseHoldSeconds, control, this.speed, dt);
+    const speedPlan = createSpeedPlan(control, this.speed, this.reverseHoldSeconds);
     const { targetSpeed, acceleration, autoBraking } = speedPlan;
     this.assistMessage = speedPlan.assistMessage;
     const previousSpeed = this.speed;
-    this.vehicleAssets.setBrakeLights(this.player, autoBraking || control.braking === true);
-    this.speed = Math.max(
-      0,
-      damp(
-        this.speed,
-        targetSpeed,
-        acceleration / Math.max(8, Math.abs(targetSpeed - this.speed)),
-        dt,
-      ),
+    this.vehicleAssets.setBrakeLights(this.player, autoBraking || speedPlan.braking);
+    // Speed is signed: negative while reversing.
+    this.speed = damp(
+      this.speed,
+      targetSpeed,
+      acceleration / Math.max(8, Math.abs(targetSpeed - this.speed)),
+      dt,
     );
-    if (targetSpeed === 0 && this.speed < 0.3) this.speed = 0;
+    if (targetSpeed === 0 && Math.abs(this.speed) < 0.3) this.speed = 0;
     this.longitudinalAcceleration = damp(
       this.longitudinalAcceleration,
       (this.speed - previousSpeed) / Math.max(dt, 1e-3),
@@ -505,10 +487,18 @@ export class DrivingGame {
     );
 
     this.steeringVisual = damp(this.steeringVisual, control.steering, 10, dt);
-    const steeringAuthority = 0.28 + 0.72 * clamp(this.speed / 18, 0, 1);
-    this.vehicleHeading -= this.steeringVisual * 0.82 * steeringAuthority * dt;
+    const reversing = this.speed < 0;
+    const steeringAuthority = 0.28 + 0.72 * clamp(Math.abs(this.speed) / 18, 0, 1);
+    // Like a real car, steering swings the nose the other way when backing up.
+    const steeringDirection = reversing ? -1 : 1;
+    this.vehicleHeading -= this.steeringVisual * 0.82 * steeringAuthority * steeringDirection * dt;
     this.worldX += -Math.sin(this.vehicleHeading) * this.speed * dt;
     this.distance += Math.max(0.12, Math.cos(this.vehicleHeading)) * this.speed * dt;
+    // The road begins at the start line; the car cannot back up past it.
+    if (this.distance < 0) {
+      this.distance = 0;
+      this.speed = Math.max(0, this.speed);
+    }
 
     const currentRoadHeading = roadHeading(this.distance);
     const currentRoadCenter = roadCenter(this.distance);
@@ -528,12 +518,16 @@ export class DrivingGame {
         Math.sin(this.vehicleHeading - currentRoadHeading),
         Math.cos(this.vehicleHeading - currentRoadHeading),
       );
-      const pointsOutward =
+      const noseOutward =
         (this.lateral > 0 && relativeHeading < 0) || (this.lateral < 0 && relativeHeading > 0);
-      if (pointsOutward) {
+      const noseInward =
+        (this.lateral > 0 && relativeHeading > 0) || (this.lateral < 0 && relativeHeading < 0);
+      // Backing up, the car drifts outward when its nose points inward.
+      if (reversing ? noseInward : noseOutward) {
         const softenedHeading = damp(relativeHeading, 0, 2.5 + edgeProximity * 5.5, dt);
         this.vehicleHeading = currentRoadHeading + softenedHeading;
-        this.speed = Math.max(0, this.speed - (2 + edgeProximity * 5) * dt);
+        const scrub = (2 + edgeProximity * 5) * dt;
+        this.speed = reversing ? Math.min(0, this.speed + scrub) : Math.max(0, this.speed - scrub);
       }
       this.assistMessage = 'ROAD EDGE';
       if (edgeProximity > 0.55) this.vehicleAssets.setBrakeLights(this.player, true);
@@ -598,7 +592,8 @@ export class DrivingGame {
     this.player.rotation.y = this.vehicleHeading;
     // Body roll leans away from the turn and pitch follows braking/acceleration;
     // both act on the sprung body only so the tyres stay on the road.
-    const lateralLoad = this.steeringVisual * clamp(this.speed / 30, 0, 1);
+    const lateralLoad =
+      this.steeringVisual * clamp(Math.abs(this.speed) / 30, 0, 1) * Math.sign(this.speed);
     this.vehicleAssets.updateSuspension(
       this.player,
       lateralLoad * 0.04,
@@ -739,7 +734,7 @@ export class DrivingGame {
     if (now - this.lastSnapshot > 80) {
       this.lastSnapshot = now;
       this.onUpdate({
-        speedKph: this.speed * 3.6,
+        speedKph: Math.abs(this.speed) * 3.6,
         distance: this.distance,
         overtakes: this.overtakes,
         score: Math.floor(this.distance + this.overtakes * 250),

@@ -57,8 +57,9 @@ On the first visit, a setup popup keeps the game locked while it downloads appro
 
 ![Hands-On Highway hand-control guide](public/images/hand-controls.svg)
 
-- **Hand mode:** hold two closed hands apart, keep them level during calibration, and rotate them like a steering wheel. Raise both thumbs for 50% braking or show both open palms for a full stop.
-- **Keyboard mode:** use `W` or up arrow to accelerate, `S` or down arrow to brake, and `A` / `D` or left / right arrows to steer. Braking stops at zero; there is no reverse gear.
+- **Hand mode:** hold two closed hands apart, keep them level during calibration, and rotate them like a steering wheel. Raise both thumbs for 50% braking or show both open palms for a full stop. Keep your palms open for a second after the car stops to back up slowly (about 18 km/h, still steering with your hands); close your fists again to stop and drive forward.
+- **Keyboard mode:** use `W` or up arrow to accelerate, `S` or down arrow to brake, and `A` / `D` or left / right arrows to steer. Keep holding `S` once the car stops to reverse (up to about 32 km/h); pressing `W` while rolling backward brakes first, then drives forward.
+- **Horn:** hold `H` to sound the horn, in hand or keyboard mode. The game never honks on its own.
 - **Pause:** use the Pause button or press `Escape`.
 - **Performance diagnostics:** press `F3` to toggle the performance HUD. Add `?perf=1` to the URL to open it automatically.
 - **Graphics:** open Graphics in the top bar to choose Auto, Low, Medium, or High quality. Low renders directly for speed; Medium and High add HDR bloom, MSAA, colour grading and a denser photoreal forest band. The same panel sets the time of day and weather. All choices are saved locally.

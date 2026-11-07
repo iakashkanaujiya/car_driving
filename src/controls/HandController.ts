@@ -3,6 +3,7 @@ import {
   HandLandmarker,
   type HandLandmarkerResult,
 } from '@mediapipe/tasks-vision';
+import { HAND_REVERSE } from '../game/config';
 import { damp, steeringFromHands } from '../game/math';
 import type { ControlInput } from '../game/types';
 import { isClosedHand, isOpenPalm, isThumbUp, SustainedGesture } from './handGestures';
@@ -421,6 +422,7 @@ export class HandController {
       active: true,
       braking: braking ? true : undefined,
       brakePressure: braking ? rawBrakePressure : undefined,
+      reverseGear: HAND_REVERSE,
     };
     if (this.status !== 'tracking') this.setStatus('tracking');
   }
