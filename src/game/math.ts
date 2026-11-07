@@ -4,8 +4,6 @@ export const lerp = (from: number, to: number, amount: number): number =>
   from + (to - from) * amount;
 export const damp = (from: number, to: number, lambda: number, dt: number): number =>
   lerp(from, to, 1 - Math.exp(-lambda * dt));
-export const inverseLerp = (from: number, to: number, value: number): number =>
-  clamp((value - from) / (to - from), 0, 1);
 
 export function roadCenter(distance: number): number {
   return (
@@ -18,13 +16,6 @@ export function roadCenter(distance: number): number {
 export function roadHeading(distance: number): number {
   const step = 0.5;
   return Math.atan2(-(roadCenter(distance + step) - roadCenter(distance - step)), step * 2);
-}
-
-export function roadCurvature(distance: number): number {
-  const step = 5;
-  const a = roadHeading(distance - step);
-  const b = roadHeading(distance + step);
-  return Math.abs(Math.atan2(Math.sin(b - a), Math.cos(b - a))) / (step * 2);
 }
 
 export function steeringFromHands(
@@ -41,13 +32,6 @@ export function steeringFromHands(
   if (Math.abs(delta) <= deadZone) return 0;
   delta -= Math.sign(delta) * deadZone;
   return clamp(delta / steeringRange, -1, 1);
-}
-
-export function curveSpeedLimit(distance: number, maxSpeed: number, minSpeed: number): number {
-  let peak = 0;
-  for (let ahead = 22; ahead <= 105; ahead += 12)
-    peak = Math.max(peak, roadCurvature(distance + ahead));
-  return lerp(maxSpeed, minSpeed, inverseLerp(0.002, 0.012, peak));
 }
 
 export function constrainToRoad(

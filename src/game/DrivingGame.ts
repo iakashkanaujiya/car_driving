@@ -2,14 +2,14 @@ import * as THREE from 'three';
 import { PerformanceMonitor } from '../diagnostics/PerformanceMonitor';
 import type { PerformanceSnapshot } from '../diagnostics/PerformanceMonitor';
 import { GAME, laneOffsets } from './config';
-import { clamp, constrainToRoad, curveSpeedLimit, damp, roadCenter, roadHeading } from './math';
+import { clamp, constrainToRoad, damp, roadCenter, roadHeading } from './math';
 import { createRoadStrip, updateRoadStrip } from './roadSurface';
 import { AdaptiveQuality, chooseInitialQuality } from './rendering/AdaptiveQuality';
 import type { GraphicsQualityMode, RenderQualitySettings } from './rendering/AdaptiveQuality';
 import { PostProcessing } from './rendering/PostProcessing';
 import { applyGroundVariation } from './rendering/groundVariation';
 import { SceneryAssets } from './sceneryAssets';
-import { createSpeedPlan, scanTraffic } from './simulation/drivingAssist';
+import { createSpeedPlan } from './simulation/drivingAssist';
 import { addSceneLighting, SurfaceTextureStore, updateSceneShadow } from './sceneAssets';
 import type { SceneLighting } from './sceneAssets';
 import type { ControlInput, GamePhase, GameSnapshot } from './types';
@@ -19,6 +19,7 @@ import { DEFAULT_CAR_MODEL_ID, selectCarModelIds } from './vehicleCatalog';
 import type { CarModelId } from './vehicleCatalog';
 import { ATMOSPHERE, installAtmosphericFog } from './world/atmosphere';
 import { ForestSystem } from './world/ForestSystem';
+import { LaneMarkings } from './world/LaneMarkings';
 import { MountainRange } from './world/MountainRange';
 import { RoadsideFenceSystem } from './world/RoadsideFenceSystem';
 import { RoadsideScenerySystem } from './world/RoadsideScenerySystem';
@@ -69,6 +70,7 @@ export class DrivingGame {
   private readonly roadMesh: THREE.Mesh;
   private readonly shoulderGeometry: THREE.BufferGeometry;
   private readonly shoulderMesh: THREE.Mesh;
+  private readonly laneMarkings: LaneMarkings;
   private readonly ground: THREE.Mesh;
   private readonly forward = new THREE.Vector3();
   private readonly shadowCenter = new THREE.Vector3();
@@ -192,6 +194,7 @@ export class DrivingGame {
     this.shoulderMesh.position.y = -0.055;
     this.shoulderMesh.receiveShadow = true;
     this.scene.add(this.shoulderMesh);
+    this.laneMarkings = new LaneMarkings(this.scene);
 
     this.ground = new THREE.Mesh(new THREE.PlaneGeometry(GROUND_SIZE, GROUND_SIZE), groundMaterial);
     this.ground.rotation.x = -Math.PI / 2;
@@ -312,6 +315,7 @@ export class DrivingGame {
     window.removeEventListener('resize', this.resize);
     this.roadsideFences.dispose();
     this.roadsideScenery.dispose();
+    this.laneMarkings.dispose();
     this.forest.dispose();
     this.mountainRange.dispose();
     this.sky.dispose();
@@ -329,7 +333,7 @@ export class DrivingGame {
       const car: TrafficCar = {
         mesh: new THREE.Group(),
         distance: 0,
-        lane: direction === 1 ? 0 : 1,
+        lane: 0,
         laneOffset: 0,
         speed: 0,
         targetSpeed: 0,
@@ -392,8 +396,9 @@ export class DrivingGame {
       .filter((other) => other !== car && other.direction === car.direction)
       .reduce((max, other) => Math.max(max, other.distance), this.distance + 120);
     car.distance = ahead ?? furthest + 48 + Math.random() * 95;
-    car.lane = car.direction === 1 ? 0 : 1;
-    car.laneOffset = (Math.random() * 2 - 1) * 1.35;
+    // Two lanes each way: 0-1 carry same-direction traffic, 2-3 oncoming.
+    car.lane = (car.direction === 1 ? 0 : 2) + (Math.random() < 0.5 ? 0 : 1);
+    car.laneOffset = (Math.random() * 2 - 1) * GAME.trafficLaneJitter;
     car.speed = car.direction === 1 ? 20 + Math.random() * 16 : 24 + Math.random() * 12;
     car.targetSpeed = car.speed;
     car.speedChangeTimer = 2.5 + Math.random() * 6;
@@ -404,7 +409,6 @@ export class DrivingGame {
 
   private updateSimulation(dt: number): void {
     const control = this.getControl();
-    const curveLimit = curveSpeedLimit(this.distance, GAME.maxSpeed, GAME.minCurveSpeed);
     const { length: collisionLength, width: collisionWidth } = this.vehicleAssets.collisionSize(
       this.driverCar,
     );
@@ -423,12 +427,11 @@ export class DrivingGame {
       }
     }
 
-    const threat = scanTraffic(this.traffic, this.distance, this.lateral, curveLimit);
-    const speedPlan = createSpeedPlan(control, this.speed, curveLimit, threat);
-    const { targetSpeed, acceleration, safetyBraking } = speedPlan;
+    const speedPlan = createSpeedPlan(control, this.speed);
+    const { targetSpeed, acceleration, autoBraking } = speedPlan;
     this.assistMessage = speedPlan.assistMessage;
     const previousSpeed = this.speed;
-    this.vehicleAssets.setBrakeLights(this.player, safetyBraking || control.braking === true);
+    this.vehicleAssets.setBrakeLights(this.player, autoBraking || control.braking === true);
     this.speed = Math.max(
       0,
       damp(
@@ -529,6 +532,7 @@ export class DrivingGame {
       const length = GAME.lookAhead + GAME.lookBehind + 150;
       updateRoadStrip(this.shoulderGeometry, start, length);
       updateRoadStrip(this.roadGeometry, start, length);
+      this.laneMarkings.update(start, length);
       this.lastRoadUpdateDistance = this.distance;
       this.roadUpdateElapsed = 0;
     }

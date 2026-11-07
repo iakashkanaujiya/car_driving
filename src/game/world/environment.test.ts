@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { GAME } from '../config';
+import { GAME, laneDividerOffsets } from '../config';
+import { roadCenter, roadHeading } from '../math';
 import { createRockGeometry } from '../sceneryAssets';
 import {
   ATMOSPHERE,
@@ -9,6 +10,7 @@ import {
   installAtmosphericFog,
 } from './atmosphere';
 import { createPineGeometry, forestChunkTrees } from './ForestSystem';
+import { createDashTexture, DASH_FRACTION, LaneMarkings } from './LaneMarkings';
 import { mountainColor, mountainHeight } from './MountainRange';
 import { RoadsideScenerySystem } from './RoadsideScenerySystem';
 import { fbm3, mulberry32, ridged3, valueNoise3 } from './noise';
@@ -163,5 +165,34 @@ describe('roadside scenery', () => {
     scenery.update(0);
     expect(instanceDistances(pine)).toEqual(start);
     scenery.dispose();
+  });
+});
+
+describe('lane markings', () => {
+  it('paints one third of every dash period', () => {
+    const texture = createDashTexture(60);
+    const data = texture.image.data as Uint8Array;
+    const alpha = Array.from({ length: 60 }, (_, row) => data[row * 4 + 1]);
+    expect(alpha.filter((value) => value === 255)).toHaveLength(60 * DASH_FRACTION);
+    expect(alpha[0]).toBe(255);
+    expect(alpha[59]).toBe(0);
+    expect(texture.wrapT).toBe(THREE.RepeatWrapping);
+  });
+
+  it('draws a divider strip between the two lanes on each side', () => {
+    const scene = new THREE.Scene();
+    const markings = new LaneMarkings(scene);
+    markings.update(0, 300);
+    const dividers = scene.children as THREE.Mesh[];
+    expect(dividers).toHaveLength(2);
+    for (const [index, divider] of dividers.entries()) {
+      // At distance 0 the first vertex pair straddles the divider offset.
+      const position = divider.geometry.getAttribute('position');
+      const midX = (position.getX(0) + position.getX(1)) / 2;
+      const heading = roadHeading(0);
+      expect(midX).toBeCloseTo(roadCenter(0) + Math.cos(heading) * laneDividerOffsets[index], 4);
+    }
+    markings.dispose();
+    expect(scene.children).toHaveLength(0);
   });
 });
