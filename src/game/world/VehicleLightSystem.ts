@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { VehicleLightRig } from '../vehicleAssets';
 import type { EnvironmentLook } from './conditions';
+import { createLampGlowMaterial } from './lampGlow';
 
 const MAX_VEHICLES = 20;
 const MAX_GLOWS = MAX_VEHICLES * 4;
@@ -29,35 +30,6 @@ const LAMP_STANDOFF = 0.15;
  * real emissive lenses read on their own and a sprite would only float beside them.
  */
 const TAIL_GLOW_FADE = { start: 14, end: 34 } as const;
-
-const GLOW_VERTEX = /* glsl */ `
-attribute vec3 aColor;
-attribute float aSize;
-uniform float uViewportHeight;
-varying vec3 vColor;
-void main() {
-  vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );
-  gl_Position = projectionMatrix * mvPosition;
-  float pixels = aSize * projectionMatrix[ 1 ][ 1 ] * uViewportHeight * 0.5 / max( -mvPosition.z, 0.5 );
-  gl_PointSize = clamp( pixels, 2.0, 256.0 );
-  // Sub-pixel lamps keep their energy instead of shimmering in and out.
-  vColor = aColor * min( 1.0, pixels / 2.0 );
-}
-`;
-
-const GLOW_FRAGMENT = /* glsl */ `
-varying vec3 vColor;
-void main() {
-  vec2 offset = gl_PointCoord * 2.0 - 1.0;
-  float radius2 = dot( offset, offset );
-  if ( radius2 > 1.0 ) discard;
-  float core = exp( -radius2 * 26.0 );
-  float halo = exp( -radius2 * 4.5 ) * 0.2 * ( 1.0 - radius2 );
-  gl_FragColor = vec4( vColor * ( core + halo ), 1.0 );
-  #include <tonemapping_fragment>
-  #include <colorspace_fragment>
-}
-`;
 
 /** Bright near the car, fading toward the far end and the sides. */
 export function createPoolTexture(width = 32, height = 64): THREE.DataTexture {
@@ -128,15 +100,7 @@ export class VehicleLightSystem {
       new THREE.BufferAttribute(this.glowSizes, 1).setUsage(THREE.DynamicDrawUsage),
     );
     this.glowGeometry.setDrawRange(0, 0);
-    this.glowMaterial = new THREE.ShaderMaterial({
-      name: 'DriftlineLampGlow',
-      uniforms: { uViewportHeight: { value: 1 } },
-      vertexShader: GLOW_VERTEX,
-      fragmentShader: GLOW_FRAGMENT,
-      transparent: true,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-    });
+    this.glowMaterial = createLampGlowMaterial('DriftlineLampGlow');
     this.glows = new THREE.Points(this.glowGeometry, this.glowMaterial);
     this.glows.name = 'vehicle-lamp-glows';
     this.glows.frustumCulled = false;

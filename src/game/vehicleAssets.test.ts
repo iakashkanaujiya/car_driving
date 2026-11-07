@@ -323,6 +323,40 @@ describe('VehicleAssets wheel animation', () => {
     expect(anchor.y).toBeCloseTo(0.8, 6);
   });
 
+  it('keeps every part when a model mixes interleaved and plain vertex buffers', () => {
+    // GLTFLoader yields interleaved attributes for some primitives and plain
+    // ones for others; three.js refuses to merge the two kinds directly.
+    const material = new THREE.MeshStandardMaterial({ name: 'carpaint' });
+    const interleaved = new THREE.BoxGeometry(1, 1, 1).toNonIndexed();
+    const position = interleaved.getAttribute('position') as THREE.BufferAttribute;
+    const normal = interleaved.getAttribute('normal') as THREE.BufferAttribute;
+    const packed = new Float32Array(position.count * 6);
+    for (let index = 0; index < position.count; index += 1) {
+      packed.set([position.getX(index), position.getY(index), position.getZ(index)], index * 6);
+      packed.set([normal.getX(index), normal.getY(index), normal.getZ(index)], index * 6 + 3);
+    }
+    const buffer = new THREE.InterleavedBuffer(packed, 6);
+    const mixed = new THREE.BufferGeometry();
+    mixed.setAttribute('position', new THREE.InterleavedBufferAttribute(buffer, 3, 0));
+    mixed.setAttribute('normal', new THREE.InterleavedBufferAttribute(buffer, 3, 3));
+    const plain = new THREE.BoxGeometry(1, 1, 1).toNonIndexed();
+    plain.deleteAttribute('uv');
+    const source = new THREE.Group();
+    source.add(new THREE.Mesh(mixed, material), new THREE.Mesh(plain, material));
+    source.children[1].position.x = 3;
+
+    const assets = new VehicleAssets();
+    const merge = (
+      assets as unknown as { mergeStaticCarMeshes: (root: THREE.Group) => THREE.Group }
+    ).mergeStaticCarMeshes.bind(assets);
+    source.updateMatrixWorld(true);
+    let vertices = 0;
+    merge(source).traverse((object) => {
+      if (object instanceof THREE.Mesh) vertices += object.geometry.getAttribute('position').count;
+    });
+    expect(vertices).toBe(position.count * 2);
+  });
+
   it('uses the larger collision envelope only for the concept car', () => {
     const assets = new VehicleAssets();
     expect(assets.collisionSize('luxury-concept').length).toBeGreaterThan(

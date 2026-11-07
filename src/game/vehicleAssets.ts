@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import {
+  deinterleaveGeometry,
+  mergeGeometries,
+} from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { GAME } from './config';
 import { buildCarLod, carLodReady, whenCarLodReady } from './rendering/carLod';
 import type { CarLodParts } from './rendering/carLod';
@@ -913,6 +916,9 @@ export class VehicleAssets {
     root.traverse((object) => {
       if (!(object instanceof THREE.Mesh) || Array.isArray(object.material)) return;
       const geometry = object.geometry.clone();
+      // Models mix interleaved and plain vertex buffers, and three.js cannot
+      // merge the two kinds, so convert every part to plain attributes first.
+      deinterleaveGeometry(geometry);
       geometry.applyMatrix4(object.matrixWorld);
       const attributeSignature = Object.keys(geometry.attributes).sort().join(',');
       const key = `${object.material.uuid}|${attributeSignature}|${geometry.index ? 'indexed' : 'plain'}`;
@@ -927,8 +933,14 @@ export class VehicleAssets {
     const mergedRoot = new THREE.Group();
     for (const bucket of buckets.values()) {
       const merged = mergeGeometries(bucket.geometries, false);
+      if (!merged) {
+        // Keep parts that still cannot be combined rather than losing them.
+        for (const geometry of bucket.geometries) {
+          mergedRoot.add(new THREE.Mesh(geometry, bucket.material));
+        }
+        continue;
+      }
       bucket.geometries.forEach((geometry) => geometry.dispose());
-      if (!merged) continue;
       merged.computeBoundingBox();
       merged.computeBoundingSphere();
       mergedRoot.add(new THREE.Mesh(merged, bucket.material));
