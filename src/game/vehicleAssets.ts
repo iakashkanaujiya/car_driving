@@ -195,6 +195,29 @@ function getContactShadowResources(): {
 
 const CAR_BODY_NAME = 'car-body';
 
+/**
+ * Any transmissive material makes three.js re-render every opaque object into
+ * a mipmapped refraction target each frame. The car glass is authored as
+ * alpha-blended tint as well, so blending alone looks nearly identical.
+ */
+function disableTransmission(root: THREE.Object3D): void {
+  root.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    for (const material of materials) {
+      if (!(material instanceof THREE.MeshPhysicalMaterial)) continue;
+      if (material.transmission === 0) continue;
+      material.transmission = 0;
+      if (!material.transparent) {
+        // Glass authored without its own blend keeps a light see-through tint.
+        material.transparent = true;
+        material.opacity = Math.min(material.opacity, 0.35);
+        material.depthWrite = false;
+      }
+    }
+  });
+}
+
 export class VehicleAssets {
   randomColor(): number {
     return CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)];
@@ -393,6 +416,7 @@ export class VehicleAssets {
   ): THREE.Group {
     const content = source.clone(true);
     this.removeDisabledModelParts(content, modelId);
+    disableTransmission(content);
     const orientation = new THREE.Group();
     orientation.rotation.y = rotationY;
     orientation.add(content);

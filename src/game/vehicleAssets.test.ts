@@ -272,6 +272,41 @@ describe('VehicleAssets wheel animation', () => {
     expect(material.emissive.getHex()).toBe(0x400000);
   });
 
+  it('replaces transmissive glass with blended tint so no refraction pass runs', () => {
+    const assets = new VehicleAssets();
+    const source = new THREE.Group();
+    const blendedGlass = new THREE.MeshPhysicalMaterial({
+      transmission: 1,
+      transparent: true,
+      opacity: 0.25,
+    });
+    const opaqueGlass = new THREE.MeshPhysicalMaterial({ transmission: 1 });
+    source.add(new THREE.Mesh(new THREE.BoxGeometry(4, 1, 8), blendedGlass));
+    source.add(new THREE.Mesh(new THREE.BoxGeometry(4, 1, 8), opaqueGlass));
+
+    const prepareCarModel = (
+      assets as unknown as {
+        prepareCarModel: (
+          source: THREE.Group,
+          rotationY: number,
+          optimize: boolean,
+          modelId: 'ford-f150-raptor',
+        ) => THREE.Group;
+      }
+    ).prepareCarModel.bind(assets);
+    const prototype = prepareCarModel(source, Math.PI, true, 'ford-f150-raptor');
+    const materials: THREE.MeshPhysicalMaterial[] = [];
+    prototype.traverse((object) => {
+      if (object instanceof THREE.Mesh) materials.push(object.material);
+    });
+
+    expect(materials).toHaveLength(2);
+    expect(materials.every((material) => material.transmission === 0)).toBe(true);
+    expect(materials.every((material) => material.transparent)).toBe(true);
+    expect(blendedGlass.opacity).toBe(0.25);
+    expect(opaqueGlass.opacity).toBe(0.35);
+  });
+
   it('uses the Ford red-glass material as a working brake light', () => {
     const assets = new VehicleAssets();
     const car = new THREE.Group();

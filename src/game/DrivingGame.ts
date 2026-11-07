@@ -21,6 +21,7 @@ import { ATMOSPHERE, installAtmosphericFog } from './world/atmosphere';
 import { ForestSystem } from './world/ForestSystem';
 import { MountainRange } from './world/MountainRange';
 import { RoadsideFenceSystem } from './world/RoadsideFenceSystem';
+import { RoadsideScenerySystem } from './world/RoadsideScenerySystem';
 import { SkySystem } from './world/SkySystem';
 
 interface TrafficCar {
@@ -54,7 +55,6 @@ export class DrivingGame {
   private readonly vehicleAssets = new VehicleAssets();
   private readonly player = new THREE.Group();
   private readonly traffic: TrafficCar[] = [];
-  private readonly scenery: THREE.Group[] = [];
   private readonly sky: SkySystem;
   private readonly mountainRange: MountainRange;
   private readonly forest: ForestSystem;
@@ -64,6 +64,7 @@ export class DrivingGame {
   private readonly sceneryAssets: SceneryAssets;
   private readonly sceneAssetsReady: Promise<void>;
   private readonly roadsideFences: RoadsideFenceSystem;
+  private readonly roadsideScenery: RoadsideScenerySystem;
   private readonly roadGeometry: THREE.BufferGeometry;
   private readonly roadMesh: THREE.Mesh;
   private readonly shoulderGeometry: THREE.BufferGeometry;
@@ -179,13 +180,7 @@ export class DrivingGame {
       },
     );
     applyGroundVariation(groundMaterial);
-    const rockMaterial = new THREE.MeshStandardMaterial({
-      vertexColors: true,
-      roughness: 0.95,
-      metalness: 0,
-      flatShading: true,
-    });
-    this.sceneryAssets = new SceneryAssets(rockMaterial);
+    this.sceneryAssets = new SceneryAssets();
 
     this.roadGeometry = createRoadStrip(GAME.roadWidth, 220, 0, 1, GAME.roadWidth);
     this.roadMesh = new THREE.Mesh(this.roadGeometry, roadMaterial);
@@ -205,12 +200,15 @@ export class DrivingGame {
     this.scene.add(this.ground);
 
     this.roadsideFences = new RoadsideFenceSystem(this.scene);
+    this.roadsideScenery = new RoadsideScenerySystem(this.scene);
 
     this.lighting = addSceneLighting(this.scene, this.adaptiveQuality.settings.shadowMapSize);
-    this.setupWorld();
-    const natureReady = this.sceneryAssets.loadNature(this.scenery).then(() => {
+    this.setupTraffic();
+    const natureReady = this.sceneryAssets.loadNature().then(() => {
       const pine = this.sceneryAssets.getPineTreePrototype();
-      if (pine) this.forest.setNearModel(pine);
+      if (!pine) return;
+      this.forest.setNearModel(pine);
+      this.roadsideScenery.setTreeModel(pine);
     });
     this.sceneAssetsReady = Promise.all([this.textureStore.whenReady(), natureReady]).then(() => {
       this.sceneAssetsLoaded = true;
@@ -267,10 +265,7 @@ export class DrivingGame {
         this.spawnTraffic(car, incomingCursor);
       }
     });
-    this.scenery.forEach((object, index) => {
-      object.userData.distance = -45 + index * 12.5;
-      object.userData.worldPositioned = false;
-    });
+    this.roadsideScenery.reset();
     this.longitudinalAcceleration = 0;
     this.forest.reset();
   }
@@ -316,6 +311,7 @@ export class DrivingGame {
     cancelAnimationFrame(this.animationFrame);
     window.removeEventListener('resize', this.resize);
     this.roadsideFences.dispose();
+    this.roadsideScenery.dispose();
     this.forest.dispose();
     this.mountainRange.dispose();
     this.sky.dispose();
@@ -325,21 +321,7 @@ export class DrivingGame {
     this.renderer.dispose();
   }
 
-  private setupWorld(): void {
-    for (let index = 0; index < 44; index += 1) {
-      const object =
-        index % 6 === 0 ? this.sceneryAssets.createRock() : this.sceneryAssets.createTree();
-      object.userData.slot = index;
-      object.userData.distance = -45 + index * 12.5;
-      object.userData.side = index % 2 === 0 ? -1 : 1;
-      object.userData.offset = GAME.roadWidth / 2 + 6 + ((index * 7) % 10);
-      object.userData.worldPositioned = false;
-      object.rotation.y = (index * 2.39) % (Math.PI * 2);
-      object.scale.setScalar(0.72 + (index % 5) * 0.11);
-      this.scenery.push(object);
-      this.scene.add(object);
-    }
-
+  private setupTraffic(): void {
     let ongoingSpawnCursor = 45;
     let incomingSpawnCursor = 62;
     for (let index = 0; index < GAME.trafficCount; index += 1) {
@@ -586,25 +568,7 @@ export class DrivingGame {
       }
     }
 
-    for (const object of this.scenery) {
-      let distance = object.userData.distance as number;
-      let needsPosition = object.userData.worldPositioned !== true;
-      if (distance < this.distance - 70) {
-        distance += this.scenery.length * 12.5;
-        object.userData.distance = distance;
-        needsPosition = true;
-      }
-      if (needsPosition) {
-        const headingAtObject = roadHeading(distance);
-        const offset = (object.userData.side as number) * (object.userData.offset as number);
-        object.position.set(
-          roadCenter(distance) + Math.cos(headingAtObject) * offset,
-          0,
-          -distance - Math.sin(headingAtObject) * offset,
-        );
-        object.userData.worldPositioned = true;
-      }
-    }
+    this.roadsideScenery.update(this.distance);
 
     this.ground.position.set(centerX, -0.09, -this.distance - 180);
     const groundMaterial = this.ground.material as THREE.MeshStandardMaterial;
