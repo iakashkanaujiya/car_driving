@@ -25,6 +25,7 @@ export interface ControlInput {
 export interface GameSnapshot {
   /** Speed over the ground, forward or in reverse. */
   speedKph: number;
+  /** Distance driven in forward gear, whichever way along the road. */
   distance: number;
   overtakes: number;
   score: number;

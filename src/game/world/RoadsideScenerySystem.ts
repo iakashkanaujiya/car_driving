@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GAME } from '../config';
-import { roadCenter, roadHeading } from '../math';
+import { roadCenter, roadHeading, roadWindowStart, wrapIntoWindow } from '../math';
 import { createRockGeometry } from '../sceneryAssets';
 
 const SLOT_COUNT = 44;
@@ -108,12 +108,15 @@ export class RoadsideScenerySystem {
     this.markDirty(this.treeMeshes);
   }
 
-  update(playerDistance: number): void {
+  update(playerDistance: number, viewAlong = 1): void {
+    const ringLength = SLOT_COUNT * SLOT_SPACING;
+    const start = roadWindowStart(playerDistance, viewAlong, ringLength, RECYCLE_BEHIND);
     let changed = false;
     this.slots.forEach((slot, index) => {
       let needsPosition = !slot.positioned;
-      if (slot.distance < playerDistance - RECYCLE_BEHIND) {
-        slot.distance += SLOT_COUNT * SLOT_SPACING;
+      const wrapped = wrapIntoWindow(slot.distance, start, ringLength);
+      if (wrapped !== slot.distance) {
+        slot.distance = wrapped;
         needsPosition = true;
       }
       if (!needsPosition) return;

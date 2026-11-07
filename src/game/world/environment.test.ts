@@ -10,7 +10,7 @@ import {
   installAtmosphericFog,
   setAtmosphericScattering,
 } from './atmosphere';
-import { createPineGeometry, forestChunkTrees } from './ForestSystem';
+import { createPineGeometry, forestChunkTrees, ForestSystem } from './ForestSystem';
 import { createDashTexture, DASH_FRACTION, LaneMarkings } from './LaneMarkings';
 import { mountainColor, mountainHeight } from './MountainRange';
 import { RoadsideScenerySystem } from './RoadsideScenerySystem';
@@ -109,6 +109,36 @@ describe('mountain range', () => {
   });
 });
 
+describe('forest recycling', () => {
+  it('keeps chunks around the view and regenerates identical trees on the way back', () => {
+    const scene = new THREE.Scene();
+    const forest = new ForestSystem(scene);
+    const far = scene.getObjectByName('forest-far') as THREE.InstancedMesh;
+    const snapshot = () => Array.from(far.instanceMatrix.array);
+    const start = snapshot();
+
+    forest.update(2000, -1);
+    const matrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+    const distances = Array.from({ length: far.count }, (_, index) => {
+      far.getMatrixAt(index, matrix);
+      return -position.setFromMatrixPosition(matrix).z;
+    });
+    expect(Math.max(...distances)).toBeLessThan(2000 + 70 + 40);
+    expect(Math.min(...distances)).toBeGreaterThan(2000 - 440);
+
+    // Back at the start facing forward, every chunk is rebuilt from its index.
+    forest.update(0, 1);
+    const restored = snapshot();
+    const sortedRows = (values: number[]) =>
+      Array.from({ length: values.length / 16 }, (_, row) =>
+        values.slice(row * 16, row * 16 + 16).join(','),
+      ).sort();
+    expect(sortedRows(restored)).toEqual(sortedRows(start));
+    forest.dispose();
+  });
+});
+
 describe('forest placement', () => {
   it('is deterministic and never encroaches on the road verge', () => {
     const trees = forestChunkTrees(5, 60);
@@ -171,6 +201,29 @@ describe('roadside scenery', () => {
     expect(meshes.every((mesh) => mesh.castShadow)).toBe(true);
     scenery.dispose();
     expect(scene.children).toHaveLength(0);
+  });
+
+  it('rebuilds the same roadside ahead after a U-turn', () => {
+    const scene = new THREE.Scene();
+    const scenery = new RoadsideScenerySystem(scene);
+    const prototype = new THREE.Group();
+    prototype.add(new THREE.Mesh(new THREE.ConeGeometry(1, 3)));
+    scenery.setTreeModel(prototype);
+    const pine = scene.getObjectByName('roadside-pine') as THREE.InstancedMesh;
+    scenery.update(1000);
+    const forward = instanceDistances(pine).sort((a, b) => a - b);
+    expect(Math.min(...forward)).toBeGreaterThan(1000 - 70 - 30);
+
+    // Facing back down the road, the slots move to lower distances.
+    scenery.update(1000, -1);
+    const backward = instanceDistances(pine);
+    expect(Math.max(...backward)).toBeLessThan(1000 + 70 + 30);
+    expect(Math.min(...backward)).toBeLessThan(600);
+
+    // Turning forward again restores the original layout exactly.
+    scenery.update(1000, 1);
+    expect(instanceDistances(pine).sort((a, b) => a - b)).toEqual(forward);
+    scenery.dispose();
   });
 
   it('recycles slots ahead of the player and restores them on reset', () => {

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GAME } from '../config';
-import { roadCenter, roadHeading } from '../math';
+import { roadCenter, roadHeading, roadWindowStart, wrapIntoWindow } from '../math';
 
 interface FenceSlot {
   distance: number;
@@ -9,6 +9,8 @@ interface FenceSlot {
 
 const SEGMENT_LENGTH = 9.7;
 const SEGMENT_COUNT = 36;
+/** Fence kept built behind the view; the rest of the ring lies ahead. */
+const KEEP_BEHIND = 65;
 
 /**
  * Maintains a recycled ring of instanced fence geometry around the player.
@@ -35,8 +37,6 @@ export class RoadsideFenceSystem {
     SEGMENT_COUNT * 2,
   );
   private initialized = false;
-  private lastPlayerDistance = 0;
-  private nextRecycleDistance = Number.NEGATIVE_INFINITY;
 
   constructor(private readonly scene: THREE.Scene) {
     this.posts.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -58,19 +58,21 @@ export class RoadsideFenceSystem {
     this.scene.add(this.posts, this.rails);
   }
 
-  update(playerDistance: number): void {
-    if (this.initialized && playerDistance < this.lastPlayerDistance - 1) {
-      this.resetSlots();
-    }
-    this.lastPlayerDistance = playerDistance;
-    if (this.initialized && playerDistance <= this.nextRecycleDistance) return;
-
+  update(playerDistance: number, viewAlong = 1): void {
     const ringLength = this.slots.length * SEGMENT_LENGTH;
+    const start = roadWindowStart(playerDistance, viewAlong, ringLength, KEEP_BEHIND);
+    let changed = !this.initialized;
+    for (const slot of this.slots) {
+      const wrapped = wrapIntoWindow(slot.distance, start, ringLength);
+      if (wrapped === slot.distance) continue;
+      slot.distance = wrapped;
+      changed = true;
+    }
+    if (!changed) return;
+
     let postIndex = 0;
     let railIndex = 0;
-
     for (const slot of this.slots) {
-      while (slot.distance < playerDistance - 65) slot.distance += ringLength;
       const midpoint = slot.distance + SEGMENT_LENGTH / 2;
       this.setInstance(this.posts, postIndex, slot.distance, slot.side, 0.57);
       this.setInstance(this.posts, postIndex + 1, slot.distance + SEGMENT_LENGTH, slot.side, 0.57);
@@ -83,7 +85,6 @@ export class RoadsideFenceSystem {
     this.posts.instanceMatrix.needsUpdate = true;
     this.rails.instanceMatrix.needsUpdate = true;
     this.initialized = true;
-    this.nextRecycleDistance = Math.min(...this.slots.map((slot) => slot.distance + 65));
   }
 
   dispose(): void {
@@ -111,14 +112,5 @@ export class RoadsideFenceSystem {
     this.transform.scale.set(1, 1, 1);
     this.transform.updateMatrix();
     mesh.setMatrixAt(index, this.transform.matrix);
-  }
-
-  private resetSlots(): void {
-    this.slots.forEach((slot, index) => {
-      slot.distance = -45 + index * SEGMENT_LENGTH;
-      slot.side = Math.floor(index / 6) % 2 === 0 ? -1 : 1;
-    });
-    this.initialized = false;
-    this.nextRecycleDistance = Number.NEGATIVE_INFINITY;
   }
 }
