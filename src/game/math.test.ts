@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { GAME, laneOffsets, TRAFFIC_COUNT_OPTIONS } from './config';
-import { clamp, constrainToRoad, curveSpeedLimit, steeringFromHands } from './math';
+import { clamp, constrainToRoad, steeringFromHands } from './math';
 
 describe('driving math', () => {
   it('clamps values to the requested range', () => {
@@ -18,12 +18,6 @@ describe('driving math', () => {
   it('reaches full steering with about 35 degrees of hand rotation', () => {
     const fullTurn = steeringFromHands({ x: 0, y: 0 }, { x: 1, y: 0.7 }, 0);
     expect(fullTurn).toBe(1);
-  });
-
-  it('reduces target speed for upcoming curvature', () => {
-    const speed = curveSpeedLimit(0, 45, 18);
-    expect(speed).toBeGreaterThanOrEqual(18);
-    expect(speed).toBeLessThanOrEqual(45);
   });
 
   it('keeps exactly two traffic lanes inside the road edges', () => {

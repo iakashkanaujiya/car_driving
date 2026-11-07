@@ -2,14 +2,14 @@ import * as THREE from 'three';
 import { PerformanceMonitor } from '../diagnostics/PerformanceMonitor';
 import type { PerformanceSnapshot } from '../diagnostics/PerformanceMonitor';
 import { GAME, laneOffsets } from './config';
-import { clamp, constrainToRoad, curveSpeedLimit, damp, roadCenter, roadHeading } from './math';
+import { clamp, constrainToRoad, damp, roadCenter, roadHeading } from './math';
 import { createRoadStrip, updateRoadStrip } from './roadSurface';
 import { AdaptiveQuality, chooseInitialQuality } from './rendering/AdaptiveQuality';
 import type { GraphicsQualityMode, RenderQualitySettings } from './rendering/AdaptiveQuality';
 import { PostProcessing } from './rendering/PostProcessing';
 import { applyGroundVariation } from './rendering/groundVariation';
 import { SceneryAssets } from './sceneryAssets';
-import { createSpeedPlan, scanTraffic } from './simulation/drivingAssist';
+import { createSpeedPlan } from './simulation/drivingAssist';
 import { addSceneLighting, SurfaceTextureStore, updateSceneShadow } from './sceneAssets';
 import type { SceneLighting } from './sceneAssets';
 import type { ControlInput, GamePhase, GameSnapshot } from './types';
@@ -404,7 +404,6 @@ export class DrivingGame {
 
   private updateSimulation(dt: number): void {
     const control = this.getControl();
-    const curveLimit = curveSpeedLimit(this.distance, GAME.maxSpeed, GAME.minCurveSpeed);
     const { length: collisionLength, width: collisionWidth } = this.vehicleAssets.collisionSize(
       this.driverCar,
     );
@@ -423,12 +422,11 @@ export class DrivingGame {
       }
     }
 
-    const threat = scanTraffic(this.traffic, this.distance, this.lateral, curveLimit);
-    const speedPlan = createSpeedPlan(control, this.speed, curveLimit, threat);
-    const { targetSpeed, acceleration, safetyBraking } = speedPlan;
+    const speedPlan = createSpeedPlan(control, this.speed);
+    const { targetSpeed, acceleration, autoBraking } = speedPlan;
     this.assistMessage = speedPlan.assistMessage;
     const previousSpeed = this.speed;
-    this.vehicleAssets.setBrakeLights(this.player, safetyBraking || control.braking === true);
+    this.vehicleAssets.setBrakeLights(this.player, autoBraking || control.braking === true);
     this.speed = Math.max(
       0,
       damp(
