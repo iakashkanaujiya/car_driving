@@ -29,6 +29,8 @@ import {
   findLeadVehicle,
 } from './simulation/cruiseControl';
 import { createSpeedPlan, updateReverseHold } from './simulation/drivingAssist';
+import { findTrafficLead, trafficAcceleration } from './simulation/trafficFollowing';
+import type { RoadUser } from './simulation/trafficFollowing';
 import {
   addSceneLighting,
   applySceneLighting,
@@ -64,6 +66,9 @@ interface TrafficCar {
   speedChangeTimer: number;
   direction: 1 | -1;
   counted: boolean;
+  /** Collision envelope of the car's model, in world units. */
+  length: number;
+  width: number;
 }
 
 const GROUND_SIZE = 1200;
@@ -80,6 +85,8 @@ const CAMERA_SPEED_PULLBACK = 3;
 const CAMERA_SHAKE = 0.05;
 /** Spawn queues start at least this far ahead: about four seconds of warning at top speed. */
 const TRAFFIC_SPAWN_AHEAD = 260;
+/** Traffic lights its brake lamps when slowing harder than this (about 0.1 g). */
+const TRAFFIC_BRAKE_LIGHT_DECELERATION = 2;
 /** The view must turn this far past side-on before traffic treats it as the new way ahead. */
 const FACING_HYSTERESIS = 0.2;
 /** Dry and fully wet values for the road, verge and meadow surfaces. */
@@ -480,6 +487,8 @@ export class DrivingGame {
         speedChangeTimer: 0,
         direction,
         counted: false,
+        length: GAME.collisionLength,
+        width: GAME.collisionWidth,
       };
       if (direction === 1) {
         ongoingSpawnCursor += 34 + Math.random() * 48;
@@ -525,6 +534,9 @@ export class DrivingGame {
     this.traffic.forEach((car, index) => {
       const model = available[(trafficStart + index) % available.length];
       this.vehicleAssets.replaceVisual(car.mesh, model.trafficPrototype, false, model.id);
+      const size = this.vehicleAssets.collisionSize(model.id);
+      car.length = size.length;
+      car.width = size.width;
     });
     this.carModelsApplied = true;
   }
@@ -663,6 +675,22 @@ export class DrivingGame {
 
     this.updateFacing(currentRoadHeading);
     const facing = this.facing;
+    // Everyone on the road, for traffic to see what is ahead of it; the player is last.
+    const roadUsers: RoadUser[] = this.traffic.map((car) => ({
+      distance: car.distance,
+      lateral: laneOffsets[car.lane] + car.laneOffset,
+      length: car.length,
+      width: car.width,
+      velocity: car.speed * car.direction,
+    }));
+    roadUsers.push({
+      distance: this.distance,
+      lateral: this.lateral,
+      length: collisionLength,
+      width: collisionWidth,
+      velocity: this.speed * Math.cos(this.travelHeading - currentRoadHeading),
+    });
+    let trafficIndex = 0;
     for (const car of this.traffic) {
       car.speedChangeTimer -= dt;
       if (car.speedChangeTimer <= 0) {
@@ -672,20 +700,17 @@ export class DrivingGame {
             : fromKph(85 + Math.random() * 45);
         car.speedChangeTimer = 2.5 + Math.random() * 7;
       }
-      let trafficTargetSpeed = car.targetSpeed;
-      for (const other of this.traffic) {
-        if (other === car || other.direction !== car.direction || other.lane !== car.lane) continue;
-        const forwardGap = (other.distance - car.distance) * car.direction;
-        if (forwardGap > 0 && forwardGap < 60) {
-          trafficTargetSpeed = Math.min(
-            trafficTargetSpeed,
-            other.speed * clamp((forwardGap - 14) / 32, 0, 1),
-          );
-        }
-      }
-      this.vehicleAssets.setBrakeLights(car.mesh, trafficTargetSpeed < car.speed - 0.35);
-      car.speed = damp(car.speed, trafficTargetSpeed, 1.25, dt);
+      // Traffic brakes for whatever is ahead in its lane, the player included,
+      // and stops behind it rather than driving into it.
+      const self = roadUsers[trafficIndex];
+      const lead = findTrafficLead(self, car.direction, roadUsers);
+      const acceleration = trafficAcceleration(car.speed, car.targetSpeed, lead);
+      this.vehicleAssets.setBrakeLights(car.mesh, acceleration < -TRAFFIC_BRAKE_LIGHT_DECELERATION);
+      car.speed = Math.max(0, car.speed + acceleration * dt);
       car.distance += car.speed * car.direction * dt;
+      self.distance = car.distance;
+      self.velocity = car.speed * car.direction;
+      trafficIndex += 1;
       const gap = car.distance - this.distance;
       // How far ahead the car is along the way the player faces.
       const aheadGap = gap * facing;
@@ -704,6 +729,11 @@ export class DrivingGame {
       }
       if (aheadGap < (car.direction === facing ? -70 : -45)) {
         this.spawnTraffic(car, undefined, true);
+        Object.assign(self, {
+          distance: car.distance,
+          lateral: laneOffsets[car.lane] + car.laneOffset,
+          velocity: car.speed * car.direction,
+        });
       }
     }
   }
