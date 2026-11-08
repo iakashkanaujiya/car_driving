@@ -30,12 +30,12 @@ export function mountainHeight(angle: number, radius: number): number {
   return height - 3;
 }
 
-const FOREST = new THREE.Color(0x26331f);
-const FOREST_DRY = new THREE.Color(0x3d4530);
+const FOREST = new THREE.Color(0x253f1f);
+const FOREST_DRY = new THREE.Color(0x3d4d2b);
 const ROCK = new THREE.Color(0x5f5d5a);
 const ROCK_DARK = new THREE.Color(0x3d3c3d);
 const SCREE = new THREE.Color(0x7a7366);
-const SNOW = new THREE.Color(0xc9d2dc);
+const SNOW = new THREE.Color(0xe2e9f1);
 const ROCK_MIX = new THREE.Color();
 
 /** Ground-cover colour from altitude, slope (normal.y) and a breakup noise. */

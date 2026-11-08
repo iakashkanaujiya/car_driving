@@ -84,12 +84,12 @@ export function createPineGeometry(): THREE.BufferGeometry {
     cone.rotateY(random() * Math.PI);
     cone.translate(0, base + height / 2, 0);
     cone.computeVertexNormals();
-    paint(cone, new THREE.Color(0x2c4627), new THREE.Color(0x0e1811));
+    paint(cone, new THREE.Color(0x2e5428), new THREE.Color(0x0e1811));
     parts.push(cone);
   }
   const tip = new THREE.ConeGeometry(0.03, 0.14, 5, 1, true);
   tip.translate(0, 0.98, 0);
-  paint(tip, new THREE.Color(0x2c4627), new THREE.Color(0x1a2b1a));
+  paint(tip, new THREE.Color(0x2e5428), new THREE.Color(0x1a2b1a));
   parts.push(tip);
   const merged = mergeGeometries(
     parts.map((part) => part.toNonIndexed()),

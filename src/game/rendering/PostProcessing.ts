@@ -59,7 +59,9 @@ export class PostProcessing {
     });
     this.composer = new EffectComposer(renderer, target);
     this.composer.addPass(new RenderPass(scene, camera));
-    this.bloom = new UnrealBloomPass(this.size.clone(), 0.32, 0.6, 0.88);
+    // Only true highlights bloom (sun, lamps, glints): a lower threshold lets
+    // the bright sky bloom too, which veils the whole picture in milky haze.
+    this.bloom = new UnrealBloomPass(this.size.clone(), 0.28, 0.6, 1.1);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new ShaderPass(GradeShader));
     this.composer.addPass(new OutputPass());

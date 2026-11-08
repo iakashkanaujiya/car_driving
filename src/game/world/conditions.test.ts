@@ -105,7 +105,7 @@ describe('driving conditions', () => {
     const second = look('night', 'fog');
     expect(second.fogColor.getHex()).not.toBe(0xff0000);
     expect(second.lightDirection.y).toBeLessThan(1);
-    expect(ATMOSPHERE.fogColor.getHex()).toBe(0x92b0cf);
+    expect(ATMOSPHERE.fogColor.getHex()).toBe(0x8db4de);
   });
 });
 

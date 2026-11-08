@@ -1,6 +1,16 @@
+/**
+ * Every sound runs through one master gain and a limiter. The levels below
+ * are relative to each other; the master sets how loud the game plays, and
+ * the limiter keeps the engine, music, rain and horn together from clipping.
+ */
+const MASTER_VOLUME = 4;
+/** Engine level at a standstill and its rise per km/h. */
+const ENGINE_IDLE_VOLUME = 0.035;
+const ENGINE_VOLUME_PER_KPH = 1 / 4200;
+const MUSIC_VOLUME = 0.17;
 /** Rain sits under the engine and music as a soft background patter. */
-const RAIN_VOLUME = 0.014;
-const HORN_VOLUME = 0.055;
+const RAIN_VOLUME = 0.03;
+const HORN_VOLUME = 0.06;
 /** A quick tap still honks for at least this long, in seconds. */
 const HORN_MIN_SECONDS = 0.14;
 
@@ -25,6 +35,11 @@ export function engineFrequency(speedKph: number): number {
   return IDLE_HZ + (REDLINE_HZ - IDLE_HZ) * revs;
 }
 
+/** Engine level for a road speed; silent when stopped. */
+export function engineVolume(speedKph: number): number {
+  return speedKph > 1 ? ENGINE_IDLE_VOLUME + speedKph * ENGINE_VOLUME_PER_KPH : 0;
+}
+
 interface HornVoice {
   envelope: GainNode;
   tones: OscillatorNode[];
@@ -37,6 +52,8 @@ interface HornVoice {
  */
 export class EngineSound {
   private context: AudioContext | null = null;
+  /** Everything plays into this bus, which feeds the limiter and the speakers. */
+  private master: GainNode | null = null;
   private oscillator: OscillatorNode | null = null;
   private gain: GainNode | null = null;
   private musicGain: GainNode | null = null;
@@ -51,19 +68,28 @@ export class EngineSound {
   start(): void {
     if (this.context) return;
     this.context = new AudioContext();
+    this.master = this.context.createGain();
+    this.master.gain.value = MASTER_VOLUME;
+    const limiter = this.context.createDynamicsCompressor();
+    limiter.threshold.value = -10;
+    limiter.knee.value = 6;
+    limiter.ratio.value = 12;
+    limiter.attack.value = 0.003;
+    limiter.release.value = 0.2;
+    this.master.connect(limiter).connect(this.context.destination);
     this.oscillator = this.context.createOscillator();
     this.gain = this.context.createGain();
     this.musicGain = this.context.createGain();
     this.oscillator.type = 'sawtooth';
     this.oscillator.frequency.value = 54;
-    this.gain.gain.value = 0.025;
-    this.musicGain.gain.value = 0.13;
+    this.gain.gain.value = 0;
+    this.musicGain.gain.value = MUSIC_VOLUME;
 
     const filter = this.context.createBiquadFilter();
     filter.type = 'lowpass';
     filter.frequency.value = 240;
-    this.oscillator.connect(filter).connect(this.gain).connect(this.context.destination);
-    this.musicGain.connect(this.context.destination);
+    this.oscillator.connect(filter).connect(this.gain).connect(this.master);
+    this.musicGain.connect(this.master);
     this.oscillator.start();
     this.startRainLoop();
     this.musicTimer = window.setInterval(() => this.scheduleMusicBeat(), 250);
@@ -82,7 +108,7 @@ export class EngineSound {
       this.context.currentTime,
       0.08,
     );
-    const volume = this.enabled && speedKph > 1 ? 0.018 + speedKph / 11000 : 0;
+    const volume = this.enabled ? engineVolume(speedKph) : 0;
     this.gain.gain.setTargetAtTime(volume, this.context.currentTime, 0.12);
   }
 
@@ -114,6 +140,7 @@ export class EngineSound {
     this.horn = null;
     void this.context?.close();
     this.context = null;
+    this.master = null;
   }
 
   /** A looping band of filtered noise reads as steady rain on the bodywork. */
@@ -136,7 +163,7 @@ export class EngineSound {
     this.rainGain = this.context.createGain();
     this.rainGain.gain.value = 0;
     source.connect(highpass).connect(lowpass).connect(this.rainGain);
-    this.rainGain.connect(this.context.destination);
+    this.rainGain.connect(this.master!);
     source.start();
     this.refreshRain();
   }
@@ -186,7 +213,7 @@ export class EngineSound {
     filter.frequency.value = 1350;
     envelope.gain.setValueAtTime(0.0001, start);
     envelope.gain.exponentialRampToValueAtTime(HORN_VOLUME, start + 0.018);
-    filter.connect(envelope).connect(this.context.destination);
+    filter.connect(envelope).connect(this.master!);
     this.horn = { envelope, tones, startedAt: start };
   }
 

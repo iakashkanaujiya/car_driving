@@ -12,15 +12,15 @@ export const ATMOSPHERE = {
   sunColor: new THREE.Color(0xffe0b8),
   sunIntensity: 4.4,
   /** Haze colour away from the sun; matched by the sky shader at the horizon. */
-  fogColor: new THREE.Color(0x92b0cf),
+  fogColor: new THREE.Color(0x8db4de),
   /** Haze colour looking into the sun (forward scattering). */
   sunScatterColor: new THREE.Color(0xf0d6b0),
   /** Ground-level extinction per world unit. */
-  fogDensity: 0.00105,
+  fogDensity: 0.00082,
   /** Fog thins exponentially with altitude at this rate per world unit. */
   heightFalloff: 0.0068,
   /** Colour reflected from below the horizon in the environment map. */
-  groundColor: new THREE.Color(0x3b4733),
+  groundColor: new THREE.Color(0x3a4d31),
 } as const;
 
 const glslFloat = (value: number): string => {

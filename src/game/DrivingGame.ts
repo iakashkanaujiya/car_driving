@@ -15,6 +15,7 @@ import { createRoadStrip, updateRoadStrip } from './roadSurface';
 import { AdaptiveQuality, chooseInitialQuality } from './rendering/AdaptiveQuality';
 import type { GraphicsQualityMode, RenderQualitySettings } from './rendering/AdaptiveQuality';
 import { installKeyLightGlintControl, setKeyLightGlint } from './rendering/keyLightGlint';
+import { installVividToneMapping, VIVID_TONE_MAPPING } from './rendering/vividToneMapping';
 import { PostProcessing } from './rendering/PostProcessing';
 import { applyGroundVariation } from './rendering/groundVariation';
 import { SceneryAssets } from './sceneryAssets';
@@ -168,10 +169,11 @@ export class DrivingGame {
     private readonly onCrash: () => void,
     private readonly onPerformanceUpdate: (snapshot: PerformanceSnapshot) => void,
   ) {
-    // Aerial-perspective fog and the key-light glint control must be installed
-    // before any material compiles.
+    // Aerial-perspective fog, the key-light glint control and the vivid tone
+    // mapping must be installed before any material compiles.
     installAtmosphericFog();
     installKeyLightGlintControl();
+    installVividToneMapping();
     this.fog = new THREE.FogExp2(0xffffff);
     this.scene.fog = this.fog;
     this.scene.background = new THREE.Color();
@@ -191,7 +193,7 @@ export class DrivingGame {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMapping = VIVID_TONE_MAPPING;
     this.renderer.toneMappingExposure = 1.0;
     // The effect composer issues several renders per frame; count them all.
     this.renderer.info.autoReset = false;

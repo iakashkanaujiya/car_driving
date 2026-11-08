@@ -51,8 +51,8 @@ export function applyGroundVariation(material: THREE.MeshStandardMaterial): void
         /* glsl */ `#include <map_fragment>
   float groundMacro = groundFbm( vGroundWorld.xz * 0.011 );
   float groundPatch = groundFbm( vGroundWorld.xz * 0.05 + 7.0 );
-  vec3 lushMeadow = vec3( 0.92, 1.08, 0.78 );
-  vec3 dryMeadow = vec3( 1.1, 0.98, 0.68 );
+  vec3 lushMeadow = vec3( 0.86, 1.12, 0.66 );
+  vec3 dryMeadow = vec3( 1.04, 1.0, 0.62 );
   vec3 meadow = mix( lushMeadow, dryMeadow, smoothstep( 0.4, 0.68, groundMacro ) );
   diffuseColor.rgb *= meadow * ( 0.84 + 0.32 * groundPatch );`,
       );

@@ -210,10 +210,13 @@ const CAR_COLORS = [
   0xf2f1ea, // Pearl white
   0xb8bec4, // Metallic silver
   0x353a40, // Graphite grey
+  0xc8102e, // Racing red
+  0x1d5fd1, // Electric blue
+  0xf2b31b, // Sunflower yellow
+  0xe8601c, // Tangerine
+  0x12876f, // Emerald teal
   0x183f68, // Midnight blue
-  0x7a1f2b, // Burgundy red
-  0x254c3b, // Forest green
-  0x9a5131, // Copper bronze
+  0x8a1c2e, // Burgundy red
 ];
 const DRIVER_CAR_COLOR = 0xf5f7f4;
 const REAL_CAR_SCALE = 2;
@@ -1204,9 +1207,11 @@ export class VehicleAssets {
           material.roughness = 0.2;
           material.envMapIntensity = 1.4;
         } else {
-          material.metalness = metallicFinish ? 0.78 : Math.max(material.metalness, 0.48);
-          material.roughness = metallicFinish ? 0.18 : Math.min(material.roughness, 0.32);
-          material.envMapIntensity = metallicFinish ? 1.35 : material.envMapIntensity;
+          // Mostly base coat under a glossy clear coat: metallic enough to
+          // catch the sky, not so metallic that it only mirrors its surroundings.
+          material.metalness = metallicFinish ? 0.45 : 0.35;
+          material.roughness = metallicFinish ? 0.2 : Math.min(material.roughness, 0.3);
+          material.envMapIntensity = metallicFinish ? 1.2 : material.envMapIntensity;
         }
         material.needsUpdate = true;
       }

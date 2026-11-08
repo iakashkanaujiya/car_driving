@@ -10,6 +10,7 @@ import {
   installAtmosphericFog,
   setAtmosphericScattering,
 } from './atmosphere';
+import { createEnvironmentLook } from './conditions';
 import { createPineGeometry, forestChunkTrees, ForestSystem } from './ForestSystem';
 import { createDashTexture, DASH_FRACTION, LaneMarkings } from './LaneMarkings';
 import { mountainColor, mountainHeight } from './MountainRange';
@@ -75,7 +76,8 @@ describe('aerial perspective fog', () => {
 
   it('closes in when the density rises for fog', () => {
     const clear = atmosphericFogFactor(200, 0, 4);
-    const foggy = atmosphericFogFactor(200, 0, 4, ATMOSPHERE.fogDensity * 8.5);
+    const fog = createEnvironmentLook({ timeOfDay: 'day', weather: 'fog' });
+    const foggy = atmosphericFogFactor(200, 0, 4, fog.fogDensity);
     expect(foggy).toBeGreaterThan(0.75);
     expect(clear).toBeLessThan(0.25);
   });

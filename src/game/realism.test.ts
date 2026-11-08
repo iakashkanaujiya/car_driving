@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { engineFrequency } from '../audio/EngineSound';
+import { engineFrequency, engineVolume } from '../audio/EngineSound';
 import { fromKph, GAME, MAX_SPEED_KPH, toKph, toMeters, WORLD_UNITS_PER_METER } from './config';
 import { damp, MAX_LATERAL_ACCELERATION, roadCenter, steeringYawRate } from './math';
 import { createSpeedPlan } from './simulation/drivingAssist';
@@ -71,5 +71,13 @@ describe('real-world scale', () => {
       expect(engineFrequency(kph)).toBeGreaterThanOrEqual(46);
       expect(engineFrequency(kph)).toBeLessThanOrEqual(172);
     }
+  });
+
+  it('silences the engine at a standstill and gets louder with speed', () => {
+    expect(engineVolume(0)).toBe(0);
+    expect(engineVolume(20)).toBeGreaterThan(0);
+    expect(engineVolume(MAX_SPEED_KPH)).toBeGreaterThan(engineVolume(60));
+    // Twice the idle level at most, so the limiter rarely has to work.
+    expect(engineVolume(MAX_SPEED_KPH)).toBeLessThan(engineVolume(2) * 2.2);
   });
 });

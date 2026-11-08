@@ -98,8 +98,8 @@ function dayLook(conditions: DrivingConditions): EnvironmentLook {
     groundColor: ATMOSPHERE.groundColor.clone(),
     sky: {
       sunDirection: ATMOSPHERE.sunDirection.clone(),
-      turbidity: 2.4,
-      rayleigh: 2.3,
+      turbidity: 2.0,
+      rayleigh: 2.9,
       mieCoefficient: 0.0032,
       mieDirectionalG: 0.8,
       exposure: 0.46,
@@ -110,7 +110,7 @@ function dayLook(conditions: DrivingConditions): EnvironmentLook {
       cloudLitColor: new THREE.Color(1, 0.97, 0.92),
       cloudShadeColor: new THREE.Color(0.42, 0.47, 0.56),
       hazeHeight: 0.085,
-      hazeStrength: 0.88,
+      hazeStrength: 0.78,
       night: 0,
       stars: 0,
       nightZenithColor: new THREE.Color(0x000000),
@@ -212,8 +212,15 @@ function desaturate(color: THREE.Color, amount: number, scale = 1): THREE.Color 
   return color.lerp(new THREE.Color(grey, grey, grey), amount).multiplyScalar(scale);
 }
 
+/**
+ * Weather thickens the haze from at least this density, so the clear-day air
+ * can be kept crisp without thinning cloud, rain or fog.
+ */
+const WEATHER_HAZE_BASE = 0.00105;
+
 function applyWeather(look: EnvironmentLook, weather: Weather): EnvironmentLook {
   const { sky } = look;
+  if (weather !== 'clear') look.fogDensity = Math.max(look.fogDensity, WEATHER_HAZE_BASE);
   if (weather === 'cloudy') {
     look.lightIntensity *= 0.55;
     look.hemisphereIntensity *= 1.35;
