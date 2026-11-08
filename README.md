@@ -42,16 +42,36 @@ Street lights line both verges, staggered so a lamp passes about every 30 m. By 
 
 ## Available car models
 
-Choose any of these vehicles directly on the start screen. Traffic reuses the same model collection with randomized realistic paint colors.
+Choose any of these vehicles on the start screen; every one can be your car or traffic. Traffic gets randomized realistic paint colors, except the generic cars, whose colors are part of their textures.
 
-| Vehicle                          | Driver car | Traffic car |
-| -------------------------------- | :--------: | :---------: |
-| 2017 Ford F-150 Raptor (default) |    Yes     |     Yes     |
-| 2023 Ford Everest Sport          |    Yes     |     Yes     |
-| Hyundai Ioniq 5                  |    Yes     |     Yes     |
-| 2018 Audi e-tron GT Concept      |    Yes     |     Yes     |
+| Vehicle                               | Length |
+| ------------------------------------- | -----: |
+| 2018 Audi e-tron GT Concept (default) |  5.0 m |
+| 2013 Volvo V60 Polestar               |  4.6 m |
+| 2000 Jaguar XJ Sport                  |  5.0 m |
+| Peugeot 3008                          |  4.5 m |
+| Nissan Z Proto                        |  4.4 m |
+| Nissan Skyline R34 GT-R               |  4.6 m |
+| Mercedes-Benz C63 AMG                 |  4.7 m |
+| BMW 7 Series (F01)                    |  5.1 m |
+| BMW i8                                |  4.7 m |
+| Mercedes-Maybach Vision 6             |  5.7 m |
 
-You can select 0, 4, 8, 12, or 16 traffic cars and choose how many different models appear. Car variety defaults to 1, which reuses the selected driver model for traffic and reduces model parsing and memory use. Higher traffic counts or model variety may reduce frame rates on lower-powered devices.
+Ten unbranded **generic cars** (sedan, wagon, hatchback, compact, coupé, sports car, minivan, SUV, off-roader and pickup) are listed under their own heading. They are light (about 7,000 triangles and 0.7 MB each), so they make cheap, varied traffic.
+
+Every car is drawn at its real size, with four rolling wheels, steering front wheels, headlights and working brake lights.
+
+You can select 0, 4, 8, 12, or 16 traffic cars and choose how many different models appear (1, 2, 3, 4, 6 or 8). Car variety defaults to 1, which reuses the selected driver model for traffic and reduces model parsing and memory use; higher variety adds the next cars in the list. Higher traffic counts or model variety may reduce frame rates on lower-powered devices.
+
+### Adding cars
+
+The cars other than the Audi are downloaded from Sketchfab (credits below) into `models-src/cars/`, which is not committed, and prepared with:
+
+```bash
+node scripts/prepare-car-models.mjs
+```
+
+It removes scene props such as ground planes, shrinks textures to at most 1024 px, splits the generic car pack into one file per car and writes `public/models/cars/`. At load time the game finds each car's four tyres by material, so tyres that share one mesh are separated by corner, and splits lamp materials that cover both ends of a car into front and rear (`src/game/carParts.ts`). Each car's materials, facing and real size are listed in `src/game/vehicleAssets.ts`.
 
 On the first visit, a setup popup keeps the game locked while it downloads approximately 11 MB of core scenery and road textures with live progress. Only selected car models are downloaded afterward; each model is stored on first use and reused on later visits. Interrupted core downloads can be retried and resume from files that are already cached.
 
@@ -113,10 +133,17 @@ Original Driftline source code and documentation are available under the [Driftl
 
 ## 3D asset credits
 
-- [2017 Ford F-150 Raptor](https://sketchfab.com/3d-models/2017-ford-f-150-raptor-2be278ef4dc94d9fa00fae8b33da8273) by [Ddiaz Design](https://sketchfab.com/ddiaz-design), licensed under [CC BY-NC-SA 4.0](http://creativecommons.org/licenses/by-nc-sa/4.0/).
-- [2023 Ford Everest Sport](https://sketchfab.com/3d-models/ford-everest-sport-2023-c37bec0353a94f90a3acbe09ceb3aecf) by [Asadawut.Kaewma](https://sketchfab.com/Asadawut.Kaewma), licensed under [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/).
-- [Hyundai Ioniq 5](https://sketchfab.com/3d-models/hyundai-ioniq-5-lowpoly-675e78311e8440d88714bd212cb7a8fb) by [andikapratamaw](https://sketchfab.com/andikapratamaw), licensed under [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/).
 - [2018 Audi e-tron GT Concept](https://sketchfab.com/3d-models/2018-audi-e-tron-gt-concept-e35726151c9e4a169c005d54509715fa) by [Ddiaz Design](https://sketchfab.com/ddiaz-design), licensed under [CC BY-NC-SA 4.0](http://creativecommons.org/licenses/by-nc-sa/4.0/).
+- [Volvo V60 Polestar (2013)](https://sketchfab.com/3d-models/volvo-v60-polestar-2013-504ce39150fe49c7979f702d5f0f8580) by [Myedsu](https://sketchfab.com/myedsu), licensed under [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/).
+- [2000 Jaguar XJ Sport (X308 XJ8)](https://sketchfab.com/3d-models/2000-jaguar-xj-sport-x308-xj8-192011ef37994e8ca2f09cd1d73ca166) by [Fishboe](https://sketchfab.com/ministephen), licensed under [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/).
+- [Peugeot 3008](https://sketchfab.com/3d-models/peugeot-3008-4f7c7318a29d4e16a6047c2d58bba28d) by [iSteven](https://sketchfab.com/OneSteven), licensed under [CC BY-NC 4.0](http://creativecommons.org/licenses/by-nc/4.0/).
+- [Nissan Z Proto](https://sketchfab.com/3d-models/nissan-z-proto-db9a5f7ae9d84a0fb01cac96afe3e69c) by [Lexyc16](https://sketchfab.com/Lexyc16), licensed under [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/).
+- [Nissan Skyline R34 GT-R](https://sketchfab.com/3d-models/nissan-skyline-r34-gt-r-ff8fb2251dfa4bb9979e7022c5a6666c) by [Lexyc16](https://sketchfab.com/Lexyc16), licensed under [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/).
+- [Mercedes Benz C63 AMG](https://sketchfab.com/3d-models/mercedes-benz-c63-amg-38eb721c70d34046a60ef7a8984024c5) by [LuizZed36](https://sketchfab.com/LuizZed36), licensed under [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/).
+- [BMW 7-series (F01)](https://sketchfab.com/3d-models/bmw-7-series-f01-0806c39847ae42e5996917f50527dda0) by [Black Snow](https://sketchfab.com/BlackSnow02), licensed under [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/).
+- [BMW I8](https://sketchfab.com/3d-models/bmw-i8-4b143b95aec045bf8912d99662f8d580) by [iSteven](https://sketchfab.com/OneSteven), licensed under [CC BY-NC 4.0](http://creativecommons.org/licenses/by-nc/4.0/).
+- [Mercedes-Maybach Vision 6](https://sketchfab.com/3d-models/mercedes-maybach-vision-6-8445af9c07694f9b93f94b3f6c0ccd87) by [SÄNTI CUSTOMS](https://sketchfab.com/TEDIORE), licensed under [CC BY-NC 4.0](http://creativecommons.org/licenses/by-nc/4.0/).
+- [Generic passenger car pack](https://sketchfab.com/3d-models/generic-passenger-car-pack-20f9af9b8a404d5cb022ac6fe87f21f5) by [Comrade1280](https://sketchfab.com/comrade1280), licensed under [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/).
 - [Pine Tree](https://sketchfab.com/3d-models/pine-tree-d45218a3fab349e5b1de040f29e7b6f9) by [evolveduk](https://sketchfab.com/evolveduk), licensed under [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/).
 
 Attribution and license metadata are also embedded in each GLB file.

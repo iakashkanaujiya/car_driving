@@ -4,3 +4,8 @@ dist/
 *.log
 .vscode
 docs/
+# Raw car downloads; scripts/prepare-car-models.mjs builds public/models/cars from them.
+models-src/
+
+# macOS folder metadata.
+.DS_Store

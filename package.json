@@ -20,9 +20,12 @@
     "three": "^0.179.1"
   },
   "devDependencies": {
+    "@gltf-transform/core": "^4.5.1",
+    "@gltf-transform/functions": "^4.5.1",
     "@types/three": "^0.179.0",
     "@vitejs/plugin-basic-ssl": "^2.3.0",
     "prettier": "^3.9.6",
+    "sharp": "^0.34.5",
     "typescript": "^5.9.2",
     "vite": "^7.1.2",
     "vitest": "^3.2.4"

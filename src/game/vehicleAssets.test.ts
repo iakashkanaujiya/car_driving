@@ -1,36 +1,182 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { describe, expect, it } from 'vitest';
+import { GAME } from './config';
 import { whenCarLodReady } from './rendering/carLod';
 import {
   CAR_MODEL_OPTIONS,
   CAR_MODEL_VARIETY_OPTIONS,
+  carModelSource,
   findLampAnchor,
   selectCarModelIds,
   VehicleAssets,
 } from './vehicleAssets';
+import type { CarModelId } from './vehicleAssets';
 
 describe('Vehicle model roster', () => {
-  it('offers every GLB car in the unified selector', () => {
-    expect(CAR_MODEL_OPTIONS.map(({ id }) => id)).toEqual([
-      'ford-f150-raptor',
-      'ford-everest-sport',
-      'ioniq-5',
-      'luxury-concept',
-    ]);
-    expect(CAR_MODEL_VARIETY_OPTIONS).toEqual([1, 2, 3, 4]);
+  it('offers the Audi, nine branded cars and ten generic cars', () => {
+    const ids = CAR_MODEL_OPTIONS.map(({ id }) => id);
+    expect(ids).toHaveLength(20);
+    expect(ids[0]).toBe('luxury-concept');
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(CAR_MODEL_OPTIONS.filter(({ group }) => group === 'Generic cars')).toHaveLength(10);
+    expect(CAR_MODEL_VARIETY_OPTIONS).toEqual([1, 2, 3, 4, 6, 8]);
   });
 
   it('loads the driver model first and limits model variety', () => {
-    expect(selectCarModelIds('ioniq-5', 1)).toEqual(['ioniq-5']);
+    expect(selectCarModelIds('peugeot-3008', 1)).toEqual(['peugeot-3008']);
     expect(selectCarModelIds('luxury-concept', 3)).toEqual([
       'luxury-concept',
-      'ford-f150-raptor',
-      'ford-everest-sport',
+      'volvo-v60-polestar',
+      'jaguar-xj-sport',
     ]);
-    expect(selectCarModelIds('ford-f150-raptor', 99)).toHaveLength(4);
-    expect(selectCarModelIds('ford-f150-raptor', Number.NaN)).toEqual(['ford-f150-raptor']);
+    // The list wraps around after the last car.
+    expect(selectCarModelIds('generic-pickup', 2)).toEqual(['generic-pickup', 'luxury-concept']);
+    expect(selectCarModelIds('bmw-i8', 99)).toHaveLength(20);
+    expect(selectCarModelIds('bmw-i8', Number.NaN)).toEqual(['bmw-i8']);
   });
 });
+
+/**
+ * Loads a GLB from public/ without its images, which need a browser to decode;
+ * geometry, nodes and material names are all the car pipeline reads.
+ */
+async function loadGlbWithoutTextures(publicPath: string): Promise<THREE.Group> {
+  // tsconfig has no Node types, so reach the file system through an untyped import.
+  const fsModule = 'node:fs/promises';
+  const { readFile } = (await import(/* @vite-ignore */ fsModule)) as {
+    readFile: (path: URL) => Promise<Uint8Array>;
+  };
+  const glb = await readFile(new URL(`../../public/${publicPath}`, import.meta.url));
+  const view = new DataView(glb.buffer, glb.byteOffset, glb.byteLength);
+  const jsonLength = view.getUint32(12, true);
+  const json = JSON.parse(new TextDecoder().decode(glb.subarray(20, 20 + jsonLength))) as {
+    textures?: unknown;
+    images?: unknown;
+    samplers?: unknown;
+    materials?: unknown[];
+  };
+  delete json.textures;
+  delete json.images;
+  delete json.samplers;
+  // Every texture slot, including those inside material extensions.
+  const dropTextures = (value: unknown): void => {
+    if (typeof value !== 'object' || value === null) return;
+    for (const [key, child] of Object.entries(value)) {
+      if (/Texture$/.test(key)) delete (value as Record<string, unknown>)[key];
+      else dropTextures(child);
+    }
+  };
+  dropTextures(json.materials);
+  let text = JSON.stringify(json);
+  text += ' '.repeat((4 - (text.length % 4)) % 4);
+  const jsonBytes = new TextEncoder().encode(text);
+  const binaryChunk = glb.subarray(20 + jsonLength);
+  const rebuilt = new Uint8Array(20 + jsonBytes.byteLength + binaryChunk.byteLength);
+  const header = new DataView(rebuilt.buffer);
+  header.setUint32(0, 0x46546c67, true);
+  header.setUint32(4, 2, true);
+  header.setUint32(8, rebuilt.byteLength, true);
+  header.setUint32(12, jsonBytes.byteLength, true);
+  header.setUint32(16, 0x4e4f534a, true);
+  rebuilt.set(jsonBytes, 20);
+  rebuilt.set(binaryChunk, 20 + jsonBytes.byteLength);
+  const gltf = await new GLTFLoader().parseAsync(rebuilt.buffer, '');
+  return gltf.scene;
+}
+
+describe('Prepared car models', () => {
+  type PrepareCarModel = (
+    source: THREE.Group,
+    rotationY: number,
+    optimize: boolean,
+    modelId: CarModelId,
+  ) => THREE.Group;
+
+  // The Audi's file is large and has its own tests; every prepared car is checked here.
+  const preparedCars = CAR_MODEL_OPTIONS.map(({ id }) => id).filter(
+    (id) => id !== 'luxury-concept',
+  );
+
+  it.each(preparedCars)(
+    '%s rolls four wheels, steers the front pair and lights both ends',
+    async (id) => {
+      const assets = new VehicleAssets();
+      const { path, rotationY } = carModelSource(id);
+      const source = await loadGlbWithoutTextures(path);
+      const prepareCarModel = (
+        assets as unknown as { prepareCarModel: PrepareCarModel }
+      ).prepareCarModel.bind(assets);
+      const prototype = prepareCarModel(source, rotationY, true, id);
+
+      const wheels: THREE.Object3D[] = [];
+      prototype.traverse((object) => {
+        if (object.userData.isWheelPivot === true) wheels.push(object);
+      });
+      expect(wheels).toHaveLength(4);
+      const front = wheels.filter((wheel) => wheel.userData.frontWheel === true);
+      expect(front).toHaveLength(2);
+      for (const wheel of wheels) {
+        const { x, y, z } = wheel.getWorldPosition(new THREE.Vector3());
+        // The car faces -Z once loaded, so the steering pair is the one further forward.
+        if (wheel.userData.frontWheel === true) expect(z).toBeLessThan(0);
+        else expect(z).toBeGreaterThan(0);
+        // Hubs sit at the sides at tyre height, about a tyre's radius off the road.
+        expect(Math.abs(x)).toBeGreaterThan(0.6);
+        expect(y).toBeCloseTo(wheel.userData.wheelRadius as number, 0);
+        expect(wheel.userData.wheelRadius).toBeGreaterThan(0.2);
+        expect(wheel.userData.wheelRadius).toBeLessThan(0.5);
+      }
+
+      const lamps = prototype.userData.lamps as {
+        head?: { x: number; y: number; z: number };
+        tail?: { x: number; y: number; z: number };
+      };
+      // Models are normalised to 4.6 units long, so the ends are near ±2.3.
+      expect(lamps.head!.z).toBeLessThan(-1.5);
+      expect(lamps.tail!.z).toBeGreaterThan(1.5);
+
+      const car = new THREE.Group();
+      assets.replaceVisual(car, prototype, false, id);
+      expect(car.userData.animatedWheels as unknown[]).toHaveLength(4);
+      const brakeLights = car.userData.modelBrakeLights as { material: THREE.Material }[];
+      expect(brakeLights.length).toBeGreaterThan(0);
+      // A lamp split by end never puts its front half on the brake lights.
+      for (const { material } of brakeLights) expect(material.name).not.toMatch(/#front$/);
+    },
+  );
+});
+
+/**
+ * A box-bodied car whose four tyres are one mesh (material `Tire`), as some
+ * exports merge them; its chrome hub caps share a material with a body trim
+ * strip, which must stay on the body.
+ */
+function carWithMergedTyres(): THREE.Group {
+  const source = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(4, 1.2, 8), new THREE.MeshStandardMaterial());
+  body.position.y = 1.2;
+  source.add(body);
+  const tyres: THREE.BufferGeometry[] = [];
+  const chrome: THREE.BufferGeometry[] = [];
+  for (const x of [-1.9, 1.9]) {
+    for (const z of [-2.5, 2.5]) {
+      tyres.push(
+        new THREE.CylinderGeometry(0.5, 0.5, 0.3, 16).rotateZ(Math.PI / 2).translate(x, 0.5, z),
+      );
+      chrome.push(
+        new THREE.CylinderGeometry(0.25, 0.25, 0.32, 8).rotateZ(Math.PI / 2).translate(x, 0.5, z),
+      );
+    }
+  }
+  // Trim along the side, high above the wheels.
+  chrome.push(new THREE.BoxGeometry(0.1, 0.1, 6).translate(2.05, 1.6, 0));
+  const named = (name: string) => new THREE.MeshStandardMaterial({ name });
+  source.add(new THREE.Mesh(mergeGeometries(tyres), named('Tire')));
+  source.add(new THREE.Mesh(mergeGeometries(chrome), named('Chrome')));
+  return source;
+}
 
 describe('VehicleAssets wheel animation', () => {
   it('changes cached shadow meshes only when the range state changes', () => {
@@ -40,7 +186,7 @@ describe('VehicleAssets wheel animation', () => {
     mesh.castShadow = true;
     prototype.add(mesh);
     const car = new THREE.Group();
-    assets.replaceVisual(car, prototype, false, 'ioniq-5');
+    assets.replaceVisual(car, prototype, false, 'generic-sedan');
 
     assets.setShadowCasting(car, false);
 
@@ -88,7 +234,7 @@ describe('VehicleAssets wheel animation', () => {
     steeringPivot.add(roller);
     prototype.add(steeringPivot);
 
-    assets.replaceVisual(car, prototype, false, 'ioniq-5');
+    assets.replaceVisual(car, prototype, false, 'generic-sedan');
     const [wheel] = car.userData.animatedWheels as Array<{
       steeringPivot: THREE.Object3D;
       roller: THREE.Object3D;
@@ -140,34 +286,19 @@ describe('VehicleAssets wheel animation', () => {
     expect(wheels.filter((wheel) => wheel.userData.frontWheel)).toHaveLength(2);
   });
 
-  it('uses all four normalized Raptor wheel groups', () => {
+  it('separates four wheels from one merged tyre mesh', () => {
     const assets = new VehicleAssets();
-    const source = new THREE.Group();
-    source.add(new THREE.Mesh(new THREE.BoxGeometry(4, 1, 8)));
-    for (const [name, x, z] of [
-      ['WHEEL_LF', 2, 2.5],
-      ['WHEEL_RF', -2, 2.5],
-      ['WHEEL_LR', 2, -2.5],
-      ['WHEEL_RR', -2, -2.5],
-    ] as const) {
-      const wheel = new THREE.Group();
-      wheel.name = name;
-      wheel.position.set(x, 0, z);
-      wheel.add(new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.25)));
-      source.add(wheel);
-    }
-
     const prepareCarModel = (
       assets as unknown as {
         prepareCarModel: (
           source: THREE.Group,
           rotationY: number,
           optimize: boolean,
-          modelId: 'ford-f150-raptor',
+          modelId: 'jaguar-xj-sport',
         ) => THREE.Group;
       }
     ).prepareCarModel.bind(assets);
-    const prototype = prepareCarModel(source, Math.PI, true, 'ford-f150-raptor');
+    const prototype = prepareCarModel(carWithMergedTyres(), Math.PI, true, 'jaguar-xj-sport');
     const wheels: THREE.Object3D[] = [];
     prototype.traverse((object) => {
       if (object.userData.isWheelPivot === true) wheels.push(object);
@@ -179,35 +310,22 @@ describe('VehicleAssets wheel animation', () => {
 
   it('tilts only the sprung body so the wheels stay planted', () => {
     const assets = new VehicleAssets();
-    const source = new THREE.Group();
-    source.add(new THREE.Mesh(new THREE.BoxGeometry(4, 1, 8)));
-    for (const [name, x, z] of [
-      ['WHEEL_LF', 2, 2.5],
-      ['WHEEL_RF', -2, 2.5],
-      ['WHEEL_LR', 2, -2.5],
-      ['WHEEL_RR', -2, -2.5],
-    ] as const) {
-      const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.25));
-      wheel.name = name;
-      wheel.position.set(x, 0, z);
-      source.add(wheel);
-    }
     const prepareCarModel = (
       assets as unknown as {
         prepareCarModel: (
           source: THREE.Group,
           rotationY: number,
           optimize: boolean,
-          modelId: 'ford-f150-raptor',
+          modelId: 'jaguar-xj-sport',
         ) => THREE.Group;
       }
     ).prepareCarModel.bind(assets);
     const car = new THREE.Group();
     assets.replaceVisual(
       car,
-      prepareCarModel(source, Math.PI, true, 'ford-f150-raptor'),
+      prepareCarModel(carWithMergedTyres(), Math.PI, true, 'jaguar-xj-sport'),
       false,
-      'ford-f150-raptor',
+      'jaguar-xj-sport',
     );
 
     const body = car.getObjectByName('car-body')!;
@@ -231,14 +349,14 @@ describe('VehicleAssets wheel animation', () => {
     prototype.add(new THREE.Mesh(new THREE.BoxGeometry(2, 1, 4.6)));
     prototype.userData.footprint = { width: 2, length: 4.6, height: 1.6 };
     const car = new THREE.Group();
-    assets.replaceVisual(car, prototype, false, 'ioniq-5');
+    assets.replaceVisual(car, prototype, false, 'generic-sedan');
 
     const shadow = car.getObjectByName('contact-shadow') as THREE.Mesh;
     expect(shadow).toBeDefined();
     expect(shadow.castShadow).toBe(false);
     expect(car.userData.shadowMeshes as THREE.Mesh[]).not.toContain(shadow);
     // Shared GPU resources survive replacing a car's visual.
-    assets.replaceVisual(car, prototype, false, 'ioniq-5');
+    assets.replaceVisual(car, prototype, false, 'generic-sedan');
     expect((car.getObjectByName('contact-shadow') as THREE.Mesh).material).toBe(shadow.material);
   });
 
@@ -246,14 +364,14 @@ describe('VehicleAssets wheel animation', () => {
     const assets = new VehicleAssets();
     const prototype = new THREE.Group();
     const lensMaterial = new THREE.MeshStandardMaterial({
-      name: 'M_Emission',
+      name: 'Taillight_Glass',
       emissive: 0x330000,
       emissiveIntensity: 1,
     });
     prototype.add(new THREE.Mesh(new THREE.BoxGeometry(2, 1, 4.6), lensMaterial));
     prototype.userData.footprint = { width: 2, length: 4.6, height: 1.6 };
     const car = new THREE.Group();
-    assets.replaceVisual(car, prototype, false, 'ioniq-5');
+    assets.replaceVisual(car, prototype, false, 'bmw-7-series');
 
     // Without measured lenses the lamps are estimated from the footprint.
     const rig = assets.lightRig(car)!;
@@ -265,7 +383,7 @@ describe('VehicleAssets wheel animation', () => {
     const lens = (): THREE.MeshStandardMaterial => {
       let found: THREE.MeshStandardMaterial | undefined;
       car.traverse((object) => {
-        if (object instanceof THREE.Mesh && object.material.name === 'M_Emission') {
+        if (object instanceof THREE.Mesh && object.material.name === 'Taillight_Glass') {
           found = object.material as THREE.MeshStandardMaterial;
         }
       });
@@ -357,11 +475,14 @@ describe('VehicleAssets wheel animation', () => {
     expect(vertices).toBe(position.count * 2);
   });
 
-  it('uses the larger collision envelope only for the concept car', () => {
+  it('sizes each collision box to the real car', () => {
     const assets = new VehicleAssets();
-    expect(assets.collisionSize('luxury-concept').length).toBeGreaterThan(
-      assets.collisionSize('ioniq-5').length,
+    // The 5.7 m Maybach is two units per metre long; the 3.3 m compact far shorter.
+    expect(assets.collisionSize('maybach-vision-6').length).toBeCloseTo(11.4, 6);
+    expect(assets.collisionSize('generic-compact').length).toBeLessThan(
+      assets.collisionSize('generic-sedan').length,
     );
+    expect(assets.collisionSize('luxury-concept').length).toBe(GAME.conceptCollisionLength);
   });
 
   it('brightens and restores the concept car rear lights', () => {
@@ -407,11 +528,11 @@ describe('VehicleAssets wheel animation', () => {
           source: THREE.Group,
           rotationY: number,
           optimize: boolean,
-          modelId: 'ford-f150-raptor',
+          modelId: 'generic-sedan',
         ) => THREE.Group;
       }
     ).prepareCarModel.bind(assets);
-    const prototype = prepareCarModel(source, Math.PI, true, 'ford-f150-raptor');
+    const prototype = prepareCarModel(source, Math.PI, true, 'generic-sedan');
     const materials: THREE.MeshPhysicalMaterial[] = [];
     prototype.traverse((object) => {
       if (object instanceof THREE.Mesh) materials.push(object.material);
@@ -466,48 +587,22 @@ describe('VehicleAssets wheel animation', () => {
     expect(farTail.emissiveIntensity).toBe(8.5);
   });
 
-  it('uses the Ford red-glass material as a working brake light', () => {
+  it('uses a red-glass lens as a working brake light', () => {
     const assets = new VehicleAssets();
     const car = new THREE.Group();
     const prototype = new THREE.Group();
     const tailMaterial = new THREE.MeshStandardMaterial({ color: 0x980000 });
-    tailMaterial.name = 'redglass';
+    tailMaterial.name = 'Taillight_Glass';
     const tail = new THREE.Mesh(new THREE.BoxGeometry(1, 0.1, 0.1), tailMaterial);
-    tail.name = 'ford-tail';
+    tail.name = 'bmw-tail';
     prototype.add(tail);
 
-    assets.replaceVisual(car, prototype, true, 'ford-everest-sport');
-    const preparedTail = car.getObjectByName('ford-tail') as THREE.Mesh;
+    assets.replaceVisual(car, prototype, true, 'bmw-7-series');
+    const preparedTail = car.getObjectByName('bmw-tail') as THREE.Mesh;
     const material = preparedTail.material as THREE.MeshStandardMaterial;
     assets.setBrakeLights(car, true);
 
     expect(material.emissive.getHex()).toBe(0xff0712);
     expect(material.emissiveIntensity).toBe(5.2);
-  });
-
-  it('brightens the Ioniq emission mesh without adding rear-light geometry', () => {
-    const assets = new VehicleAssets();
-    const car = new THREE.Group();
-    const prototype = new THREE.Group();
-    const emission = new THREE.MeshStandardMaterial({
-      emissive: 0xffffff,
-      emissiveIntensity: 1,
-    });
-    emission.name = 'M_Emission';
-    const emissionMesh = new THREE.Mesh(new THREE.BoxGeometry(2, 1, 4), emission);
-    emissionMesh.name = 'ioniq-emission';
-    prototype.add(emissionMesh);
-
-    assets.replaceVisual(car, prototype, false, 'ioniq-5');
-    const preparedEmission = car.getObjectByName('ioniq-emission') as THREE.Mesh;
-    const preparedMaterial = preparedEmission.material as THREE.MeshStandardMaterial;
-    assets.setBrakeLights(car, true);
-
-    expect(preparedMaterial.emissive.getHex()).toBe(0xffffff);
-    expect(preparedMaterial.emissiveIntensity).toBe(3.2);
-    expect(car.getObjectByName('ioniq-rear-brake-light-left')).toBeUndefined();
-    expect(car.getObjectByName('high-mounted-brake-light')).toBeUndefined();
-    expect(emission.emissive.getHex()).toBe(0xffffff);
-    expect(emission.emissiveIntensity).toBe(1);
   });
 });

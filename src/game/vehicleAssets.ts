@@ -4,7 +4,8 @@ import {
   deinterleaveGeometry,
   mergeGeometries,
 } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { GAME } from './config';
+import { GAME, WORLD_UNITS_PER_METER } from './config';
+import { separateWheels, splitLampsByEnd } from './carParts';
 import { buildCarLod, carLodReady, whenCarLodReady } from './rendering/carLod';
 import type { CarLodParts } from './rendering/carLod';
 import { selectCarModelIds } from './vehicleCatalog';
@@ -22,19 +23,33 @@ export type VehicleModelId = CarModelId;
 interface CarModelSpec {
   id: VehicleModelId;
   path: string;
+  /** Turns the model so its nose points along -Z once loaded. */
   rotationY: number;
   displayScale: number;
   paintMaterials: readonly string[];
   rimMaterials?: readonly string[];
+  /**
+   * Materials of the four tyres. Each tyre's cylinder marks out a wheel, so
+   * tyres that share one mesh are separated by corner.
+   */
+  tyreMaterials?: readonly string[];
+  /**
+   * Rim, hub and brake-disc materials. With `tyreMaterials`, only the parts
+   * inside a tyre's cylinder turn with it; the same material elsewhere (trim,
+   * badges) stays on the body.
+   */
   wheelMaterials?: readonly string[];
   /** Node names that form the four wheel assemblies. */
   wheelNodes?: readonly string[];
+  /**
+   * Lamp materials that cover both ends of the car. Each is split into
+   * `<name>#front` and `<name>#rear`, which the lamp lists can then name.
+   */
+  splitLampMaterials?: readonly string[];
   tailMaterials?: readonly string[];
   /** Headlamp lens materials; only their geometry at the front of the car is used. */
   headlampMaterials?: readonly string[];
   tailLightProfile?: Omit<ModelBrakeLight, 'material'>;
-  preserveTailColor?: boolean;
-  removePaintTexture?: boolean;
   /** Centre-to-centre collision envelope in world units. */
   collision?: CollisionSize;
 }
@@ -212,42 +227,47 @@ const DETAILED_MODEL_DISTANCE = 75;
 const FAR_MODEL_RATIO = 0.1;
 const FAR_MODEL_ERROR = 0.01;
 const FAR_MODEL_NAME = 'car-far-model';
-const BASE_MODEL_SPECS: readonly CarModelSpec[] = [
-  {
-    id: 'ford-f150-raptor',
-    path: 'models/2017_ford_f-150_raptor.glb',
-    rotationY: Math.PI,
-    displayScale: 2.1,
-    paintMaterials: ['RaptorM_CarPaint_Max1'],
-    tailMaterials: ['RaptorM_LightGlass_Red_Low1'],
-    headlampMaterials: ['RaptorM_LightGlass_Clear_Low1'],
-    wheelNodes: ['WHEEL_RF', 'WHEEL_RR', 'WHEEL_LF', 'WHEEL_LR'],
-  },
-  {
-    id: 'ford-everest-sport',
-    path: 'models/ford_everest_sport_2023.glb',
-    rotationY: Math.PI,
-    displayScale: 2.2,
-    paintMaterials: ['carpaint'],
-    tailMaterials: ['redglass'],
-    headlampMaterials: ['light'],
-    wheelNodes: ['WHEEL_RF', 'WHEEL_RR', 'WHEEL_LF', 'WHEEL_LR'],
-  },
-  {
-    id: 'ioniq-5',
-    path: 'models/hyundai_ioniq_5_-_lowpoly.glb',
-    rotationY: Math.PI,
-    displayScale: 1.9,
-    paintMaterials: ['M_Gravity_Gold_Matte'],
-    tailMaterials: ['M_Emission'],
-    headlampMaterials: ['M_Emission'],
-    preserveTailColor: true,
-    wheelNodes: ['SM_Wheel_BL_0', 'SM_Wheel_BR_1', 'SM_Wheel_FL_2', 'SM_Wheel_FR_3'],
-  },
-];
+/** Real-world size of a car, from which its display scale and collision box follow. */
+interface CarSize {
+  /** Bumper to bumper, in metres. */
+  length: number;
+  /** Body width without mirrors, in metres. */
+  width: number;
+}
+
+/** Every model is normalised to this many units long before `displayScale`. */
+const NORMALISED_MODEL_LENGTH = 4.6;
+
+/** Display scale and collision box that draw a car at its real size. */
+function trueToScale({ length, width }: CarSize): Pick<CarModelSpec, 'displayScale' | 'collision'> {
+  return {
+    displayScale: (length * WORLD_UNITS_PER_METER) / NORMALISED_MODEL_LENGTH,
+    collision: { length: length * WORLD_UNITS_PER_METER, width: width * WORLD_UNITS_PER_METER },
+  };
+}
+
+/** Rotations that bring a model's nose to -Z. */
+const NOSE_TOWARD_PLUS_Z = Math.PI;
+const NOSE_TOWARD_MINUS_Z = 0;
+const NOSE_TOWARD_PLUS_X = Math.PI / 2;
+const NOSE_TOWARD_MINUS_X = -Math.PI / 2;
+
+/**
+ * Textured lamp lenses keep their own look at rest and glow red when braking,
+ * rather than being tinted dark red.
+ */
+const TEXTURED_TAIL_LIGHTS: Omit<ModelBrakeLight, 'material'> = {
+  restColor: 0xffffff,
+  restEmissive: 0x3a0204,
+  restIntensity: 0.8,
+  brakingColor: 0xff5050,
+  brakingEmissive: 0xff0712,
+  brakingIntensity: 5.2,
+};
+
 const AUDI_ETRON_MODEL_SPEC: CarModelSpec = {
   id: 'luxury-concept',
-  path: 'models/2018_audi_e-tron_gt_concept.glb',
+  path: 'models/cars/audi_e-tron_gt_concept.glb',
   rotationY: Math.PI,
   displayScale: CONCEPT_CAR_SCALE,
   paintMaterials: ['CarPaint'],
@@ -269,7 +289,205 @@ const AUDI_ETRON_MODEL_SPEC: CarModelSpec = {
     brakingIntensity: 8.5,
   },
 };
-const CAR_MODEL_SPECS: readonly CarModelSpec[] = [...BASE_MODEL_SPECS, AUDI_ETRON_MODEL_SPEC];
+
+/**
+ * The cars below are prepared from their Sketchfab downloads by
+ * scripts/prepare-car-models.mjs; material names are the authors' own.
+ */
+const SKETCHFAB_MODEL_SPECS: readonly CarModelSpec[] = [
+  {
+    id: 'volvo-v60-polestar',
+    path: 'models/cars/volvo_v60_polestar.glb',
+    rotationY: NOSE_TOWARD_MINUS_Z,
+    ...trueToScale({ length: 4.64, width: 1.87 }),
+    paintMaterials: ['body_paint'],
+    tyreMaterials: ['wheel_tire'],
+    wheelMaterials: [
+      'wheel_disk',
+      'wheel_black',
+      'wheel_metal',
+      'disk_brake',
+      'disk_brake_tr.',
+      'volvo_logo.tex',
+    ],
+    tailMaterials: ['headlight_backglass'],
+    headlampMaterials: ['hl_front'],
+  },
+  {
+    id: 'jaguar-xj-sport',
+    path: 'models/cars/jaguar_xj_sport.glb',
+    rotationY: NOSE_TOWARD_PLUS_Z,
+    ...trueToScale({ length: 5.02, width: 1.8 }),
+    paintMaterials: ['Paint'],
+    tyreMaterials: ['Tire'],
+    wheelMaterials: ['material', 'Chrome', 'Badging', 'brakes'],
+    splitLampMaterials: ['Lights'],
+    tailMaterials: ['Lights#rear'],
+    headlampMaterials: ['Lens'],
+    tailLightProfile: TEXTURED_TAIL_LIGHTS,
+  },
+  {
+    id: 'peugeot-3008',
+    path: 'models/cars/peugeot_3008.glb',
+    rotationY: NOSE_TOWARD_PLUS_Z,
+    ...trueToScale({ length: 4.45, width: 1.84 }),
+    paintMaterials: ['CarPaint_Flip1'],
+    tyreMaterials: ['wheel.001'],
+    wheelMaterials: [
+      'rims_black.001',
+      'Chrome.001',
+      'material_1.001',
+      'Material.001',
+      'Material.002',
+    ],
+    tailMaterials: ['Material.lar', 'Material.021'],
+    headlampMaterials: ['Material.phare.001'],
+  },
+  {
+    id: 'nissan-z-proto',
+    path: 'models/cars/nissan_z_proto.glb',
+    rotationY: NOSE_TOWARD_PLUS_Z,
+    ...trueToScale({ length: 4.38, width: 1.85 }),
+    paintMaterials: ['Material.001'],
+    tyreMaterials: ['Material.002'],
+    wheelMaterials: ['Material.004', 'Material.003'],
+    // The red lamp sits under a dark smoked cover, which must glow with it.
+    tailMaterials: ['Material.012', 'Material.011'],
+    headlampMaterials: ['Material.009'],
+  },
+  {
+    id: 'nissan-skyline-r34',
+    path: 'models/cars/nissan_skyline_r34.glb',
+    rotationY: NOSE_TOWARD_PLUS_Z,
+    ...trueToScale({ length: 4.6, width: 1.79 }),
+    paintMaterials: ['Material.001'],
+    tyreMaterials: ['Material.010'],
+    wheelMaterials: ['Material.012'],
+    tailMaterials: ['Material.009'],
+    headlampMaterials: ['Material'],
+    tailLightProfile: TEXTURED_TAIL_LIGHTS,
+  },
+  {
+    id: 'mercedes-c63-amg',
+    path: 'models/cars/mercedes_c63_amg.glb',
+    rotationY: NOSE_TOWARD_PLUS_X,
+    ...trueToScale({ length: 4.73, width: 1.8 }),
+    paintMaterials: ['CAR_BODY_PAINT'],
+    tyreMaterials: ['TARMAC_TYRE_TREAD', 'TARMAC_TYRE_WALL'],
+    wheelMaterials: ['TARMAC_WHEEL', 'DISCS'],
+    splitLampMaterials: ['LIGHTS_GLASS', 'LIGHTS_POD'],
+    tailMaterials: ['LIGHTS_GLASS#rear', 'LIGHTS_POD#rear'],
+    headlampMaterials: ['LIGHTS_GLASS#front'],
+    tailLightProfile: TEXTURED_TAIL_LIGHTS,
+  },
+  {
+    id: 'bmw-7-series',
+    path: 'models/cars/bmw_7_series.glb',
+    rotationY: NOSE_TOWARD_MINUS_X,
+    ...trueToScale({ length: 5.07, width: 1.9 }),
+    paintMaterials: ['Body_Color'],
+    tyreMaterials: ['Mold-Tech-11160'],
+    wheelMaterials: ['M_0131_Silver', 'M_0132_LightGray', 'M_0133_Gray', 'M_0134_DimGray'],
+    tailMaterials: ['Taillight_Glass'],
+    headlampMaterials: ['Translucent_Angel_Eyes'],
+  },
+  {
+    id: 'bmw-i8',
+    path: 'models/cars/bmw_i8.glb',
+    rotationY: NOSE_TOWARD_PLUS_Z,
+    ...trueToScale({ length: 4.69, width: 1.94 }),
+    paintMaterials: ['paint'],
+    tyreMaterials: ['tire'],
+    wheelMaterials: ['bhrome_d', 'bhrome', 'chrome', 'disc'],
+    tailMaterials: ['glass-red'],
+    headlampMaterials: ['light_e'],
+  },
+  {
+    id: 'maybach-vision-6',
+    path: 'models/cars/maybach_vision_6.glb',
+    rotationY: NOSE_TOWARD_PLUS_Z,
+    ...trueToScale({ length: 5.7, width: 2.1 }),
+    paintMaterials: ['maybachv6_body'],
+    tyreMaterials: ['maybachv6_tire'],
+    wheelMaterials: ['maybachv6_rim', 'maybachv6_details', 'maybachv6_black_details'],
+    splitLampMaterials: ['maybachv6_light'],
+    tailMaterials: ['maybachv6_light#rear'],
+    headlampMaterials: ['maybachv6_light#front'],
+    tailLightProfile: TEXTURED_TAIL_LIGHTS,
+  },
+];
+
+/**
+ * Unbranded cars from the generic passenger car pack. Their colour is painted
+ * into the texture, so they keep it instead of taking a random paint.
+ */
+function genericCar(
+  id: CarModelId,
+  file: string,
+  materialSuffix: string,
+  wheelMaterial: string,
+  size: CarSize,
+  rotationY = NOSE_TOWARD_MINUS_Z,
+): CarModelSpec {
+  const optics = `Optics${materialSuffix}`;
+  return {
+    id,
+    path: `models/cars/${file}`,
+    rotationY,
+    ...trueToScale(size),
+    paintMaterials: [],
+    tyreMaterials: [wheelMaterial],
+    splitLampMaterials: [optics],
+    tailMaterials: [`${optics}#rear`],
+    headlampMaterials: [`${optics}#front`],
+    tailLightProfile: TEXTURED_TAIL_LIGHTS,
+  };
+}
+
+const GENERIC_MODEL_SPECS: readonly CarModelSpec[] = [
+  genericCar('generic-sedan', 'generic_sedan.glb', '_5', 'Wheel_4', { length: 4.36, width: 1.8 }),
+  genericCar('generic-wagon', 'generic_wagon.glb', '_8', 'Wheel_7', { length: 4.38, width: 1.8 }),
+  genericCar('generic-hatchback', 'generic_hatchback.glb', '_1', 'Wheek', {
+    length: 3.96,
+    width: 1.72,
+  }),
+  genericCar('generic-compact', 'generic_compact.glb', '', 'Wheel', { length: 3.26, width: 1.6 }),
+  genericCar(
+    'generic-coupe',
+    'generic_coupe.glb',
+    '_0',
+    'Wheel_0',
+    { length: 4.24, width: 1.82 },
+    NOSE_TOWARD_PLUS_Z,
+  ),
+  genericCar('generic-sport', 'generic_sport.glb', '_6', 'Wheel_5', { length: 3.91, width: 1.77 }),
+  genericCar('generic-minivan', 'generic_minivan.glb', '_2', 'Wheel_1', {
+    length: 4.61,
+    width: 1.87,
+  }),
+  genericCar('generic-suv', 'generic_suv.glb', '_7', 'Wheel_6', { length: 4.61, width: 1.95 }),
+  genericCar('generic-offroad', 'generic_offroad.glb', '_3', 'Wheel_2', {
+    length: 3.94,
+    width: 1.85,
+  }),
+  genericCar('generic-pickup', 'generic_pickup.glb', '_4', 'Wheel_3', {
+    length: 5.18,
+    width: 1.95,
+  }),
+];
+
+const CAR_MODEL_SPECS: readonly CarModelSpec[] = [
+  AUDI_ETRON_MODEL_SPEC,
+  ...SKETCHFAB_MODEL_SPECS,
+  ...GENERIC_MODEL_SPECS,
+];
+
+/** Where a car's file lives and how it is turned to face -Z; exposed for tests. */
+export function carModelSource(id: CarModelId): { path: string; rotationY: number } {
+  const spec = CAR_MODEL_SPECS.find((candidate) => candidate.id === id);
+  if (!spec) throw new Error(`Missing specification for car model: ${id}`);
+  return { path: spec.path, rotationY: spec.rotationY };
+}
 
 let contactShadowResources:
   { geometry: THREE.PlaneGeometry; material: THREE.MeshBasicMaterial } | undefined;
@@ -604,7 +822,7 @@ export class VehicleAssets {
               : tailNames.has(material.name)
                 ? 'tail'
                 : 'body',
-          paintTexture: modelSpec.removePaintTexture !== true,
+          paintTexture: true,
           ratio: FAR_MODEL_RATIO,
           error: FAR_MODEL_ERROR,
         });
@@ -698,6 +916,8 @@ export class VehicleAssets {
     orientation.rotation.y = rotationY;
     orientation.add(content);
     orientation.updateMatrixWorld(true);
+    const spec = CAR_MODEL_SPECS.find((candidate) => candidate.id === modelId);
+    splitLampsByEnd(orientation, new Set(spec?.splitLampMaterials));
 
     const wheelPivots = this.extractWheelPivots(orientation, modelId);
 
@@ -740,7 +960,6 @@ export class VehicleAssets {
       length: footprint.z,
       height: footprint.y,
     } satisfies Footprint;
-    const spec = CAR_MODEL_SPECS.find((candidate) => candidate.id === modelId);
     const minDepth = footprint.z * 0.25;
     prototype.userData.lamps = {
       head: findLampAnchor(prototype, new Set(spec?.headlampMaterials), 'front', minDepth),
@@ -853,6 +1072,11 @@ export class VehicleAssets {
 
     const modelSpec = CAR_MODEL_SPECS.find((spec) => spec.id === modelId);
     const wheelMaterialNames = new Set(modelSpec?.wheelMaterials ?? []);
+    if (modelSpec?.tyreMaterials) {
+      const parts = separateWheels(root, new Set(modelSpec.tyreMaterials), wheelMaterialNames);
+      if (parts.length === 0) console.warn(`Could not find the four tyres of ${modelId}.`);
+      return this.groupWheelPartsByPosition(root, parts);
+    }
     if (wheelMaterialNames.size > 0) {
       const parts: THREE.Object3D[] = [];
       root.traverse((object) => {
@@ -980,7 +1204,6 @@ export class VehicleAssets {
           material.roughness = 0.2;
           material.envMapIntensity = 1.4;
         } else {
-          if (modelSpec.removePaintTexture) material.map = null;
           material.metalness = metallicFinish ? 0.78 : Math.max(material.metalness, 0.48);
           material.roughness = metallicFinish ? 0.18 : Math.min(material.roughness, 0.32);
           material.envMapIntensity = metallicFinish ? 1.35 : material.envMapIntensity;
@@ -1013,14 +1236,13 @@ export class VehicleAssets {
       if (existing) return existing.material;
 
       const material = source.clone();
-      const preserveColor = modelSpec?.preserveTailColor === true;
       const defaultProfile: Omit<ModelBrakeLight, 'material'> = {
-        restColor: preserveColor ? source.color.getHex() : 0x8f1118,
-        restEmissive: preserveColor ? source.emissive.getHex() : 0x320003,
-        restIntensity: preserveColor ? source.emissiveIntensity : 0.85,
-        brakingColor: preserveColor ? source.color.getHex() : 0xff2732,
-        brakingEmissive: preserveColor ? source.emissive.getHex() : 0xff0712,
-        brakingIntensity: preserveColor ? 3.2 : 5.2,
+        restColor: 0x8f1118,
+        restEmissive: 0x320003,
+        restIntensity: 0.85,
+        brakingColor: 0xff2732,
+        brakingEmissive: 0xff0712,
+        brakingIntensity: 5.2,
       };
       const light: ModelBrakeLight = {
         material,

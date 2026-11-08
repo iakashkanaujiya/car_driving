@@ -12,10 +12,18 @@ const optionList = (options: readonly { id: string; label: string }[]): string =
 /** Builds the static application shell. Dynamic overlays remain in the app controller. */
 export function createGameTemplate(): string {
   const loadingPosterPath = `${import.meta.env.BASE_URL}images/hands-on-highway-poster-loading.webp`;
-  const carOptions = CAR_MODEL_OPTIONS.map(
-    ({ id, label }) =>
-      `<option value="${id}"${id === DEFAULT_CAR_MODEL_ID ? ' selected' : ''}>${label}</option>`,
-  ).join('');
+  const carGroups = [...new Set(CAR_MODEL_OPTIONS.map(({ group }) => group))];
+  const carOptions = carGroups
+    .map((group) => {
+      const options = CAR_MODEL_OPTIONS.filter((option) => option.group === group)
+        .map(
+          ({ id, label }) =>
+            `<option value="${id}"${id === DEFAULT_CAR_MODEL_ID ? ' selected' : ''}>${label}</option>`,
+        )
+        .join('');
+      return `<optgroup label="${group}">${options}</optgroup>`;
+    })
+    .join('');
   const trafficOptions = TRAFFIC_COUNT_OPTIONS.map(
     (count) =>
       `<option value="${count}"${count === 4 ? ' selected' : ''}>${count === 0 ? 'NO TRAFFIC' : `${count} CARS`}</option>`,
