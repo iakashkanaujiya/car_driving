@@ -6,6 +6,9 @@ import {
   clamp,
   constrainToRoad,
   damp,
+  followTravelHeading,
+  HANDBRAKE_SLIDE_MIN_SPEED,
+  HANDBRAKE_YAW_BOOST,
   roadCenter,
   roadHeading,
   roadWindowStart,
@@ -128,6 +131,12 @@ export class DrivingGame {
   private lateral: number = laneOffsets[0];
   private worldX = roadCenter(0) + Math.cos(roadHeading(0)) * laneOffsets[0];
   private vehicleHeading = roadHeading(0);
+  /** Direction of travel; it lags the nose while the handbrake slides the car. */
+  private travelHeading = roadHeading(0);
+  /** The rear wheels are locked by the handbrake this frame. */
+  private rearWheelsLocked = false;
+  /** How hard the tyres are sliding, 0 to 1. */
+  private skid = 0;
   private steeringVisual = 0;
   private longitudinalAcceleration = 0;
   /** Seconds the full brake has been held at a standstill; engages reverse. */
@@ -318,6 +327,9 @@ export class DrivingGame {
     this.lateral = laneOffsets[0];
     this.worldX = roadCenter(0) + Math.cos(roadHeading(0)) * laneOffsets[0];
     this.vehicleHeading = roadHeading(0);
+    this.travelHeading = this.vehicleHeading;
+    this.rearWheelsLocked = false;
+    this.skid = 0;
     this.overtakes = 0;
     this.assistMessage = 'READY';
     this.reverseHoldSeconds = 0;
@@ -589,10 +601,28 @@ export class DrivingGame {
 
     this.steeringVisual = damp(this.steeringVisual, control.steering, 10, dt);
     const reversing = this.speed < 0;
-    this.vehicleHeading -= steeringYawRate(this.steeringVisual, this.speed) * dt;
+    // The handbrake locks the rear wheels: steering swings the nose round past
+    // the grip limit and the car slides, travelling where it was heading.
+    this.rearWheelsLocked = control.active && control.handbrake === true;
+    const sliding = this.rearWheelsLocked && Math.abs(this.speed) > HANDBRAKE_SLIDE_MIN_SPEED;
+    const yawBoost = sliding ? HANDBRAKE_YAW_BOOST : 1;
+    this.vehicleHeading -= steeringYawRate(this.steeringVisual, this.speed) * yawBoost * dt;
+    this.travelHeading = followTravelHeading(this.travelHeading, this.vehicleHeading, sliding, dt);
+    const slideAngle = Math.abs(
+      Math.atan2(
+        Math.sin(this.vehicleHeading - this.travelHeading),
+        Math.cos(this.vehicleHeading - this.travelHeading),
+      ),
+    );
+    // Locked tyres scrub as long as the car moves; sliding sideways screeches hardest.
+    const skidTarget = sliding
+      ? clamp(toKph(Math.abs(this.speed)) / 45, 0, 1) *
+        (0.55 + 0.45 * clamp(slideAngle / 0.35, 0, 1))
+      : 0;
+    this.skid = damp(this.skid, skidTarget, 12, dt);
     // Plain planar motion: the car can turn around and drive back down the road.
-    this.worldX += -Math.sin(this.vehicleHeading) * this.speed * dt;
-    this.distance += Math.cos(this.vehicleHeading) * this.speed * dt;
+    this.worldX += -Math.sin(this.travelHeading) * this.speed * dt;
+    this.distance += Math.cos(this.travelHeading) * this.speed * dt;
     if (this.speed > 0) this.odometer += this.speed * dt;
 
     const currentRoadHeading = roadHeading(this.distance);
@@ -622,6 +652,8 @@ export class DrivingGame {
           Math.abs(relativeHeading) > Math.PI / 2 ? Math.sign(relativeHeading) * Math.PI : 0;
         const softenedHeading = damp(relativeHeading, along, 2.5 + edgeProximity * 5.5, dt);
         this.vehicleHeading = currentRoadHeading + softenedHeading;
+        // The verge ends any slide.
+        this.travelHeading = this.vehicleHeading;
         const scrub = (2 + edgeProximity * 5) * dt;
         this.speed = reversing ? Math.min(0, this.speed + scrub) : Math.max(0, this.speed - scrub);
       }
@@ -732,7 +764,13 @@ export class DrivingGame {
       this.longitudinalAcceleration * 0.0024,
       dt,
     );
-    this.vehicleAssets.updateWheelAnimation(this.player, this.speed * dt, this.steeringVisual, dt);
+    this.vehicleAssets.updateWheelAnimation(
+      this.player,
+      this.speed * dt,
+      this.steeringVisual,
+      dt,
+      this.rearWheelsLocked,
+    );
 
     for (const car of this.traffic) {
       const gap = car.distance - this.distance;
@@ -769,7 +807,9 @@ export class DrivingGame {
     groundMaterial.normalMap?.offset.set(grassOffsetX, grassOffsetY);
     groundMaterial.roughnessMap?.offset.set(grassOffsetX, grassOffsetY);
     groundMaterial.metalnessMap?.offset.set(grassOffsetX, grassOffsetY);
-    this.forward.set(-Math.sin(this.vehicleHeading), 0, -Math.cos(this.vehicleHeading));
+    // The camera follows the direction of travel, so a handbrake slide shows
+    // the car turned across its path rather than the road swinging round.
+    this.forward.set(-Math.sin(this.travelHeading), 0, -Math.cos(this.travelHeading));
     this.shadowCenter.copy(this.player.position).addScaledVector(this.forward, 32);
     updateSceneShadow(this.lighting, this.shadowCenter);
     // Carry the camera with the car so it never trails further behind at
@@ -902,6 +942,7 @@ export class DrivingGame {
         cruise: { status: this.cruiseStatus, setKph: this.cruiseSetKph },
         phase: this.phase,
         assistMessage: this.assistMessage,
+        skid: this.phase === 'playing' ? this.skid : 0,
       });
     }
   };

@@ -146,8 +146,12 @@ describe('driving assistance', () => {
         reverseHoldSeconds: HAND_REVERSE.delaySeconds - 0.1,
       });
       expect(waiting.targetSpeed).toBe(0);
-      expect(waiting.assistMessage).toBe('HOLD TO REVERSE');
+      expect(waiting.assistMessage).toBe('STOPPED · REVERSE IN 1');
       expect(waiting.braking).toBe(true);
+      // The countdown starts from the full wait.
+      expect(createSpeedPlan(palms, 0).assistMessage).toBe('STOPPED · REVERSE IN 3');
+      // Long enough that a driver who only wanted to stop can open their hands and let go.
+      expect(HAND_REVERSE.delaySeconds).toBeGreaterThanOrEqual(2);
 
       const reversing = createSpeedPlan(palms, 0, {
         reverseHoldSeconds: HAND_REVERSE.delaySeconds,
@@ -159,6 +163,9 @@ describe('driving assistance', () => {
     it('only counts the hold once the car has stopped under a full brake', () => {
       let held = 0;
       held = updateReverseHold(held, palms, 12, 0.5);
+      expect(held).toBe(0);
+      // Still creeping forward: the wait has not started.
+      held = updateReverseHold(held, palms, 0.4, 0.5);
       expect(held).toBe(0);
       held = updateReverseHold(held, palms, 0, 0.5);
       held = updateReverseHold(held, palms, 0, 0.5);

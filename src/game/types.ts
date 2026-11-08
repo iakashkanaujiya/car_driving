@@ -18,6 +18,8 @@ export interface ControlInput {
   braking?: boolean;
   /** Normalized analog brake pressure. Omitted when the brake is released. */
   brakePressure?: number;
+  /** The handbrake is held: the rear wheels lock, the car stops and can slide. */
+  handbrake?: boolean;
   /** Present when this input can reverse. */
   reverseGear?: ReverseGear;
   /**
@@ -45,4 +47,6 @@ export interface GameSnapshot {
   cruise: CruiseSnapshot;
   phase: GamePhase;
   assistMessage: string;
+  /** How hard the tyres are sliding, 0 to 1, for the skid sound. */
+  skid: number;
 }

@@ -65,13 +65,16 @@ export function adjustCruise(setKph: number, direction: 1 | -1): number {
  * with hands, so they (and lost tracking, which brakes too) just override it.
  */
 export function cruiseStaysEngaged(control: ControlInput): boolean {
+  // Pulling the handbrake switches cruise off in any mode, as on a real car.
+  if (control.handbrake) return false;
   if (!control.brakeCancelsCruise) return true;
   return !(control.braking === true || (control.brakePressure ?? 0) > 0);
 }
 
 /** Whether adaptive cruise is driving right now, rather than switched on but overridden. */
 export function cruiseIsDriving(control: ControlInput): boolean {
-  const braking = control.braking === true || (control.brakePressure ?? 0) > 0;
+  const braking =
+    control.braking === true || (control.brakePressure ?? 0) > 0 || control.handbrake === true;
   return control.active && !braking && control.accelerating !== true;
 }
 

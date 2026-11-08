@@ -43,6 +43,8 @@ export class DrivingApplication {
   private mode: ControlMode = 'hands';
   private lastSnapshot: GameSnapshot | null = null;
   private soundEnabled = true;
+  /** Space is held: the handbrake, in either control mode. */
+  private handbrakeHeld = false;
   private driverCar: CarModelId = DEFAULT_CAR_MODEL_ID;
   private trafficCount = 4;
   private modelCount = 1;
@@ -150,10 +152,22 @@ export class DrivingApplication {
       'keyup',
       (event) => {
         if (event.code === 'KeyH') this.audio.setHorn(false);
+        if (event.code === 'Space') {
+          // Space would otherwise press whichever button has focus.
+          if (this.handbrakeHeld) event.preventDefault();
+          this.handbrakeHeld = false;
+        }
       },
       options,
     );
-    window.addEventListener('blur', () => this.audio.setHorn(false), options);
+    window.addEventListener(
+      'blur',
+      () => {
+        this.audio.setHorn(false);
+        this.handbrakeHeld = false;
+      },
+      options,
+    );
     window.addEventListener('beforeunload', () => this.dispose(), { once: true });
   }
 
@@ -196,6 +210,7 @@ export class DrivingApplication {
         this.lastSnapshot = snapshot;
         this.hud.update(snapshot, this.getControl().steering);
         this.audio.update(snapshot.speedKph);
+        this.audio.setSkid(snapshot.skid);
       },
       () => this.showCrash(),
       (snapshot) => this.performanceHud.update(snapshot),
@@ -212,11 +227,17 @@ export class DrivingApplication {
   }
 
   private getControl(): ControlInput {
+    const handbrake = this.handbrakeHeld;
     if (this.mode === 'hands') {
-      return this.handController?.getInput() ?? { steering: 0, confidence: 0, active: false };
+      const input = this.handController?.getInput() ?? {
+        steering: 0,
+        confidence: 0,
+        active: false,
+      };
+      return { ...input, handbrake };
     }
     // Keyboard mode remains active while keys are released so coasting works.
-    return { ...this.keyboard.getInput(), active: true };
+    return { ...this.keyboard.getInput(), active: true, handbrake };
   }
 
   private async prepareSelectedCars(button?: HTMLButtonElement): Promise<boolean> {
@@ -305,7 +326,7 @@ export class DrivingApplication {
       if (this.game?.getPhase() !== 'playing' && !document.getElementById('begin-run')) {
         this.showDriveReady(
           'CALIBRATION LOCKED.',
-          'Turn your hands like a wheel. Raise both thumbs to slow to 40 km/h, or show both open palms for a full stop; keep them open a second longer to reverse. Hold a V sign with both hands for adaptive cruise, and raise just your right or left thumb to change its speed. Press H for the horn.',
+          'Turn your hands like a wheel. Raise both thumbs to slow to 40 km/h, or show both open palms for a full stop; keep them open for a few seconds after the car stops to reverse (a countdown shows when). Hold a V sign with both hands for adaptive cruise, and raise just your right or left thumb to change its speed. Press H for the horn and Space for the handbrake.',
         );
       }
     } else if (status === 'lost') {
@@ -335,7 +356,7 @@ export class DrivingApplication {
   private showKeyboardReady(): void {
     this.showDriveReady(
       'KEYBOARD READY.',
-      'Use W or ↑ to accelerate, S or ↓ to brake, and A / D or ← / → to steer. Keep holding S at a stop to reverse. Hold H for the horn. Press C or use the ACC panel for adaptive cruise; + and − set its speed.',
+      'Use W or ↑ to accelerate, S or ↓ to brake, and A / D or ← / → to steer. Keep holding S at a stop to reverse. Hold Space for the handbrake and H for the horn. Press C or use the ACC panel for adaptive cruise; + and − set its speed.',
     );
   }
 
@@ -451,6 +472,14 @@ export class DrivingApplication {
   }
 
   private onGlobalKeyDown(event: KeyboardEvent): void {
+    if (event.code === 'Space') {
+      // The handbrake works in hand and keyboard modes alike, while driving.
+      if (this.game?.getPhase() === 'playing') {
+        event.preventDefault();
+        this.handbrakeHeld = true;
+      }
+      return;
+    }
     if (event.code === 'KeyH') {
       // The horn is manual, in hand and keyboard modes alike.
       if (this.game?.getPhase() === 'playing') this.audio.setHorn(true);

@@ -220,6 +220,27 @@ describe('VehicleAssets wheel animation', () => {
     expect(steeringPivot.rotation.y).toBeLessThan(0);
   });
 
+  it('holds the rear wheels still while the handbrake locks them', () => {
+    const car = new THREE.Group();
+    const wheel = (front: boolean) => ({
+      steeringPivot: new THREE.Group(),
+      roller: new THREE.Group(),
+      radius: 0.5,
+      front,
+      rollAxis: 'x' as const,
+      baseRoll: 0,
+      baseSteering: 0,
+      rollAngle: 0,
+    });
+    const [front, rear] = [wheel(true), wheel(false)];
+    car.userData.animatedWheels = [front, rear];
+
+    new VehicleAssets().updateWheelAnimation(car, 1, 0, 1 / 60, true);
+
+    expect(front.roller.rotation.x).not.toBe(0);
+    expect(rear.roller.rotation.x).toBe(0);
+  });
+
   it('keeps real-car steering and rolling on separate transforms', () => {
     const assets = new VehicleAssets();
     const car = new THREE.Group();

@@ -44,6 +44,8 @@ export const GAME = {
   coastDeceleration: 2.4,
   /** Full braking, about 0.9 g. */
   serviceBrake: 18,
+  /** Handbrake: only the rear wheels lock, so it stops more gently, about 0.55 g. */
+  handbrake: 11,
   /** How quickly reverse speed builds. */
   reverseAcceleration: 5,
   /** Holding the full brake below this speed counts as a standstill. */
@@ -64,10 +66,11 @@ export const GAME = {
 export const KEYBOARD_REVERSE: ReverseGear = { delaySeconds: 0, maxSpeed: fromKph(30) };
 
 /**
- * Hands: keep both palms open for a second after stopping to back up slowly
- * (15 km/h). The pause keeps a plain full stop from rolling backward.
+ * Hands: open palms stop the car and hold it; keep them open 3 s after it
+ * has stopped to back up slowly (15 km/h). The wait, counted down on screen,
+ * keeps a plain full stop from rolling backward.
  */
-export const HAND_REVERSE: ReverseGear = { delaySeconds: 1, maxSpeed: fromKph(15) };
+export const HAND_REVERSE: ReverseGear = { delaySeconds: 3, maxSpeed: fromKph(15) };
 
 /**
  * Throttle tapers with speed, as drag and gearing do in a real car: full

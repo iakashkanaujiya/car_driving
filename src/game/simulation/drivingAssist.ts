@@ -28,8 +28,10 @@ const REVERSE_ROLL_SPEED = -0.05;
 const STOPPED_SPEED = 0.3;
 
 /**
- * Seconds the full brake has been held at a standstill (or while reversing).
- * Reverse engages once this reaches the input's `reverseGear.delaySeconds`.
+ * Seconds the full brake has been held since the car stopped (or while
+ * reversing). Reverse engages once this reaches the input's
+ * `reverseGear.delaySeconds`; the count starts only at a standstill, so the
+ * whole wait happens with the car stopped.
  */
 export function updateReverseHold(
   heldSeconds: number,
@@ -37,8 +39,8 @@ export function updateReverseHold(
   currentSpeed: number,
   dt: number,
 ): number {
-  const fullBrake = control.active && getBrakePressure(control) >= 1;
-  return fullBrake && currentSpeed <= GAME.reverseEngageSpeed ? heldSeconds + dt : 0;
+  const fullBrake = control.active && getBrakePressure(control) >= 1 && !control.handbrake;
+  return fullBrake && currentSpeed < STOPPED_SPEED ? heldSeconds + dt : 0;
 }
 
 export interface SpeedPlanOptions {
@@ -61,6 +63,8 @@ export function createSpeedPlan(
   currentSpeed: number,
   { reverseHoldSeconds = 0, cruiseKph = null, lead = null }: SpeedPlanOptions = {},
 ): SpeedPlan {
+  const handbrake = planHandbrake(control);
+  if (handbrake) return handbrake;
   const reverse = planReverse(control, currentSpeed, reverseHoldSeconds);
   if (reverse) return reverse;
   // Adaptive cruise drives unless the driver brakes, loses tracking or (on
@@ -111,6 +115,24 @@ export function createSpeedPlan(
 }
 
 /**
+ * The handbrake stops the car whichever way it is rolling and overrides the
+ * accelerator and adaptive cruise. It locks only the rear wheels, so it stops
+ * more gently than the footbrake and does not light the brake lamps; pressing
+ * the footbrake as well brakes at full strength. Returns null when released.
+ */
+function planHandbrake(control: ControlInput): SpeedPlan | null {
+  if (!control.handbrake || !control.active) return null;
+  const footbrake = getBrakePressure(control);
+  return {
+    targetSpeed: 0,
+    acceleration: Math.max(GAME.handbrake, footbrake * GAME.serviceBrake),
+    autoBraking: false,
+    braking: footbrake > 0,
+    assistMessage: 'HANDBRAKE',
+  };
+}
+
+/**
  * Reverse gear: keep holding the full brake once the car has stopped (for the
  * input's delay) to back up. Driving on while rolling backward brakes to a
  * stop first, like an automatic gearbox. Returns null when the forward plan applies.
@@ -138,7 +160,8 @@ function planReverse(
         acceleration: GAME.serviceBrake,
         autoBraking: false,
         braking: true,
-        assistMessage: 'HOLD TO REVERSE',
+        // Count down so a driver who only wanted to stop can let go in time.
+        assistMessage: `STOPPED · REVERSE IN ${Math.ceil(gear.delaySeconds - reverseHoldSeconds)}`,
       };
     }
   }

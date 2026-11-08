@@ -776,17 +776,21 @@ export class VehicleAssets {
     if (glow) glow.intensity = braking ? 4.2 : 0;
   }
 
+  /** Rolls the wheels by the distance moved and steers the front pair; `rearLocked` holds the rear wheels still (handbrake). */
   updateWheelAnimation(
     car: THREE.Group,
     distanceMoved: number,
     steering: number,
     dt: number,
+    rearLocked = false,
   ): void {
     const wheels = car.userData.animatedWheels as AnimatedWheel[] | undefined;
     if (!wheels) return;
 
     for (const wheel of wheels) {
-      wheel.rollAngle = (wheel.rollAngle - distanceMoved / wheel.radius) % (Math.PI * 2);
+      if (!(rearLocked && !wheel.front)) {
+        wheel.rollAngle = (wheel.rollAngle - distanceMoved / wheel.radius) % (Math.PI * 2);
+      }
       wheel.roller.rotation[wheel.rollAxis] = wheel.baseRoll + wheel.rollAngle;
       if (wheel.front) {
         wheel.steeringPivot.rotation.y = THREE.MathUtils.damp(

@@ -11,6 +11,8 @@ const MUSIC_VOLUME = 0.17;
 /** Rain sits under the engine and music as a soft background patter. */
 const RAIN_VOLUME = 0.03;
 const HORN_VOLUME = 0.06;
+/** Tyre squeal at full slide. */
+const SKID_VOLUME = 0.05;
 /** A quick tap still honks for at least this long, in seconds. */
 const HORN_MIN_SECONDS = 0.14;
 
@@ -58,6 +60,8 @@ export class EngineSound {
   private gain: GainNode | null = null;
   private musicGain: GainNode | null = null;
   private rainGain: GainNode | null = null;
+  private skidGain: GainNode | null = null;
+  private skidLevel = 0;
   private horn: HornVoice | null = null;
   private musicTimer: number | null = null;
   private beat = 0;
@@ -92,6 +96,7 @@ export class EngineSound {
     this.musicGain.connect(this.master);
     this.oscillator.start();
     this.startRainLoop();
+    this.startSkidLoop();
     this.musicTimer = window.setInterval(() => this.scheduleMusicBeat(), 250);
   }
 
@@ -117,6 +122,7 @@ export class EngineSound {
     if (playing) void this.context?.resume();
     else this.setHorn(false);
     this.refreshRain();
+    this.refreshSkid();
   }
 
   setEnabled(enabled: boolean): void {
@@ -126,6 +132,13 @@ export class EngineSound {
     }
     if (!enabled) this.setHorn(false);
     this.refreshRain();
+    this.refreshSkid();
+  }
+
+  /** Sets how hard the tyres are sliding (0 is gripping), for the tyre squeal. */
+  setSkid(level: number): void {
+    this.skidLevel = Math.min(1, Math.max(0, level));
+    this.refreshSkid();
   }
 
   /** Sounds the horn for as long as the player holds it down. */
@@ -172,6 +185,42 @@ export class EngineSound {
     if (!this.context || !this.rainGain) return;
     const volume = this.enabled && this.playing ? this.rainIntensity * RAIN_VOLUME : 0;
     this.rainGain.gain.setTargetAtTime(volume, this.context.currentTime, 0.3);
+  }
+
+  /**
+   * Tyre squeal: noise through a narrow, resonant band, wobbled a little so
+   * it sounds like rubber scrubbing rather than a steady hiss.
+   */
+  private startSkidLoop(): void {
+    if (!this.context || !this.master) return;
+    const seconds = 1.5;
+    const frameCount = Math.floor(this.context.sampleRate * seconds);
+    const buffer = this.context.createBuffer(1, frameCount, this.context.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let index = 0; index < frameCount; index += 1) data[index] = Math.random() * 2 - 1;
+    const source = this.context.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    const squeal = this.context.createBiquadFilter();
+    squeal.type = 'bandpass';
+    squeal.frequency.value = 1150;
+    squeal.Q.value = 9;
+    const wobble = this.context.createOscillator();
+    wobble.frequency.value = 7;
+    const wobbleDepth = this.context.createGain();
+    wobbleDepth.gain.value = 140;
+    wobble.connect(wobbleDepth).connect(squeal.frequency);
+    this.skidGain = this.context.createGain();
+    this.skidGain.gain.value = 0;
+    source.connect(squeal).connect(this.skidGain).connect(this.master);
+    source.start();
+    wobble.start();
+  }
+
+  private refreshSkid(): void {
+    if (!this.context || !this.skidGain) return;
+    const volume = this.enabled && this.playing ? this.skidLevel * SKID_VOLUME : 0;
+    this.skidGain.gain.setTargetAtTime(volume, this.context.currentTime, 0.05);
   }
 
   private scheduleMusicBeat(): void {

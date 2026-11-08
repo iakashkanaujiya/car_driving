@@ -61,6 +61,35 @@ export function steeringYawRate(steering: number, speed: number): number {
 }
 
 /**
+ * With the handbrake on, the locked rear wheels lose their grip, so steering
+ * swings the nose round this much faster than the tyres alone allow.
+ */
+export const HANDBRAKE_YAW_BOOST = 1.8;
+/** Largest angle the nose may point away from the direction of travel in a slide. */
+export const MAX_SLIDE_ANGLE = 0.65;
+/** Below this speed (world units per second) the locked rear wheels no longer slide. */
+export const HANDBRAKE_SLIDE_MIN_SPEED = 3;
+
+/**
+ * Direction the car travels in, following where its nose points. With grip
+ * the two stay together; while the rear wheels slide the travel direction
+ * lags, so the back steps out until the angle reaches MAX_SLIDE_ANGLE.
+ */
+export function followTravelHeading(
+  travelHeading: number,
+  noseHeading: number,
+  sliding: boolean,
+  dt: number,
+): number {
+  const slip = Math.atan2(
+    Math.sin(noseHeading - travelHeading),
+    Math.cos(noseHeading - travelHeading),
+  );
+  const remaining = damp(slip, 0, sliding ? 1.6 : 7, dt);
+  return noseHeading - clamp(remaining, -MAX_SLIDE_ANGLE, MAX_SLIDE_ANGLE);
+}
+
+/**
  * Start of the stretch of road a scene system keeps built: `length` long, with
  * `behind` of it behind the view. `viewAlong` is the cosine between the view
  * and the road's forward direction, so turning around slides the stretch
